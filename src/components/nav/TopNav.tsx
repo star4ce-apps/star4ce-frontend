@@ -1,20 +1,32 @@
 'use client';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { getToken, clearSession } from '@/lib/auth';
 
 export default function TopNav() {
   const router = useRouter();
+  const pathname = usePathname();
   const [email, setEmail] = useState<string | null>(null);
 
+  // Re-check on route changes AND when window regains focus or storage changes
   useEffect(() => {
-    // using your current storage keys
-    const token = getToken();
-    const storedEmail = typeof window !== 'undefined' ? localStorage.getItem('email') : null;
-    if (token && storedEmail) setEmail(storedEmail);
-    else setEmail(null);
-  }, []);
+    const check = () => {
+      const token = getToken();
+      const storedEmail = typeof window !== 'undefined'
+        ? localStorage.getItem('email')
+        : null;
+      setEmail(token && storedEmail ? storedEmail : null);
+    };
+
+    check(); // run immediately
+    window.addEventListener('focus', check);
+    window.addEventListener('storage', check);
+    return () => {
+      window.removeEventListener('focus', check);
+      window.removeEventListener('storage', check);
+    };
+  }, [pathname]); // route change triggers a re-check
 
   function handleLogout() {
     clearSession();
@@ -41,7 +53,7 @@ export default function TopNav() {
               <span className="text-sm text-slate-700 hidden sm:inline">{email}</span>
               <button
                 onClick={handleLogout}
-                className="rounded bg-slate-800 px-3 py-1.5 text-white text-sm hover:bg-slate-900"
+                className="cursor-pointer rounded bg-slate-800 px-3 py-1.5 text-white text-sm hover:bg-slate-900"
               >
                 Logout
               </button>
@@ -49,7 +61,7 @@ export default function TopNav() {
           ) : (
             <Link
               href="/login"
-              className="rounded bg-blue-600 px-3 py-1.5 text-white text-sm hover:bg-blue-700"
+              className="cursor-pointer rounded bg-blue-600 px-3 py-1.5 text-white text-sm hover:bg-blue-700"
             >
               Login
             </Link>
