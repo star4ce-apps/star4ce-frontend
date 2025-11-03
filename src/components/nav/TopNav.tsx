@@ -1,34 +1,59 @@
-"use client";
-import Link from "next/link";
-import { usePathname } from "next/navigation";
-const links = [
-  { href: "/", label: "Home" },
-  { href: "/about", label: "About Us" },
-  { href: "/choose-star4ce", label: "Choose Star4ce" },
-  { href: "/case-studies", label: "Case Studies" },
-  { href: "/pricing", label: "Book Now" },
-];
+'use client';
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { getToken, clearSession } from '@/lib/auth';
 
 export default function TopNav() {
-  const pathname = usePathname();
+  const router = useRouter();
+  const [email, setEmail] = useState<string | null>(null);
+
+  useEffect(() => {
+    // using your current storage keys
+    const token = getToken();
+    const storedEmail = typeof window !== 'undefined' ? localStorage.getItem('email') : null;
+    if (token && storedEmail) setEmail(storedEmail);
+    else setEmail(null);
+  }, []);
+
+  function handleLogout() {
+    clearSession();
+    router.push('/login');
+  }
+
   return (
-    <header className="sticky top-0 z-40 bg-white/90 backdrop-blur border-b">
-      <div className="mx-auto max-w-7xl px-4 h-16 flex items-center justify-between">
-        <Link href="/" className="flex items-center gap-2 font-bold text-blue-900">
-          <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-blue-700 text-white font-black tracking-wide">★</span>
-          <span>Star4ce</span>
+    <header className="bg-white border-b">
+      <div className="mx-auto max-w-7xl flex items-center justify-between px-4 py-3 md:px-0">
+        <Link href="/" className="text-xl font-bold text-slate-900">
+          Star4ce
         </Link>
-        <nav className="hidden md:flex items-center gap-6 text-sm">
-          {links.map(l => (
+
+        <nav className="flex items-center gap-4">
+          <Link href="/choose-star4ce" className="text-slate-700 hover:text-slate-900">
+            Choose Star4ce
+          </Link>
+          <Link href="/case-studies" className="text-slate-700 hover:text-slate-900">
+            Case Studies
+          </Link>
+
+          {email ? (
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-slate-700 hidden sm:inline">{email}</span>
+              <button
+                onClick={handleLogout}
+                className="rounded bg-slate-800 px-3 py-1.5 text-white text-sm hover:bg-slate-900"
+              >
+                Logout
+              </button>
+            </div>
+          ) : (
             <Link
-              key={l.href}
-              href={l.href}
-              className={`hover:text-blue-700 ${pathname===l.href ? "text-blue-700 font-semibold" : "text-slate-700"}`}
+              href="/login"
+              className="rounded bg-blue-600 px-3 py-1.5 text-white text-sm hover:bg-blue-700"
             >
-              {l.label}
+              Login
             </Link>
-          ))}
-          <Link href="/login" className="text-slate-700 hover:text-blue-700">Login / Register</Link>
+          )}
         </nav>
       </div>
     </header>

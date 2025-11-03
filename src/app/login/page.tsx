@@ -1,53 +1,60 @@
 'use client';
 import { useState } from 'react';
-import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { loginApi, saveSession } from '@/lib/auth';
 
 export default function LoginPage() {
-  const [email, setEmail] = useState(''); 
+  const router = useRouter();
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
-  async function onSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setLoading(true);
-    // TODO: wire to /auth/login when backend is ready
-    alert(`(demo) logging in as ${email}`);
-    setLoading(false);
+    setError('');
+
+    try {
+      const data = await loginApi(email, password);
+
+      // ✅ Save token + email + role to local storage
+      saveSession(data);
+
+      router.push('/dashboard');
+    } catch (err: any) {
+      setError(err.message || 'Login failed');
+    }
   }
 
   return (
-    <div className="mx-auto max-w-md px-4 py-12">
-      <h1 className="text-2xl font-bold text-slate-900">Dealer Login</h1>
-      <p className="mt-2 text-slate-700">Manager/Corporate portal.</p>
+    <div className="max-w-md mx-auto p-6 bg-white shadow-md rounded-lg mt-20">
+      <h1 className="text-2xl font-bold mb-4">Login</h1>
 
-      <form onSubmit={onSubmit} className="mt-6 space-y-3">
+      {error && (
+        <p className="text-red-600 text-sm mb-3">{error}</p>
+      )}
+
+      <form onSubmit={handleSubmit}>
         <input
-          className="w-full rounded-xl border px-4 py-3"
-          placeholder="Email"
           type="email"
+          placeholder="Email"
+          className="border rounded w-full p-2 mb-3"
           value={email}
-          onChange={e=>setEmail(e.target.value)}
-          required
+          onChange={e => setEmail(e.target.value)}
         />
         <input
-          className="w-full rounded-xl border px-4 py-3"
-          placeholder="Password"
           type="password"
+          placeholder="Password"
+          className="border rounded w-full p-2 mb-3"
           value={password}
-          onChange={e=>setPassword(e.target.value)}
-          required
+          onChange={e => setPassword(e.target.value)}
         />
         <button
-          disabled={loading}
-          className="w-full rounded-xl bg-blue-700 px-5 py-3 font-semibold text-white hover:bg-blue-800 disabled:opacity-60"
+          type="submit"
+          className="bg-blue-600 text-white py-2 w-full rounded hover:bg-blue-700"
         >
-          {loading ? 'Signing in…' : 'Sign in'}
+          Login
         </button>
       </form>
-
-      <div className="mt-4 text-sm">
-        New here? <Link href="/register" className="text-blue-700 underline">Create an account</Link>
-      </div>
     </div>
   );
 }
