@@ -1,27 +1,16 @@
-import { apiGet } from "@/lib/api";
-
-export default async function Home() {
-  let health: any = null;
-  try {
-    health = await apiGet("/health");
-  } catch (e) {
-    health = { ok: false, error: (e as Error).message };
-  }
-
+export default function Home() {
   return (
-    <main className="min-h-screen p-8">
-      <h1 className="text-3xl font-bold">Star4ce</h1>
-      <p className="mt-2 text-slate-600">Next.js + Flask connection test</p>
-
-      <div className="mt-6 rounded-xl border p-4 bg-white shadow">
-        <h2 className="font-semibold mb-2">Backend Health</h2>
-        <pre className="text-sm bg-slate-50 p-3 rounded overflow-auto">
-{JSON.stringify(health, null, 2)}
-        </pre>
-        <p className="text-xs text-slate-500 mt-2">
-          API Base: {process.env.NEXT_PUBLIC_API_BASE}
-        </p>
+    <section className="mx-auto max-w-7xl px-4 py-14">
+      <h1 className="text-4xl md:text-5xl font-extrabold text-blue-900 leading-tight">
+        Better Hires. <span className="text-slate-900">Fewer Exits.</span>
+      </h1>
+      <p className="mt-4 max-w-2xl text-slate-600">
+        Star4ce equips leaders with the data and training to build—and retain—top talent.
+      </p>
+      <div className="mt-8 flex gap-3">
+        <a href="/pricing" className="bg-blue-700 text-white px-5 py-2.5 rounded-md">Book Now</a>
+        <a href="/choose-star4ce" className="px-5 py-2.5 rounded-md border">Learn More</a>
       </div>
-    </main>
+    </section>
   );
 }
