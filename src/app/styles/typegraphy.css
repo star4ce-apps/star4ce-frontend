@@ -1,0 +1,9 @@
+.text-title {
+  @apply text-slate-900 font-semibold;
+}
+.text-body {
+  @apply text-slate-800;
+}
+.text-muted {
+  @apply text-slate-700;
+}
