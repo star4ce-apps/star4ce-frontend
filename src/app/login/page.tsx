@@ -1,68 +1,12 @@
-'use client';
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { useSearchParams } from 'next/navigation';
-import { loginApi, saveSession } from '@/lib/auth';
+import { Suspense } from 'react';
+import LoginForm from './LoginForm';
 
-export default function LoginPage() {
-  const search = useSearchParams();
-  const expired = search.get('expired') === '1';
-  const router = useRouter();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+export const dynamic = 'force-dynamic'; // avoids unwanted static prerender
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setError('');
-
-    try {
-      const data = await loginApi(email, password);
-
-      // ✅ Save token + email + role to local storage
-      saveSession(data);
-
-      router.push('/dashboard');
-    } catch (err: any) {
-      setError(err.message || 'Login failed');
-    }
-  }
-
+export default function Page() {
   return (
-    <div className="max-w-md mx-auto p-6 bg-white shadow-md rounded-lg mt-20">
-      <h1 className="text-2xl font-bold mb-4">Login</h1>
-
-      {error && (
-        <p className="text-red-600 text-sm mb-3">{error}</p>
-      )}
-        {expired && (
-  <div className="mb-3 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-sm text-amber-800">
-    Your session expired. Please sign in again.
-  </div>
-)}
-
-      <form onSubmit={handleSubmit}>
-        <input
-          type="email"
-          placeholder="Email"
-          className="border rounded w-full p-2 mb-3"
-          value={email}
-          onChange={e => setEmail(e.target.value)}
-        />
-        <input
-          type="password"
-          placeholder="Password"
-          className="border rounded w-full p-2 mb-3"
-          value={password}
-          onChange={e => setPassword(e.target.value)}
-        />
-        <button
-          type="submit"
-          className="cursor-pointer bg-blue-600 text-white py-2 w-full rounded hover:bg-blue-700"
-        >
-          Login
-        </button>
-      </form>
-    </div>
+    <Suspense fallback={<div className="p-6">Loading…</div>}>
+      <LoginForm />
+    </Suspense>
   );
 }
