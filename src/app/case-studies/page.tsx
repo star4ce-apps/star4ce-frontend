@@ -1,10 +1,17 @@
-export default function AboutPage() {
+import CaseStudiesHero from '@/components/sections/case-studies/CaseStudiesHero';
+import ReasonsSection from '@/components/sections/case-studies/ReasonsSection';
+import CostLossSection from '@/components/sections/case-studies/CostLossSection';
+import AnnualizedLosses from '@/components/sections/case-studies/AnnualizedLosses';
+import SurveyMethodology from '@/components/sections/case-studies/SurveyMethodology';
+
+export default function CaseStudiesPage() {
   return (
-    <div className="mx-auto max-w-7xl px-4 py-10">
-      <h1 className="text-2xl font-bold text-slate-900">About Us</h1>
-      <p className="mt-2 text-slate-600">
-        Placeholder content. We’ll replace with the real section soon.
-      </p>
-    </div>
+    <>
+      <CaseStudiesHero />
+      <ReasonsSection />
+      <CostLossSection />
+      <AnnualizedLosses />
+      <SurveyMethodology />
+    </>
   );
 }
