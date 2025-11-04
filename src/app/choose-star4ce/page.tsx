@@ -1,10 +1,17 @@
-export default function AboutPage() {
+import AboutHero from '@/components/sections/about/AboutHero';
+import MissionVision from '@/components/sections/about/MissionVision';
+import CoreValues from '@/components/sections/about/CoreValues';
+import FounderCEO from '@/components/sections/about/FounderCEO';
+import Partnership from '@/components/sections/about/Partnership';
+
+export default function ChooseStar4cePage() {
   return (
-    <div className="mx-auto max-w-7xl px-4 py-10">
-      <h1 className="text-2xl font-bold text-slate-900">About Us</h1>
-      <p className="mt-2 text-slate-600">
-        Placeholder content. We’ll replace with the real section soon.
-      </p>
-    </div>
+    <>
+      <AboutHero />
+      <MissionVision />
+      <CoreValues />
+      <FounderCEO />
+      <Partnership />
+    </>
   );
 }
