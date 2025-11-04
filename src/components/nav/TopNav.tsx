@@ -4,15 +4,18 @@ import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
 import { getToken, clearSession } from '@/lib/auth';
 
-export default function TopNav() {
+export default function TopNav()
+{
   const router = useRouter();
   const pathname = usePathname();
   const [email, setEmail] = useState<string | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Re-check on route changes AND when window regains focus or storage changes
-  useEffect(() => {
-    const check = () => {
+  useEffect(() =>
+  {
+    const check = () =>
+    {
       const token = getToken();
       const storedEmail = typeof window !== 'undefined'
         ? localStorage.getItem('email')
@@ -23,13 +26,15 @@ export default function TopNav() {
     check(); // run immediately
     window.addEventListener('focus', check);
     window.addEventListener('storage', check);
-    return () => {
+    return () =>
+    {
       window.removeEventListener('focus', check);
       window.removeEventListener('storage', check);
     };
   }, [pathname]); // route change triggers a re-check
 
-  function handleLogout() {
+  function handleLogout()
+  {
     clearSession();
     router.push('/login');
   }
@@ -45,14 +50,41 @@ export default function TopNav() {
               <button className="cursor-pointer p-1 text-white">
                 <img src="/images/search.png" alt="Search" className="w-5 h-5" />
               </button>
-              <Link href="#" className="text-white hover:underline font-medium">Support</Link>
+
+              <Link href="/support" className="cursor-pointer text-white hover:underline font-medium">
+                Support
+              </Link>
+
               <button className="flex items-center gap-1 cursor-pointer text-white">
                 <img src="/images/language.png" alt="Language" className="w-5 h-5" />
               </button>
+
               <span className="text-white/70">|</span>
-              <Link href={email ? "/dashboard" : "/login"} className="text-white hover:underline">
-                {email ? email : "Login / Register"}
-              </Link>
+
+              {email ? (
+                <div className="flex items-center gap-3">
+                  <Link href="/dashboard" className="cursor-pointer text-white hover:underline">
+                    {email}
+                  </Link>
+                  <button
+                    onClick={handleLogout}
+                    className="cursor-pointer rounded bg-white/10 px-3 py-1 text-white text-sm hover:bg-white/20"
+                  >
+                    Logout
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-3">
+                  <Link href="/login" className="cursor-pointer text-white hover:underline">
+                    Login
+                  </Link>
+                  <span className="text-white/70">/</span>
+                  <Link href="/register" className="cursor-pointer text-white hover:underline">
+                    Register
+                  </Link>
+                </div>
+              )}
+
             </div>
           </div>
         </div>
@@ -67,19 +99,42 @@ export default function TopNav() {
             </Link>
 
             <nav className="hidden md:flex items-center gap-10">
-              <Link href="/#about" className="text-[#0B2E65] font-bold text-[0.95rem] hover:text-[#2c5aa0] transition-colors">
-                About Us
-              </Link>
-              <Link href="/choose-star4ce" className="text-[#0B2E65] font-bold text-[0.95rem] hover:text-[#2c5aa0] transition-colors">
-                Choose Star4ce
-              </Link>
-              <Link href="/case-studies" className="text-[#0B2E65] font-bold text-[0.95rem] hover:text-[#2c5aa0] transition-colors">
-                Case Studies
-              </Link>
-              <Link href="/survey" className="text-[#0B2E65] font-bold text-[0.95rem] hover:text-[#2c5aa0] transition-colors">
-                Survey
-              </Link>
-            </nav>
+  {email ? (
+    <>
+      <Link href="/dashboard" className="cursor-pointer text-[#0B2E65] font-bold text-[0.95rem] hover:text-[#2c5aa0] transition-colors">
+        Dashboard
+      </Link>
+      <Link href="/analytics" className="cursor-pointer text-[#0B2E65] font-bold text-[0.95rem] hover:text-[#2c5aa0] transition-colors">
+        Analytics
+      </Link>
+      <Link href="/survey" className="cursor-pointer text-[#0B2E65] font-bold text-[0.95rem] hover:text-[#2c5aa0] transition-colors">
+        Survey
+      </Link>
+      <Link href="/standings" className="cursor-pointer text-[#0B2E65] font-bold text-[0.95rem] hover:text-[#2c5aa0] transition-colors">
+        Standings
+      </Link>
+      <Link href="/settings" className="cursor-pointer text-[#0B2E65] font-bold text-[0.95rem] hover:text-[#2c5aa0] transition-colors">
+        Settings
+      </Link>
+    </>
+  ) : (
+    <>
+      <Link href="/#about" className="cursor-pointer text-[#0B2E65] font-bold text-[0.95rem] hover:text-[#2c5aa0] transition-colors">
+        About Us
+      </Link>
+      <Link href="/choose-star4ce" className="cursor-pointer text-[#0B2E65] font-bold text-[0.95rem] hover:text-[#2c5aa0] transition-colors">
+        Choose Star4ce
+      </Link>
+      <Link href="/case-studies" className="cursor-pointer text-[#0B2E65] font-bold text-[0.95rem] hover:text-[#2c5aa0] transition-colors">
+        Case Studies
+      </Link>
+      <Link href="/pricing" className="cursor-pointer text-[#0B2E65] font-bold text-[0.95rem] hover:text-[#2c5aa0] transition-colors">
+        Pricing
+      </Link>
+    </>
+  )}
+</nav>
+
 
             <button
               className="md:hidden text-[#0B2E65] text-2xl font-bold p-2"
@@ -89,11 +144,12 @@ export default function TopNav() {
             </button>
 
             <Link
-              href="#contact"
-              className="hidden md:block bg-[#e74c3c] text-white px-5 py-2.5 rounded uppercase text-sm font-bold hover:bg-[#c0392b] transition-all hover:-translate-y-0.5"
-            >
-              BOOK NOW
-            </Link>
+  href="/pricing"
+  className="hidden md:block cursor-pointer bg-[#e74c3c] text-white px-5 py-2.5 rounded uppercase text-sm font-bold hover:bg-[#c0392b] transition-all hover:-translate-y-0.5"
+>
+  BOOK NOW
+</Link>
+
 
             {/* Mobile Navigation */}
             {mobileMenuOpen && (
