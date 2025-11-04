@@ -1,14 +1,18 @@
-const BASE = process.env.NEXT_PUBLIC_API_BASE ?? "";
+'use client';
 
-export type LoginResp = { token: string; role: string; email: string };
+import HubSidebar from '@/components/sidebar/HubSidebar';
 
-export async function loginApi(email: string, password: string): Promise<LoginResp> {
-  const res = await fetch(`${BASE}/auth/login`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    cache: "no-store",
-    body: JSON.stringify({ email, password }),
-  });
-  if (!res.ok) throw new Error(await res.text());
-  return res.json();
+export default function StandingsPage() {
+  return (
+    <div className="mx-auto max-w-7xl px-4 py-8 md:px-0">
+      <div className="md:flex md:gap-6">
+        {/* Optional sidebar */}
+        {/* <HubSidebar /> */}
+        <section className="flex-1 bg-white border rounded-lg p-6">
+          <h1 className="text-xl font-semibold text-slate-900">Dealership Standings</h1>
+          <p className="mt-2 text-slate-600">Coming soon.</p>
+        </section>
+      </div>
+    </div>
+  );
 }
