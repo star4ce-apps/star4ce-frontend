@@ -1,11 +1,13 @@
 'use client';
 import { useEffect, useState } from 'react';
-import RequireAuth from '@/components/RequireAuth';
 import HubSidebar from '@/components/sidebar/HubSidebar';
+import RequireAuth from '@/components/layout/RequireAuth';
 
 export default function Dashboard() {
   const [email, setEmail] = useState<string | null>(null);
-  useEffect(() => setEmail(localStorage.getItem('email')), []);
+  useEffect(() => {
+    setEmail(localStorage.getItem('email'));
+  }, []);
 
   return (
     <RequireAuth>
