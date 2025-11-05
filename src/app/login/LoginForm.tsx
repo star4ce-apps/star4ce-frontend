@@ -62,6 +62,10 @@ export default function LoginForm() {
           Login
         </button>
       </form>
+      <p className="mt-4 text-sm text-slate-600">
+  Don’t have an account? <a href="/register" className="text-blue-700 underline">Create one</a>
+</p>
+
     </div>
   );
 }
