@@ -119,17 +119,14 @@ export default function TopNav()
                 </>
               ) : (
                 <>
-                  <Link href="/#about" className="cursor-pointer text-[#0B2E65] font-bold text-[0.95rem] hover:text-[#2c5aa0] transition-colors">
-                    About Us
-                  </Link>
                   <Link href="/choose-star4ce" className="cursor-pointer text-[#0B2E65] font-bold text-[0.95rem] hover:text-[#2c5aa0] transition-colors">
                     Choose Star4ce
                   </Link>
                   <Link href="/case-studies" className="cursor-pointer text-[#0B2E65] font-bold text-[0.95rem] hover:text-[#2c5aa0] transition-colors">
                     Case Studies
                   </Link>
-                  <Link href="/pricing" className="cursor-pointer text-[#0B2E65] font-bold text-[0.95rem] hover:text-[#2c5aa0] transition-colors">
-                    Pricing
+                  <Link href="/survey" className="cursor-pointer text-[#0B2E65] font-bold text-[0.95rem] hover:text-[#2c5aa0] transition-colors">
+                    Survey
                   </Link>
                 </>
               )}
@@ -155,9 +152,6 @@ export default function TopNav()
             {mobileMenuOpen && (
               <div className="absolute top-full left-0 right-0 bg-white shadow-lg border-t border-gray-200 md:hidden">
                 <div className="flex flex-col py-4">
-                  <Link href="/#about" className="px-8 py-4 text-[#0B2E65] font-bold hover:bg-gray-50" onClick={() => setMobileMenuOpen(false)}>
-                    About Us
-                  </Link>
                   <Link href="/choose-star4ce" className="px-8 py-4 text-[#0B2E65] font-bold hover:bg-gray-50" onClick={() => setMobileMenuOpen(false)}>
                     Choose Star4ce
                   </Link>
@@ -169,7 +163,7 @@ export default function TopNav()
                   </Link>
                   <div className="px-8 py-4">
                     <Link
-                      href="#contact"
+                      href="/pricing"
                       className="block bg-[#e74c3c] text-white px-5 py-2.5 rounded text-center uppercase text-sm font-bold hover:bg-[#c0392b]"
                       onClick={() => setMobileMenuOpen(false)}
                     >

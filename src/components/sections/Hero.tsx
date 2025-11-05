@@ -1,4 +1,5 @@
 'use client';
+import Link from 'next/link';
 
 export default function Hero() {
   return (
@@ -25,12 +26,12 @@ export default function Hero() {
           <p className="text-lg md:text-xl mb-8 text-white max-w-[600px] mx-auto">
             Get your people analytics right the first time and maximize 3X dealership productivity faster than ever before. We are experts.
           </p>
-          <button
-            disabled
-            className="inline-block bg-gray-400 text-white px-8 py-4 rounded-lg text-lg font-bold cursor-not-allowed opacity-60"
+          <Link
+            href="/survey"
+            className="inline-block bg-[#e74c3c] text-white px-8 py-4 rounded-lg text-lg font-bold hover:bg-[#c0392b] transition-colors"
           >
             Take Survey
-          </button>
+          </Link>
         </div>
       </div>
     </section>
