@@ -7,7 +7,7 @@ export default function FounderCEO() {
           <div className="flex justify-center">
             <img 
               src="/images/MAtt Seamark.jpg" 
-              alt="Matt Seamark, Founder & CEO" 
+              alt="Matt Seamark, Founder &amp; CEO" 
               className="w-64 h-64 rounded-full object-cover"
             />
           </div>
@@ -15,14 +15,14 @@ export default function FounderCEO() {
           {/* Text Content */}
           <div>
             <h2 className="text-3xl md:text-4xl font-bold text-[#0B2E65] mb-6">
-              Our Founder & CEO of Star4ce
+              Our Founder &amp; CEO of Star4ce
             </h2>
             <div className="space-y-4 text-[#0B2E65] leading-relaxed">
               <p>
-                With over 30 years in the automotive industry, Matt Seamark brings unmatched expertise in sales, leadership, and dealership operations. As the founder of Smart4ce, the nation's top automotive recruiting firm, he's helped dealerships find top performing talent across all departments.
+                With over 30 years in the automotive industry, Matt Seamark brings unmatched expertise in sales, leadership, and dealership operations. As the founder of Smart4ce, the nation&rsquo;s top automotive recruiting firm, he&rsquo;s helped dealerships find top performing talent across all departments.
               </p>
               <p>
-                Now with Star4ce, Matt is focused on solving one of the industry's biggest challenges - <strong>employee turnover</strong>. He aims to empower dealerships with tools and insights that streamline hiring, improve retention, and build stronger teams.
+                Now with Star4ce, Matt is focused on solving one of the industry&rsquo;s biggest challenges &mdash; <strong>employee turnover</strong>. He aims to empower dealerships with tools and insights that streamline hiring, improve retention, and build stronger teams.
               </p>
             </div>
           </div>
@@ -31,4 +31,3 @@ export default function FounderCEO() {
     </section>
   );
 }
-

@@ -1,6 +1,7 @@
 import Link from 'next/link';
 
-export default function Footer() {
+export default function Footer()
+{
   return (
     <footer id="contact" className="bg-[#0B2E65] text-white pt-16 pb-8">
       <div className="max-w-[1200px] mx-auto px-5">

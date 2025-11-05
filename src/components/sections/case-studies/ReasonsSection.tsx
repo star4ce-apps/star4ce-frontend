@@ -1,9 +1,13 @@
+import Image from "next/image";
+
 export default function ReasonsSection() {
   return (
     <section className="bg-[#E6E6E6] py-20">
       <div className="max-w-[1200px] mx-auto px-5">
-        <h2 className="text-3xl md:text-4xl font-bold text-[#0B2E65] mb-12">Reasons for High Turnover</h2>
-        
+        <h2 className="text-3xl md:text-4xl font-bold text-[#0B2E65] mb-12">
+          Reasons for High Turnover
+        </h2>
+
         <div className="space-y-10">
           <div>
             <h3 className="text-xl md:text-2xl font-bold text-[#0B2E65] mb-4">
@@ -45,13 +49,16 @@ export default function ReasonsSection() {
             <p className="text-[#0B2E65] mb-6 text-base leading-relaxed ml-4">
               Commission-based roles and fluctuating earnings create additional challenges for retention.
             </p>
+
             <div>
               <h4 className="text-lg md:text-xl font-bold text-[#0B2E65] mb-4">
                 Annualized Turnover by Position: Luxury vs Non-Luxury Dealerships
               </h4>
-              <img 
-                src="/images/luxuryxnon.png" 
-                alt="Annualized Turnover by Position: Luxury vs Non-Luxury Dealerships" 
+              <Image
+                src="/images/luxuryxnon.png"
+                alt="Annualized Turnover by Position: Luxury vs Non-Luxury Dealerships"
+                width={1000}
+                height={600}
                 className="w-full h-auto object-contain rounded-lg"
               />
             </div>
@@ -72,4 +79,3 @@ export default function ReasonsSection() {
     </section>
   );
 }
-

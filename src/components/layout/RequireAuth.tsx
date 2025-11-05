@@ -16,15 +16,21 @@ export default function RequireAuth({ children, verify = true }: Props) {
       return;
     }
 
-    if (!verify) { setOk(true); return; }
+    if (!verify) {
+      setOk(true);
+      return;
+    }
 
-    // Optional: server verification
-    (async () => {
+    // Optional server verification
+    const doVerify = async () => {
       try {
-        const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE}/auth/me`, {
-          headers: { Authorization: `Bearer ${token}` },
-          cache: 'no-store',
-        });
+        const res = await fetch(
+          `${process.env.NEXT_PUBLIC_API_BASE}/auth/me`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+            cache: 'no-store',
+          }
+        );
         const data = await res.json();
         if (!res.ok || !data?.ok) throw new Error('bad token');
         setOk(true);
@@ -32,8 +38,10 @@ export default function RequireAuth({ children, verify = true }: Props) {
         clearSession();
         router.replace('/login?expired=1');
       }
-    })();
-  }, [router]);
+    };
+
+    doVerify();
+  }, [router, verify]);
 
   if (!ok) {
     return (
@@ -42,5 +50,6 @@ export default function RequireAuth({ children, verify = true }: Props) {
       </div>
     );
   }
+
   return <>{children}</>;
 }

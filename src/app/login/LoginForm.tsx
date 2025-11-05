@@ -1,3 +1,4 @@
+// src/app/login/LoginForm.tsx
 'use client';
 import { useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -12,15 +13,16 @@ export default function LoginForm() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError('');
     try {
       const data = await loginApi(email, password);
       saveSession(data);
       router.push('/dashboard');
-    } catch (err: any) {
-      setError(err.message || 'Login failed');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Login failed';
+      setError(msg);
     }
   }
 

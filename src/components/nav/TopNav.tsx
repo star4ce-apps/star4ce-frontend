@@ -99,41 +99,41 @@ export default function TopNav()
             </Link>
 
             <nav className="hidden md:flex items-center gap-10">
-  {email ? (
-    <>
-      <Link href="/dashboard" className="cursor-pointer text-[#0B2E65] font-bold text-[0.95rem] hover:text-[#2c5aa0] transition-colors">
-        Dashboard
-      </Link>
-      <Link href="/analytics" className="cursor-pointer text-[#0B2E65] font-bold text-[0.95rem] hover:text-[#2c5aa0] transition-colors">
-        Analytics
-      </Link>
-      <Link href="/survey" className="cursor-pointer text-[#0B2E65] font-bold text-[0.95rem] hover:text-[#2c5aa0] transition-colors">
-        Survey
-      </Link>
-      <Link href="/standings" className="cursor-pointer text-[#0B2E65] font-bold text-[0.95rem] hover:text-[#2c5aa0] transition-colors">
-        Standings
-      </Link>
-      <Link href="/settings" className="cursor-pointer text-[#0B2E65] font-bold text-[0.95rem] hover:text-[#2c5aa0] transition-colors">
-        Settings
-      </Link>
-    </>
-  ) : (
-    <>
-      <Link href="/#about" className="cursor-pointer text-[#0B2E65] font-bold text-[0.95rem] hover:text-[#2c5aa0] transition-colors">
-        About Us
-      </Link>
-      <Link href="/choose-star4ce" className="cursor-pointer text-[#0B2E65] font-bold text-[0.95rem] hover:text-[#2c5aa0] transition-colors">
-        Choose Star4ce
-      </Link>
-      <Link href="/case-studies" className="cursor-pointer text-[#0B2E65] font-bold text-[0.95rem] hover:text-[#2c5aa0] transition-colors">
-        Case Studies
-      </Link>
-      <Link href="/pricing" className="cursor-pointer text-[#0B2E65] font-bold text-[0.95rem] hover:text-[#2c5aa0] transition-colors">
-        Pricing
-      </Link>
-    </>
-  )}
-</nav>
+              {email ? (
+                <>
+                  <Link href="/dashboard" className="cursor-pointer text-[#0B2E65] font-bold text-[0.95rem] hover:text-[#2c5aa0] transition-colors">
+                    Dashboard
+                  </Link>
+                  <Link href="/analytics" className="cursor-pointer text-[#0B2E65] font-bold text-[0.95rem] hover:text-[#2c5aa0] transition-colors">
+                    Analytics
+                  </Link>
+                  <Link href="/survey" className="cursor-pointer text-[#0B2E65] font-bold text-[0.95rem] hover:text-[#2c5aa0] transition-colors">
+                    Survey
+                  </Link>
+                  <Link href="/standings" className="cursor-pointer text-[#0B2E65] font-bold text-[0.95rem] hover:text-[#2c5aa0] transition-colors">
+                    Standings
+                  </Link>
+                  <Link href="/settings" className="cursor-pointer text-[#0B2E65] font-bold text-[0.95rem] hover:text-[#2c5aa0] transition-colors">
+                    Settings
+                  </Link>
+                </>
+              ) : (
+                <>
+                  <Link href="/#about" className="cursor-pointer text-[#0B2E65] font-bold text-[0.95rem] hover:text-[#2c5aa0] transition-colors">
+                    About Us
+                  </Link>
+                  <Link href="/choose-star4ce" className="cursor-pointer text-[#0B2E65] font-bold text-[0.95rem] hover:text-[#2c5aa0] transition-colors">
+                    Choose Star4ce
+                  </Link>
+                  <Link href="/case-studies" className="cursor-pointer text-[#0B2E65] font-bold text-[0.95rem] hover:text-[#2c5aa0] transition-colors">
+                    Case Studies
+                  </Link>
+                  <Link href="/pricing" className="cursor-pointer text-[#0B2E65] font-bold text-[0.95rem] hover:text-[#2c5aa0] transition-colors">
+                    Pricing
+                  </Link>
+                </>
+              )}
+            </nav>
 
 
             <button
@@ -144,11 +144,11 @@ export default function TopNav()
             </button>
 
             <Link
-  href="/pricing"
-  className="hidden md:block cursor-pointer bg-[#e74c3c] text-white px-5 py-2.5 rounded uppercase text-sm font-bold hover:bg-[#c0392b] transition-all hover:-translate-y-0.5"
->
-  BOOK NOW
-</Link>
+              href="/pricing"
+              className="hidden md:block cursor-pointer bg-[#e74c3c] text-white px-5 py-2.5 rounded uppercase text-sm font-bold hover:bg-[#c0392b] transition-all hover:-translate-y-0.5"
+            >
+              BOOK NOW
+            </Link>
 
 
             {/* Mobile Navigation */}
