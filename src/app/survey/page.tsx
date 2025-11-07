@@ -118,7 +118,7 @@ export default function SurveyPage() {
     setTimeout(() => {
       setLoading(false);
       setCurrentStep(5); // Go to success page
-    }, 1000);
+    }, 1500);
   }
 
   function getCurrentStepNumber() {

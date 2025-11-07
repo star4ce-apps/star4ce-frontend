@@ -308,6 +308,7 @@ export default function RegisterPage() {
                     <input
                       type="email"
                       placeholder="Work Email"
+                      autoComplete="email"
                       className="w-full px-3 py-2 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
@@ -318,6 +319,7 @@ export default function RegisterPage() {
                     <input
                       type="password"
                       placeholder="Password (min 8 chars)"
+                      autoComplete="new-password"
                       className="w-full px-3 py-2 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
@@ -329,6 +331,7 @@ export default function RegisterPage() {
                     <input
                       type="password"
                       placeholder="Confirm Password"
+                      autoComplete="new-password"
                       className="w-full px-3 py-2 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none"
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}

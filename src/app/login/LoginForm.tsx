@@ -90,7 +90,8 @@ export default function LoginForm() {
               <div>
                 <input
                   type="email"
-                  placeholder="Username"
+                  placeholder="Email"
+                  autoComplete="email"
                   className="w-full px-4 py-3 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none"
                   value={email}
                   onChange={e => setEmail(e.target.value)}
@@ -103,6 +104,7 @@ export default function LoginForm() {
                 <input
                   type="password"
                   placeholder="Password"
+                  autoComplete="current-password"
                   className="w-full px-4 py-3 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none"
                   value={password}
                   onChange={e => setPassword(e.target.value)}
@@ -112,7 +114,7 @@ export default function LoginForm() {
 
               {/* Forgot Password Link */}
               <div className="text-right">
-                <Link href="#" className="text-[#0B2E65] text-sm hover:underline">
+                <Link href="/support" className="text-[#0B2E65] text-sm hover:underline">
                   Forgot your login information?
                 </Link>
               </div>

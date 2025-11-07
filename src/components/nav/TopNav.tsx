@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
 import { getToken, clearSession } from '@/lib/auth';
+import Image from "next/image";
 
 export default function TopNav()
 {
@@ -95,7 +96,13 @@ export default function TopNav()
         <div className="max-w-[1200px] mx-auto px-5">
           <div className="flex justify-between items-center">
             <Link href="/" className="flex items-center hover:scale-[1.02] transition-transform">
-              <img src="/images/Logo 4.png" alt="Star4ce" className="h-12 md:h-[50px] w-auto" />
+              <Image
+                src="/images/Logo 4.png"
+                alt="Star4ce"
+                width={200}
+                height={80}
+                className="h-12 md:h-[50px] w-auto"
+              />
             </Link>
 
             <nav className="hidden md:flex items-center gap-10">
