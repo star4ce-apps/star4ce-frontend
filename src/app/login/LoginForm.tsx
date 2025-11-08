@@ -14,9 +14,12 @@ export default function LoginForm() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
 
+  const [loading, setLoading] = useState(false);
+
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError('');
+    setLoading(true);              // start loading
     try {
       const data = await loginApi(email, password);
       saveSession(data);
@@ -24,6 +27,8 @@ export default function LoginForm() {
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Login failed';
       setError(msg);
+    } finally {
+      setLoading(false);           // stop loading
     }
   }
 
@@ -122,9 +127,10 @@ export default function LoginForm() {
               {/* Sign In Button */}
               <button
                 type="submit"
-                className="hover:cursor-pointer w-full bg-[#0B2E65] text-white py-3 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-colors"
+                disabled={loading}
+                className="w-full bg-[#0B2E65] text-white py-3 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                Sign in
+                {loading ? 'Signing in...' : 'Sign in'}
               </button>
 
               {/* Register Link */}

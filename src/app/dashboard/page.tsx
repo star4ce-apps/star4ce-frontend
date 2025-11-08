@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import HubSidebar from '@/components/sidebar/HubSidebar';
-import RequireAuth from '@/components/layout/RequireAuth';
+import RequireAuth from '@/components/auth/RequireAuth';
 import { getJson } from '@/lib/http';
 
 export default function Dashboard() {
