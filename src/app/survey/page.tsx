@@ -1,6 +1,7 @@
 'use client';
 import { useState } from 'react';
 import Link from 'next/link';
+import { API_BASE } from '@/lib/auth';
 
 export default function SurveyPage() {
   const [currentStep, setCurrentStep] = useState(0); // 0 = intro, then steps
@@ -101,24 +102,45 @@ export default function SurveyPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
-    // TODO: Submit survey data to backend
-    console.log({
-      accessCode,
-      employeeStatus,
-      role,
-      satisfactionAnswers,
-      trainingAnswers,
-      terminationReason,
-      terminationOther,
-      leaveReason,
-      leaveOther,
-      additionalFeedback,
-    });
-    // Simulate API call
-    setTimeout(() => {
+
+    try {
+      const payload = {
+        access_code: accessCode,
+        employee_status: employeeStatus,
+        role,
+        satisfaction_answers: satisfactionAnswers,
+        training_answers: employeeStatus === 'newly-hired' ? trainingAnswers : {},
+        termination_reason: employeeStatus === 'termination' ? terminationReason : null,
+        termination_other: employeeStatus === 'termination' ? terminationOther : null,
+        leave_reason: employeeStatus === 'leave' ? leaveReason : null,
+        leave_other: employeeStatus === 'leave' ? leaveOther : null,
+        additional_feedback: additionalFeedback || null,
+      };
+
+      const res = await fetch(`${API_BASE}/survey/submit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Could not submit survey');
+      }
+
+      // success – go to Thank You step
+      setCurrentStep(5);
+    } catch (err: unknown) {
+      console.error('Survey submission failed', err);
+      alert(
+        err instanceof Error
+          ? err.message
+          : 'Sorry, something went wrong submitting your survey.'
+      );
+    } finally {
       setLoading(false);
-      setCurrentStep(5); // Go to success page
-    }, 1500);
+    }
   }
 
   function getCurrentStepNumber() {

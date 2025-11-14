@@ -15,11 +15,11 @@ export async function loginApi(email: string, password: string) {
   return res.json() as Promise<{ token: string; role: string; email: string }>;
 }
 
-export async function registerApi(email: string, password: string) {
+export async function registerApi(email: string, password: string, role: string) {
   const res = await fetch(`${API_BASE}/auth/register`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ email, password, role }),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));

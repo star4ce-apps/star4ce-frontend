@@ -64,9 +64,9 @@ export default function RegisterPage() {
     setLoading(true);
     try {
       // Backend only uses email/password today; keep sending other fields for future use
-      const data = await registerApi(email, password);
+      const data = await registerApi(email, password, role);
       saveSession({ token: data.token, email: data.email, role: data.role });
-      router.push('/dashboard');
+      router.push(`/verify?email=${encodeURIComponent(email)}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Register failed');
     } finally {

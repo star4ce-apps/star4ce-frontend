@@ -25,11 +25,24 @@ export default function LoginForm() {
       saveSession(data);
       router.push('/dashboard');
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Login failed';
+      let msg = 'Login failed';
+
+      if (err instanceof Error) {
+        if (err.message === 'unverified') {
+          // Special case: backend said this user is not verified yet
+          msg = 'Please verify your email before signing in.';
+          // Send them straight to the verify page with their email filled in
+          router.push(`/verify?email=${encodeURIComponent(email)}`);
+        } else {
+          msg = err.message;
+        }
+      }
+
       setError(msg);
-    } finally {
+  } finally {
       setLoading(false);           // stop loading
-    }
+  }
+
   }
 
   return (
@@ -119,7 +132,7 @@ export default function LoginForm() {
 
               {/* Forgot Password Link */}
               <div className="text-right">
-                <Link href="/support" className="text-[#0B2E65] text-sm hover:underline">
+                <Link href="/forgot" className="text-[#0B2E65] text-sm hover:underline">
                   Forgot your login information?
                 </Link>
               </div>
@@ -128,7 +141,7 @@ export default function LoginForm() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-[#0B2E65] text-white py-3 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                className="hover:cursor-pointer w-full bg-[#0B2E65] text-white py-3 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 {loading ? 'Signing in...' : 'Sign in'}
               </button>
