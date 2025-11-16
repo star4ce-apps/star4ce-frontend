@@ -1,52 +1,67 @@
 'use client';
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { getToken, clearSession } from '@/lib/auth';
 
-type Props = { children: React.ReactNode; verify?: boolean };
+import { ReactNode, useEffect, useState } from 'react';
+import { useRouter, usePathname } from 'next/navigation';
+import { getToken, clearSession, API_BASE } from '@/lib/auth';
 
-export default function RequireAuth({ children, verify = true }: Props) {
+type Props = {
+  children: ReactNode;
+};
+
+export default function RequireAuth({ children }: Props) {
   const router = useRouter();
-  const [ok, setOk] = useState(false);
+  const pathname = usePathname();
+  const [checking, setChecking] = useState(true);
 
   useEffect(() => {
-    const token = getToken();
-    if (!token) {
-      router.replace('/login?expired=1');
-      return;
-    }
+    let cancelled = false;
 
-    if (!verify) {
-      setOk(true);
-      return;
-    }
+    async function checkAuth() {
+      const token = getToken();
 
-    // Optional server verification
-    const doVerify = async () => {
+      // No token at all -> send to login
+      if (!token) {
+        clearSession();
+        router.replace('/login?expired=1');
+        return;
+      }
+
       try {
-        const res = await fetch(
-          `${process.env.NEXT_PUBLIC_API_BASE}/auth/me`,
-          {
-            headers: { Authorization: `Bearer ${token}` },
-            cache: 'no-store',
-          }
-        );
-        const data = await res.json();
-        if (!res.ok || !data?.ok) throw new Error('bad token');
-        setOk(true);
-      } catch {
+        // IMPORTANT: call backend using API_BASE from auth.ts
+        const res = await fetch(`${API_BASE}/auth/me`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        if (!res.ok) {
+          // Token invalid / unverified / expired -> logout
+          clearSession();
+          router.replace('/login?expired=1');
+          return;
+        }
+
+        if (!cancelled) {
+          setChecking(false);
+        }
+      } catch (err) {
+        // Network error -> treat as logged out for now
         clearSession();
         router.replace('/login?expired=1');
       }
+    }
+
+    checkAuth();
+
+    return () => {
+      cancelled = true;
     };
+  }, [router, pathname]);
 
-    doVerify();
-  }, [router, verify]);
-
-  if (!ok) {
+  if (checking) {
     return (
-      <div className="mt-24 flex items-center justify-center text-slate-600">
-        Checking your session…
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <p className="text-slate-600 text-sm">Checking your session…</p>
       </div>
     );
   }
