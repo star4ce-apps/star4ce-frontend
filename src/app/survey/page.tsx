@@ -16,6 +16,9 @@ export default function SurveyPage() {
   const [leaveOther, setLeaveOther] = useState('');
   const [additionalFeedback, setAdditionalFeedback] = useState('');
   const [loading, setLoading] = useState(false);
+  const [codeChecking, setCodeChecking] = useState(false);
+  const [codeError, setCodeError] = useState('');
+
 
   const roles = [
     'Sales Department',
@@ -88,6 +91,38 @@ export default function SurveyPage() {
     }
   }
 
+  async function handleStartSurvey() {
+  setCodeError('');
+
+  if (!accessCode.trim()) {
+    setCodeError('Please enter an access code');
+    return;
+  }
+
+  setCodeChecking(true);
+  try {
+    const res = await fetch(`${API_BASE}/survey/validate-code`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: accessCode }),
+    });
+
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok || !data.valid) {
+      throw new Error(data.error || 'Invalid or expired access code');
+    }
+
+    // If we get here, the code is valid → move to next step
+    setCurrentStep(1);
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Failed to validate access code';
+    setCodeError(msg);
+  } finally {
+    setCodeChecking(false);
+  }
+}
+
   function prevStep() {
     if (currentStep > 0) {
       // If going back from feedback and "none" was selected, skip conditional step
@@ -109,35 +144,34 @@ export default function SurveyPage() {
         employee_status: employeeStatus,
         role,
         satisfaction_answers: satisfactionAnswers,
-        training_answers: employeeStatus === 'newly-hired' ? trainingAnswers : {},
-        termination_reason: employeeStatus === 'termination' ? terminationReason : null,
-        termination_other: employeeStatus === 'termination' ? terminationOther : null,
-        leave_reason: employeeStatus === 'leave' ? leaveReason : null,
-        leave_other: employeeStatus === 'leave' ? leaveOther : null,
+        training_answers: trainingAnswers,
+        termination_reason: terminationReason || null,
+        termination_other: terminationOther || null,
+        leave_reason: leaveReason || null,
+        leave_other: leaveOther || null,
         additional_feedback: additionalFeedback || null,
       };
 
       const res = await fetch(`${API_BASE}/survey/submit`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify(payload),
       });
 
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
-        throw new Error(data.error || 'Could not submit survey');
+        // backend sends { error: "..." }
+        throw new Error(data.error || 'Error submitting survey');
       }
 
-      // success – go to Thank You step
+      // Success – show thank-you screen
       setCurrentStep(5);
     } catch (err: unknown) {
-      console.error('Survey submission failed', err);
-      alert(
-        err instanceof Error
-          ? err.message
-          : 'Sorry, something went wrong submitting your survey.'
-      );
+      const msg = err instanceof Error ? err.message : 'Failed to submit survey';
+      alert(msg); // simple for now
     } finally {
       setLoading(false);
     }
@@ -233,6 +267,7 @@ export default function SurveyPage() {
                     <p className="font-semibold text-[#0B2E65]">Your responses are completely anonymous.</p>
                   </div>
                 </div>
+
                 <div>
                   <label className="block text-gray-700 text-sm font-medium mb-2">
                     Access Code
@@ -242,17 +277,28 @@ export default function SurveyPage() {
                     placeholder="Enter your access code"
                     className="w-full px-3 py-2 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none"
                     value={accessCode}
-                    onChange={(e) => setAccessCode(e.target.value)}
+                    onChange={(e) => {
+                      setAccessCode(e.target.value.toUpperCase());
+                      setCodeError('');
+                    }}
                     required
                   />
-                  <p className="text-xs text-gray-600 mt-1">This code links your response to your designated dealership.</p>
+                  <p className="text-xs text-gray-600 mt-1">
+                    This code links your response to your designated dealership.
+                  </p>
+                  {codeError && (
+                    <p className="text-xs text-red-600 mt-1">
+                      {codeError}
+                    </p>
+                  )}
                 </div>
+
                 <button
-                  onClick={nextStep}
-                  disabled={!accessCode}
-                  className="w-full bg-[#0B2E65] text-white py-3 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                  onClick={handleStartSurvey}
+                  disabled={!accessCode || codeChecking}
+                  className="hover:cursor-pointer w-full bg-[#0B2E65] text-white py-3 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  Start Survey
+                  {codeChecking ? 'Checking code…' : 'Start Survey'}
                 </button>
               </div>
             )}
@@ -292,7 +338,7 @@ export default function SurveyPage() {
                     What is your role?
                   </label>
                   <select
-                    className="w-full px-3 py-2 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none"
+                    className="hover:cursor-pointer w-full px-3 py-2 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none"
                     value={role}
                     onChange={(e) => setRole(e.target.value)}
                     required
@@ -310,13 +356,13 @@ export default function SurveyPage() {
                   <button
                     type="button"
                     onClick={prevStep}
-                    className="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
+                    className="hover:cursor-pointer flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
                   >
                     Back
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 bg-[#0B2E65] text-white py-2 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-colors"
+                    className="hover:cursor-pointer flex-1 bg-[#0B2E65] text-white py-2 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-colors"
                   >
                     Next
                   </button>
@@ -364,7 +410,7 @@ export default function SurveyPage() {
                   <button
                     type="button"
                     onClick={nextStep}
-                    className="flex-1 bg-[#0B2E65] text-white py-2 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-colors"
+                    className="hover:cursor-pointer flex-1 bg-[#0B2E65] text-white py-2 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-colors"
                   >
                     Next
                   </button>
@@ -504,7 +550,7 @@ export default function SurveyPage() {
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 bg-[#0B2E65] text-white py-2 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-colors"
+                    className="hover:cursor-pointer flex-1 bg-[#0B2E65] text-white py-2 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-colors"
                   >
                     Next
                   </button>
@@ -531,14 +577,14 @@ export default function SurveyPage() {
                   <button
                     type="button"
                     onClick={prevStep}
-                    className="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
+                    className="hover:cursor-pointer flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
                   >
                     Back
                   </button>
                   <button
                     type="submit"
                     disabled={loading}
-                    className="flex-1 bg-[#0B2E65] text-white py-2 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                    className="hover:cursor-pointer   flex-1 bg-[#0B2E65] text-white py-2 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     {loading ? 'Submitting...' : 'Submit Survey'}
                   </button>
