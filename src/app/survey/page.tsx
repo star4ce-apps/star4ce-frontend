@@ -1,9 +1,12 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { API_BASE } from '@/lib/auth';
 
 export default function SurveyPage() {
+  const search = useSearchParams();
+
   const [currentStep, setCurrentStep] = useState(0); // 0 = intro, then steps
   const [accessCode, setAccessCode] = useState('');
   const [employeeStatus, setEmployeeStatus] = useState<'newly-hired' | 'termination' | 'leave' | 'none' | ''>('');
@@ -15,10 +18,18 @@ export default function SurveyPage() {
   const [leaveReason, setLeaveReason] = useState('');
   const [leaveOther, setLeaveOther] = useState('');
   const [additionalFeedback, setAdditionalFeedback] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [codeChecking, setCodeChecking] = useState(false);
-  const [codeError, setCodeError] = useState('');
 
+  const [loading, setLoading] = useState(false);          // for final submit
+  const [validatingCode, setValidatingCode] = useState(false); // for "Start Survey"
+  const [codeError, setCodeError] = useState<string | null>(null);
+
+  // Prefill access code from URL: /survey?code=XXXXX
+  useEffect(() => {
+    const fromUrl = search.get('code');
+    if (fromUrl) {
+      setAccessCode(fromUrl);
+    }
+  }, [search]);
 
   const roles = [
     'Sales Department',
@@ -68,13 +79,9 @@ export default function SurveyPage() {
     'Other',
   ];
 
-  const totalSteps = 4; // intro, status/role, satisfaction, conditional, feedback
+  // --- Step navigation helpers ---
 
   function nextStep() {
-    if (currentStep === 0 && !accessCode) {
-      alert('Please enter an access code');
-      return;
-    }
     if (currentStep === 1 && (!employeeStatus || !role)) {
       alert('Please complete all required fields');
       return;
@@ -91,38 +98,6 @@ export default function SurveyPage() {
     }
   }
 
-  async function handleStartSurvey() {
-  setCodeError('');
-
-  if (!accessCode.trim()) {
-    setCodeError('Please enter an access code');
-    return;
-  }
-
-  setCodeChecking(true);
-  try {
-    const res = await fetch(`${API_BASE}/survey/validate-code`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code: accessCode }),
-    });
-
-    const data = await res.json().catch(() => ({}));
-
-    if (!res.ok || !data.valid) {
-      throw new Error(data.error || 'Invalid or expired access code');
-    }
-
-    // If we get here, the code is valid → move to next step
-    setCurrentStep(1);
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : 'Failed to validate access code';
-    setCodeError(msg);
-  } finally {
-    setCodeChecking(false);
-  }
-}
-
   function prevStep() {
     if (currentStep > 0) {
       // If going back from feedback and "none" was selected, skip conditional step
@@ -133,6 +108,44 @@ export default function SurveyPage() {
       }
     }
   }
+
+  // --- NEW: validate access code before starting survey ---
+
+  async function handleStartSurvey() {
+    if (!accessCode.trim()) {
+      setCodeError('Please enter an access code');
+      return;
+    }
+
+    setCodeError(null);
+    setValidatingCode(true);
+
+    try {
+      const res = await fetch(`${API_BASE}/survey/validate-code`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ access_code: accessCode.trim() }),
+      });
+
+      const data = await res.json().catch(() => ({} as any));
+
+      if (!res.ok || !data.ok) {
+        // If invalid / inactive / expired
+        setCodeError(data.error || 'This access code is invalid or inactive.');
+        return;
+      }
+
+      // ✅ Code is valid – move to next step
+      setCurrentStep(1);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Could not validate access code.';
+      setCodeError(msg);
+    } finally {
+      setValidatingCode(false);
+    }
+  }
+
+  // --- Final submit ---
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -154,16 +167,13 @@ export default function SurveyPage() {
 
       const res = await fetch(`${API_BASE}/survey/submit`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
 
-      const data = await res.json().catch(() => ({}));
+      const data = await res.json().catch(() => ({} as any));
 
       if (!res.ok) {
-        // backend sends { error: "..." }
         throw new Error(data.error || 'Error submitting survey');
       }
 
@@ -171,23 +181,14 @@ export default function SurveyPage() {
       setCurrentStep(5);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to submit survey';
-      alert(msg); // simple for now
+      alert(msg);
     } finally {
       setLoading(false);
     }
   }
 
-  function getCurrentStepNumber() {
-    if (currentStep === 0) return 0;
-    if (currentStep === 1) return 1;
-    if (currentStep === 2) return 2;
-    if (currentStep === 3) return 3;
-    if (currentStep === 4) return 4;
-    return 0;
-  }
-
   return (
-    <div 
+    <div
       className="fixed inset-0 flex items-start justify-center overflow-y-auto pt-32 md:pt-40"
       style={{
         backgroundImage: 'url(/images/header.jpg)',
@@ -196,7 +197,7 @@ export default function SurveyPage() {
       }}
     >
       {/* Blurred background overlay */}
-      <div 
+      <div
         className="absolute inset-0 backdrop-blur-sm z-[1500]"
         style={{
           backgroundColor: 'rgba(9, 21, 39, 0.7)',
@@ -207,7 +208,7 @@ export default function SurveyPage() {
       <div className="relative z-[2000] w-full max-w-2xl mx-5 mb-8">
         <div className="bg-white rounded-lg shadow-2xl overflow-hidden flex min-h-[500px] isolate">
           {/* Left Section - Gradient Blue Sidebar */}
-          <div 
+          <div
             className="w-1/4 hidden md:block"
             style={{
               background: 'linear-gradient(180deg, #071F45 0%, #203F70 100%)',
@@ -220,9 +221,9 @@ export default function SurveyPage() {
             {/* Logo */}
             <div className="text-center mb-8">
               <Link href="/" className="inline-block">
-                <img 
-                  src="/images/Logo 4.png" 
-                  alt="Star4ce" 
+                <img
+                  src="/images/Logo 4.png"
+                  alt="Star4ce"
                   className="h-12 md:h-16 mx-auto"
                 />
               </Link>
@@ -263,8 +264,13 @@ export default function SurveyPage() {
                 <div className="text-center space-y-4">
                   <h2 className="text-xl font-bold text-[#0B2E65]">Welcome to the Survey</h2>
                   <div className="text-gray-700 space-y-3 text-center text-sm">
-                    <p>This survey helps us understand your experience and improve our workplace. We value your honest feedback and it will be used to make positive changes.</p>
-                    <p className="font-semibold text-[#0B2E65]">Your responses are completely anonymous.</p>
+                    <p>
+                      This survey helps us understand your experience and improve our workplace.
+                      We value your honest feedback and it will be used to make positive changes.
+                    </p>
+                    <p className="font-semibold text-[#0B2E65]">
+                      Your responses are completely anonymous.
+                    </p>
                   </div>
                 </div>
 
@@ -278,8 +284,8 @@ export default function SurveyPage() {
                     className="w-full px-3 py-2 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none"
                     value={accessCode}
                     onChange={(e) => {
-                      setAccessCode(e.target.value.toUpperCase());
-                      setCodeError('');
+                      setAccessCode(e.target.value);
+                      setCodeError(null);
                     }}
                     required
                   />
@@ -287,7 +293,7 @@ export default function SurveyPage() {
                     This code links your response to your designated dealership.
                   </p>
                   {codeError && (
-                    <p className="text-xs text-red-600 mt-1">
+                    <p className="text-xs text-red-600 mt-2">
                       {codeError}
                     </p>
                   )}
@@ -295,22 +301,28 @@ export default function SurveyPage() {
 
                 <button
                   onClick={handleStartSurvey}
-                  disabled={!accessCode || codeChecking}
-                  className="hover:cursor-pointer w-full bg-[#0B2E65] text-white py-3 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                  disabled={!accessCode || validatingCode}
+                  className="hover: cursor-pointer w-full bg-[#0B2E65] text-white py-3 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  {codeChecking ? 'Checking code…' : 'Start Survey'}
+                  {validatingCode ? 'Checking code...' : 'Start Survey'}
                 </button>
               </div>
             )}
 
             {/* Step 1: Employee Status & Role */}
             {currentStep === 1 && (
-              <form onSubmit={(e) => { e.preventDefault(); nextStep(); }} className="space-y-8">
-                  <div>
-                    <label className="block text-gray-700 text-sm font-medium mb-4">
-                      What is your current status?
-                    </label>
-                    <div className="space-y-3">
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  nextStep();
+                }}
+                className="space-y-8"
+              >
+                <div>
+                  <label className="block text-gray-700 text-sm font-medium mb-4">
+                    What is your current status?
+                  </label>
+                  <div className="space-y-3">
                     {[
                       { value: 'newly-hired', label: 'Newly Hired' },
                       { value: 'termination', label: 'Termination' },
@@ -338,7 +350,7 @@ export default function SurveyPage() {
                     What is your role?
                   </label>
                   <select
-                    className="hover:cursor-pointer w-full px-3 py-2 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none"
+                    className="hover: cursor-pointer w-full px-3 py-2 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none"
                     value={role}
                     onChange={(e) => setRole(e.target.value)}
                     required
@@ -356,13 +368,13 @@ export default function SurveyPage() {
                   <button
                     type="button"
                     onClick={prevStep}
-                    className="hover:cursor-pointer flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
+                    className="hover: cursor-pointer flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
                   >
                     Back
                   </button>
                   <button
                     type="submit"
-                    className="hover:cursor-pointer flex-1 bg-[#0B2E65] text-white py-2 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-colors"
+                    className="flex-1 bg-[#0B2E65] text-white py-2 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-colors"
                   >
                     Next
                   </button>
@@ -372,7 +384,13 @@ export default function SurveyPage() {
 
             {/* Step 2: Satisfaction Questions */}
             {currentStep === 2 && (
-              <form onSubmit={(e) => { e.preventDefault(); nextStep(); }} className="space-y-6">
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  nextStep();
+                }}
+                className="space-y-6"
+              >
                 <div className="space-y-6 max-h-[400px] overflow-y-auto pr-2">
                   {satisfactionQuestions.map((question, index) => (
                     <div key={index}>
@@ -380,20 +398,27 @@ export default function SurveyPage() {
                         {question}
                       </label>
                       <div className="space-y-3">
-                        {['Very Satisfied', 'Satisfied', 'Neutral', 'Dissatisfied', 'Very Dissatisfied'].map((option) => (
-                          <label key={option} className="flex items-center gap-2 cursor-pointer">
-                            <input
-                              type="radio"
-                              name={`satisfaction-${index}`}
-                              value={option}
-                              checked={satisfactionAnswers[index] === option}
-                              onChange={(e) => setSatisfactionAnswers({ ...satisfactionAnswers, [index]: e.target.value })}
-                              className="w-4 h-4 text-[#0B2E65]"
-                              required
-                            />
-                            <span className="text-gray-700 text-sm">{option}</span>
-                          </label>
-                        ))}
+                        {['Very Satisfied', 'Satisfied', 'Neutral', 'Dissatisfied', 'Very Dissatisfied'].map(
+                          (option) => (
+                            <label key={option} className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="radio"
+                                name={`satisfaction-${index}`}
+                                value={option}
+                                checked={satisfactionAnswers[index] === option}
+                                onChange={(e) =>
+                                  setSatisfactionAnswers({
+                                    ...satisfactionAnswers,
+                                    [index]: e.target.value,
+                                  })
+                                }
+                                className="w-4 h-4 text-[#0B2E65]"
+                                required
+                              />
+                              <span className="text-gray-700 text-sm">{option}</span>
+                            </label>
+                          ),
+                        )}
                       </div>
                     </div>
                   ))}
@@ -408,9 +433,8 @@ export default function SurveyPage() {
                     Back
                   </button>
                   <button
-                    type="button"
-                    onClick={nextStep}
-                    className="hover:cursor-pointer flex-1 bg-[#0B2E65] text-white py-2 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-colors"
+                    type="submit"
+                    className="flex-1 bg-[#0B2E65] text-white py-2 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-colors"
                   >
                     Next
                   </button>
@@ -420,7 +444,13 @@ export default function SurveyPage() {
 
             {/* Step 3: Conditional Questions */}
             {currentStep === 3 && (
-              <form onSubmit={(e) => { e.preventDefault(); nextStep(); }} className="space-y-6">
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  nextStep();
+                }}
+                className="space-y-6"
+              >
                 <div className="space-y-8 max-h-[400px] overflow-y-auto pr-2">
                   {/* Newly Hired Questions */}
                   {employeeStatus === 'newly-hired' && (
@@ -439,7 +469,12 @@ export default function SurveyPage() {
                                   name={`training-${index}`}
                                   value={option}
                                   checked={trainingAnswers[index] === option}
-                                  onChange={(e) => setTrainingAnswers({ ...trainingAnswers, [index]: e.target.value })}
+                                  onChange={(e) =>
+                                    setTrainingAnswers({
+                                      ...trainingAnswers,
+                                      [index]: e.target.value,
+                                    })
+                                  }
                                   className="w-4 h-4 text-[#0B2E65]"
                                   required
                                 />
@@ -550,7 +585,7 @@ export default function SurveyPage() {
                   </button>
                   <button
                     type="submit"
-                    className="hover:cursor-pointer flex-1 bg-[#0B2E65] text-white py-2 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-colors"
+                    className="flex-1 bg-[#0B2E65] text-white py-2 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-colors"
                   >
                     Next
                   </button>
@@ -577,14 +612,14 @@ export default function SurveyPage() {
                   <button
                     type="button"
                     onClick={prevStep}
-                    className="hover:cursor-pointer flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
+                    className="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
                   >
                     Back
                   </button>
                   <button
                     type="submit"
                     disabled={loading}
-                    className="hover:cursor-pointer   flex-1 bg-[#0B2E65] text-white py-2 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                    className="flex-1 bg-[#0B2E65] text-white py-2 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     {loading ? 'Submitting...' : 'Submit Survey'}
                   </button>
@@ -597,7 +632,12 @@ export default function SurveyPage() {
               <div className="space-y-8 text-center">
                 <div className="space-y-4">
                   <div className="mx-auto w-16 h-16 bg-[#0B2E65]/10 rounded-full flex items-center justify-center">
-                    <svg className="w-10 h-10 text-[#0B2E65]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg
+                      className="w-10 h-10 text-[#0B2E65]"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                     </svg>
                   </div>
