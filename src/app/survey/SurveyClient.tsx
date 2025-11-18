@@ -302,7 +302,7 @@ export default function SurveyPage() {
                 <button
                   onClick={handleStartSurvey}
                   disabled={!accessCode || validatingCode}
-                  className="hover: cursor-pointer w-full bg-[#0B2E65] text-white py-3 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="cursor-pointer w-full bg-[#0B2E65] text-white py-3 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   {validatingCode ? 'Checking code...' : 'Start Survey'}
                 </button>
@@ -350,7 +350,7 @@ export default function SurveyPage() {
                     What is your role?
                   </label>
                   <select
-                    className="hover: cursor-pointer w-full px-3 py-2 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none"
+                    className="cursor-pointer w-full px-3 py-2 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none"
                     value={role}
                     onChange={(e) => setRole(e.target.value)}
                     required
@@ -368,7 +368,7 @@ export default function SurveyPage() {
                   <button
                     type="button"
                     onClick={prevStep}
-                    className="hover: cursor-pointer flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
+                    className="cursor-pointer flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
                   >
                     Back
                   </button>
@@ -428,13 +428,13 @@ export default function SurveyPage() {
                   <button
                     type="button"
                     onClick={prevStep}
-                    className="hover: cursor-pointer flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
+                    className="cursor-pointer flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
                   >
                     Back
                   </button>
                   <button
                     type="submit"
-                    className="hover: cursor-pointer flex-1 bg-[#0B2E65] text-white py-2 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-colors"
+                    className="cursor-pointer flex-1 bg-[#0B2E65] text-white py-2 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-colors"
                   >
                     Next
                   </button>
@@ -579,13 +579,13 @@ export default function SurveyPage() {
                   <button
                     type="button"
                     onClick={prevStep}
-                    className="hover: cursor-pointer flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
+                    className="cursor-pointer flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
                   >
                     Back
                   </button>
                   <button
                     type="submit"
-                    className="hover: cursor-pointer flex-1 bg-[#0B2E65] text-white py-2 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-colors"
+                    className="cursor-pointer flex-1 bg-[#0B2E65] text-white py-2 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-colors"
                   >
                     Next
                   </button>
@@ -612,14 +612,14 @@ export default function SurveyPage() {
                   <button
                     type="button"
                     onClick={prevStep}
-                    className="hover: cursor-pointer flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
+                    className="cursor-pointer flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
                   >
                     Back
                   </button>
                   <button
                     type="submit"
                     disabled={loading}
-                    className="flex-1 bg-[#0B2E65] text-white py-2 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                    className="cursor-pointer flex-1 bg-[#0B2E65] text-white py-2 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     {loading ? 'Submitting...' : 'Submit Survey'}
                   </button>
@@ -649,7 +649,7 @@ export default function SurveyPage() {
                 </div>
                 <Link
                   href="/"
-                  className="hover: cursor-pointer inline-block w-full bg-[#0B2E65] text-white py-3 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-colors"
+                  className="cursor-pointer inline-block w-full bg-[#0B2E65] text-white py-3 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-colors"
                 >
                   Take me back to home
                 </Link>
