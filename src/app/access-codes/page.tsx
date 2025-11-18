@@ -32,26 +32,26 @@ export default function AccessCodesPage() {
     }
   }, []);
 
-    async function handleGenerate() {
+  async function handleGenerate() {
     setError(null);
     setResult(null);
     setLoading(true);
 
     try {
-        // 7 days = 168 hours
-        const data = await postJsonAuth<AccessCodeResponse>(
+      const data = await postJsonAuth<AccessCodeResponse>(
         '/survey/access-codes',
         { expires_in_hours: 168 }
-        );
+      );
 
-        setResult(data);
+      setResult(data);
     } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : 'Failed to create access code';
-        setError(msg);
+      const msg =
+        err instanceof Error ? err.message : 'Failed to create access code';
+      setError(msg);
     } finally {
-        setLoading(false);
+      setLoading(false);
     }
-    }
+  }
 
   // Optional: if we know the user is NOT admin, just show a message
   const isAdmin = role === 'admin';
@@ -91,7 +91,7 @@ export default function AccessCodesPage() {
             <button
               onClick={handleGenerate}
               disabled={loading}
-              className="inline-flex items-center rounded-md bg-[#0B2E65] px-4 py-2 text-sm font-semibold text-white hover:bg-[#2c5aa0] disabled:opacity-60 disabled:cursor-not-allowed"
+              className="cursor-pointer inline-flex items-center rounded-md bg-[#0B2E65] px-4 py-2 text-sm font-semibold text-white hover:bg-[#2c5aa0] disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {loading ? 'Creating code…' : 'Create 7-day access code'}
             </button>

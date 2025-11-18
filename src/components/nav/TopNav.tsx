@@ -114,6 +114,9 @@ export default function TopNav()
                   <Link href="/analytics" className="cursor-pointer text-[#0B2E65] font-bold text-[0.95rem] hover:text-[#2c5aa0] transition-colors">
                     Analytics
                   </Link>
+                  <Link href="/access-codes" className="cursor-pointer text-[#0B2E65] font-bold text-[0.95rem] hover:text-[#2c5aa0] transition-colors">
+                    Access Codes
+                  </Link>
                   <Link href="/survey" className="cursor-pointer text-[#0B2E65] font-bold text-[0.95rem] hover:text-[#2c5aa0] transition-colors">
                     Survey
                   </Link>

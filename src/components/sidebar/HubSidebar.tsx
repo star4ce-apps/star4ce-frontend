@@ -6,10 +6,12 @@ const items = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/employee", label: "Employee Management", disabled: true },
   { href: "/candidate", label: "Candidate Management", disabled: true },
-  { href: "/analytics", label: "Our Performance" },
+  { href: "/analytics", label: "Analytics" },
+  { href: "/access-codes", label: "Access Codes" },
   { href: "/survey", label: "Survey" },
   { href: "/standings", label: "Dealership Standings" },
   { href: "/settings", label: "Settings" },
+  { href: "/access-codes", label: "Access Codes" },
 ];
 
 export default function HubSidebar() {
