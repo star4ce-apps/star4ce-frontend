@@ -4,7 +4,6 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import RequireAuth from '@/components/layout/RequireAuth';
-import { getToken } from '@/lib/auth';
 import { postJsonAuth } from '@/lib/http';
 
 type AccessCodeResponse = {
@@ -33,33 +32,26 @@ export default function AccessCodesPage() {
     }
   }, []);
 
-  async function handleGenerate() {
+    async function handleGenerate() {
     setError(null);
     setResult(null);
     setLoading(true);
 
     try {
-      const token = getToken();
-      if (!token) {
-        setError('You are not logged in.');
-        return;
-      }
-
-      // 7 days = 168 hours
-      const data = await postJsonAuth<AccessCodeResponse>(
+        // 7 days = 168 hours
+        const data = await postJsonAuth<AccessCodeResponse>(
         '/survey/access-codes',
-        { expires_in_hours: 168 },
-        token
-      );
+        { expires_in_hours: 168 }
+        );
 
-      setResult(data);
+        setResult(data);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to create access code';
-      setError(msg);
+        const msg = err instanceof Error ? err.message : 'Failed to create access code';
+        setError(msg);
     } finally {
-      setLoading(false);
+        setLoading(false);
     }
-  }
+    }
 
   // Optional: if we know the user is NOT admin, just show a message
   const isAdmin = role === 'admin';
