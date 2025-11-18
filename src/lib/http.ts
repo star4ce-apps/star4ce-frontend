@@ -1,23 +1,52 @@
 // src/lib/http.ts
-import { getToken } from "@/lib/auth";
+import { API_BASE, getToken } from '@/lib/auth';
 
-export const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE || "http://127.0.0.1:5000";
+export async function postJsonAuth<T = any>(
+  path: string,
+  body: unknown,
+  init: RequestInit = {}
+): Promise<T> {
+  const token = getToken();
 
-// Plain GET JSON
-export async function getJson<T = any>(path: string) {
-  const res = await fetch(`${API_BASE}${path}`, { cache: "no-store" });
-  if (!res.ok) throw new Error(`GET ${path} failed (${res.status})`);
-  return (await res.json()) as T;
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: 'POST',
+    ...init,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(init.headers || {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(body),
+  });
+
+  const data = (await res.json().catch(() => ({}))) as any;
+
+  if (!res.ok) {
+    const msg = data?.error || `Request failed (${res.status})`;
+    throw new Error(msg);
+  }
+
+  return data as T;
 }
 
-// Authenticated GET JSON (includes Bearer token)
-export async function authGetJson<T = any>(path: string) {
-  const token = getToken();
+// 👉 Add this below:
+
+export async function getJson<T = any>(
+  path: string,
+  init: RequestInit = {}
+): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
-    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-    cache: "no-store",
+    method: 'GET',
+    cache: 'no-store',
+    ...init,
   });
-  if (!res.ok) throw new Error(`AUTH GET ${path} failed (${res.status})`);
-  return (await res.json()) as T;
+
+  const data = (await res.json().catch(() => ({}))) as any;
+
+  if (!res.ok) {
+    const msg = data?.error || `Request failed (${res.status})`;
+    throw new Error(msg);
+  }
+
+  return data as T;
 }
