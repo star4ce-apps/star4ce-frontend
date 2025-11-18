@@ -428,13 +428,13 @@ export default function SurveyPage() {
                   <button
                     type="button"
                     onClick={prevStep}
-                    className="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
+                    className="hover: cursor-pointer flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
                   >
                     Back
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 bg-[#0B2E65] text-white py-2 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-colors"
+                    className="hover: cursor-pointer flex-1 bg-[#0B2E65] text-white py-2 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-colors"
                   >
                     Next
                   </button>
@@ -579,13 +579,13 @@ export default function SurveyPage() {
                   <button
                     type="button"
                     onClick={prevStep}
-                    className="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
+                    className="hover: cursor-pointer flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
                   >
                     Back
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 bg-[#0B2E65] text-white py-2 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-colors"
+                    className="hover: cursor-pointer flex-1 bg-[#0B2E65] text-white py-2 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-colors"
                   >
                     Next
                   </button>
@@ -612,7 +612,7 @@ export default function SurveyPage() {
                   <button
                     type="button"
                     onClick={prevStep}
-                    className="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
+                    className="hover: cursor-pointer flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
                   >
                     Back
                   </button>
@@ -649,7 +649,7 @@ export default function SurveyPage() {
                 </div>
                 <Link
                   href="/"
-                  className="inline-block w-full bg-[#0B2E65] text-white py-3 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-colors"
+                  className="hover: cursor-pointer inline-block w-full bg-[#0B2E65] text-white py-3 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-colors"
                 >
                   Take me back to home
                 </Link>
