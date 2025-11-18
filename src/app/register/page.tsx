@@ -287,13 +287,13 @@ export default function RegisterPage() {
                     <button
                       type="button"
                       onClick={prevStep}
-                      className="flex-1 bg-gray-200 text-gray-700 py-3 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
+                      className="cursor-pointer flex-1 bg-gray-200 text-gray-700 py-3 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
                     >
                       Back
                     </button>
                     <button
                       type="submit"
-                      className="flex-1 bg-[#0B2E65] text-white py-3 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-colors"
+                      className="cursor-pointer flex-1 bg-[#0B2E65] text-white py-3 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-colors"
                     >
                       Next
                     </button>
@@ -343,14 +343,14 @@ export default function RegisterPage() {
                     <button
                       type="button"
                       onClick={prevStep}
-                      className="flex-1 bg-gray-200 text-gray-700 py-3 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
+                      className="cursor-pointer flex-1 bg-gray-200 text-gray-700 py-3 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
                     >
                       Back
                     </button>
                     <button
                       type="submit"
                       disabled={loading}
-                      className="flex-1 bg-[#0B2E65] text-white py-3 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                      className="cursor-pointer flex-1 bg-[#0B2E65] text-white py-3 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                     >
                       {loading ? 'Creating…' : 'Create account'}
                     </button>
