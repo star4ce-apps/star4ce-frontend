@@ -118,12 +118,12 @@ export default function Footer()
               </p>
             </div>
             <div className="mt-4 space-y-2">
-              <Link href="#" className="text-white/80 hover:text-white transition-colors text-sm block">
+              <a href="/privacy" className="text-white/80 hover:text-white transition-colors text-sm block">
                 Privacy Policy
-              </Link>
-              <Link href="#" className="text-white/80 hover:text-white transition-colors text-sm block">
+              </a>
+              <a href="/terms" className="text-white/80 hover:text-white transition-colors text-sm block">
                 Terms of Service
-              </Link>
+              </a>
             </div>
           </div>
         </div>
