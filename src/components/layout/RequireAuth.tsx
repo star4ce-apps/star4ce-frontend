@@ -60,10 +60,13 @@ export default function RequireAuth({ children }: Props) {
         }
       } catch (err) {
         // Network error - don't logout immediately, might be temporary
-        console.error('Auth check failed:', err);
+        // Only log non-network errors to avoid console spam
+        if (!(err instanceof TypeError && err.message.includes('fetch'))) {
+          console.error('Auth check failed:', err);
+        }
         // Only logout if it's clearly an auth error, not a network issue
         if (err instanceof TypeError && err.message.includes('fetch')) {
-          // Network error - keep session but show error
+          // Network error - keep session but allow access (backend might be starting)
           if (!cancelled) {
             setChecking(false);
           }
