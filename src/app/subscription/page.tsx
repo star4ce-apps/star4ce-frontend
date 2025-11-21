@@ -22,6 +22,7 @@ export default function SubscriptionPage() {
   const [status, setStatus] = useState<SubscriptionStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [creatingCheckout, setCreatingCheckout] = useState(false);
+  const [canceling, setCanceling] = useState(false);
 
   useEffect(() => {
     loadSubscriptionStatus();
@@ -96,6 +97,43 @@ export default function SubscriptionPage() {
     }
   }
 
+  async function handleCancel() {
+    if (!confirm('Are you sure you want to cancel your subscription? You will lose access to all premium features.')) {
+      return;
+    }
+
+    setCanceling(true);
+    try {
+      const token = getToken();
+      if (!token) {
+        router.push('/login');
+        return;
+      }
+
+      const res = await fetch(`${API_BASE}/subscription/cancel`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ cancel_at_period_end: false }), // Cancel immediately
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        toast.success(data.message || 'Subscription canceled successfully');
+        // Reload status
+        loadSubscriptionStatus();
+      } else {
+        toast.error(data.error || 'Failed to cancel subscription');
+      }
+    } catch (err) {
+      toast.error('Failed to cancel subscription');
+    } finally {
+      setCanceling(false);
+    }
+  }
+
   if (loading) {
     return (
       <RequireAuth>
@@ -126,6 +164,7 @@ export default function SubscriptionPage() {
                     {status.subscription_status === 'active' && 'Active'}
                     {status.subscription_status === 'canceled' && 'Canceled'}
                     {status.subscription_status === 'expired' && 'Expired'}
+                    {status.subscription_status === 'past_due' && 'Past Due'}
                     {!status.subscription_status && 'No Subscription'}
                   </span>
                 </div>
@@ -158,7 +197,7 @@ export default function SubscriptionPage() {
             </div>
 
             {/* Subscription Actions */}
-            {!status.is_active && (
+            {!status.is_active && status.subscription_status !== 'canceled' && (
               <div className="bg-white border rounded-lg p-6">
                 <h2 className="text-xl font-semibold mb-4">Subscribe to Star4ce</h2>
                 <p className="text-gray-600 mb-6">
@@ -176,14 +215,43 @@ export default function SubscriptionPage() {
               </div>
             )}
 
+            {status.subscription_status === 'canceled' && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-6">
+                <h2 className="text-xl font-semibold text-red-900 mb-2">
+                  Subscription Canceled
+                </h2>
+                <p className="text-red-700 mb-4">
+                  Your subscription has been canceled. You no longer have access to premium features.
+                </p>
+                <button
+                  onClick={handleSubscribe}
+                  disabled={creatingCheckout}
+                  className="cursor-pointer bg-[#0B2E65] text-white px-8 py-3 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {creatingCheckout ? 'Processing...' : 'Resubscribe'}
+                </button>
+              </div>
+            )}
+
             {status.is_active && (
               <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-6">
-                <h2 className="text-xl font-semibold text-emerald-900 mb-2">
-                  ✓ Active Subscription
-                </h2>
-                <p className="text-emerald-700">
-                  Your subscription is active. You have full access to all features as an admin.
-                </p>
+                <div className="flex justify-between items-start">
+                  <div>
+                    <h2 className="text-xl font-semibold text-emerald-900 mb-2">
+                      ✓ Active Subscription
+                    </h2>
+                    <p className="text-emerald-700">
+                      Your subscription is active. You have full access to all features as an admin.
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleCancel}
+                    disabled={canceling}
+                    className="cursor-pointer bg-red-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-red-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed whitespace-nowrap"
+                  >
+                    {canceling ? 'Canceling...' : 'Cancel Subscription'}
+                  </button>
+                </div>
               </div>
             )}
 

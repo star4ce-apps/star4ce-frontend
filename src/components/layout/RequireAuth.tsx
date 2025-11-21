@@ -28,12 +28,19 @@ export default function RequireAuth({ children }: Props) {
 
       try {
         // IMPORTANT: call backend using API_BASE from auth.ts
+        // Add timeout to prevent infinite loading
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+        
         const res = await fetch(`${API_BASE}/auth/me`, {
           headers: {
             Authorization: `Bearer ${token}`,
           },
           cache: 'no-store',
+          signal: controller.signal,
         });
+        
+        clearTimeout(timeoutId);
 
         if (!res.ok) {
           const data = await res.json().catch(() => ({}));
@@ -61,6 +68,22 @@ export default function RequireAuth({ children }: Props) {
       } catch (err) {
         // Network error - don't logout immediately, might be temporary
         console.error('Auth check failed:', err);
+        
+        // Handle timeout/abort errors
+        if (err instanceof Error && (err.name === 'AbortError' || err.message.includes('aborted'))) {
+          console.error('Auth check timed out - backend may be slow or unreachable');
+          // Show error but allow access (user can still try to use the app)
+          if (!cancelled) {
+            setChecking(false);
+          }
+          return;
+        }
+        
+        // Handle any other errors - don't block the user
+        if (!cancelled) {
+          setChecking(false);
+        }
+        
         // Only logout if it's clearly an auth error, not a network issue
         if (err instanceof TypeError && err.message.includes('fetch')) {
           // Network error - keep session but show error
