@@ -1,13 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { API_BASE, saveSession } from '@/lib/auth';
 
 type Step = 'request' | 'reset' | 'done';
 
-export default function ForgotPage() {
+function ForgotPageContent() {
   const router = useRouter();
   const search = useSearchParams();
 
@@ -299,5 +299,17 @@ export default function ForgotPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function ForgotPage() {
+  return (
+    <Suspense fallback={
+      <div className="fixed inset-0 flex items-center justify-center">
+        <div className="text-white">Loading...</div>
+      </div>
+    }>
+      <ForgotPageContent />
+    </Suspense>
   );
 }

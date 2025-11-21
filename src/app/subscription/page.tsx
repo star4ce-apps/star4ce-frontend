@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import RequireAuth from '@/components/layout/RequireAuth';
 import HubSidebar from '@/components/sidebar/HubSidebar';
@@ -29,7 +29,7 @@ type CorporateSubscription = {
   is_active: boolean;
 };
 
-export default function SubscriptionPage() {
+function SubscriptionPageContent() {
   const router = useRouter();
   const search = useSearchParams();
   const [userRole, setUserRole] = useState<string | null>(null);
@@ -224,6 +224,7 @@ export default function SubscriptionPage() {
   if (loading) {
     return (
       <RequireAuth>
+        <Suspense fallback={<div>Loading...</div>}>
         <div className="flex min-h-screen" style={{ width: '100%', overflow: 'hidden', backgroundColor: '#F5F7FA' }}>
           <HubSidebar />
           <main className="ml-64 p-8 pl-10 flex-1" style={{ overflowX: 'hidden', minWidth: 0 }}>
@@ -369,6 +370,11 @@ export default function SubscriptionPage() {
   // Admin/Manager View - Show only their own dealership subscription
   return (
     <RequireAuth>
+      <Suspense fallback={
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="text-white">Loading...</div>
+        </div>
+      }>
       <div className="flex min-h-screen" style={{ width: '100%', overflow: 'hidden', backgroundColor: '#F5F7FA' }}>
         <HubSidebar />
         
@@ -590,6 +596,20 @@ export default function SubscriptionPage() {
           )}
         </main>
       </div>
+    </RequireAuth>
+  );
+}
+
+export default function SubscriptionPage() {
+  return (
+    <RequireAuth>
+      <Suspense fallback={
+        <div className="flex min-h-screen items-center justify-center">
+          <div className="text-gray-500">Loading...</div>
+        </div>
+      }>
+        <SubscriptionPageContent />
+      </Suspense>
     </RequireAuth>
   );
 }

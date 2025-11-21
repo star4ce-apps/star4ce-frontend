@@ -1,12 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { API_BASE } from '@/lib/auth';
 import toast from 'react-hot-toast';
 
-export default function AdminRegisterPage() {
+function AdminRegisterPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [email, setEmail] = useState('');
@@ -289,6 +289,18 @@ export default function AdminRegisterPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function AdminRegisterPage() {
+  return (
+    <Suspense fallback={
+      <div className="fixed inset-0 flex items-center justify-center">
+        <div className="text-white">Loading...</div>
+      </div>
+    }>
+      <AdminRegisterPageContent />
+    </Suspense>
   );
 }
 
