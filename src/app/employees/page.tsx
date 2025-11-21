@@ -346,8 +346,7 @@ export default function EmployeesPage() {
                 style={{ 
                   border: '1px solid #E5E7EB', 
                   color: '#374151', 
-                  backgroundColor: '#FFFFFF',
-                  focusRingColor: '#4D6DBE'
+                  backgroundColor: '#FFFFFF'
                 }}
               />
               <svg 
@@ -658,7 +657,6 @@ export default function EmployeesPage() {
                           border: '1px solid #D1D5DB', 
                           color: '#374151', 
                           backgroundColor: '#FFFFFF',
-                          focusRingColor: '#4D6DBE'
                         }}
                       />
                     </div>
@@ -674,7 +672,6 @@ export default function EmployeesPage() {
                           border: '1px solid #D1D5DB', 
                           color: '#374151', 
                           backgroundColor: '#FFFFFF',
-                          focusRingColor: '#4D6DBE'
                         }}
                       />
                     </div>
@@ -692,7 +689,6 @@ export default function EmployeesPage() {
                             border: '1px solid #D1D5DB', 
                             color: '#374151', 
                             backgroundColor: '#FFFFFF',
-                            focusRingColor: '#4D6DBE'
                           }}
                         />
                         <input
@@ -706,7 +702,6 @@ export default function EmployeesPage() {
                             border: '1px solid #D1D5DB', 
                             color: '#374151', 
                             backgroundColor: '#FFFFFF',
-                            focusRingColor: '#4D6DBE'
                           }}
                         />
                       </div>
@@ -721,7 +716,6 @@ export default function EmployeesPage() {
                               border: '1px solid #D1D5DB', 
                               color: '#374151', 
                               backgroundColor: '#FFFFFF',
-                              focusRingColor: '#4D6DBE'
                             }}
                           >
                             <option value="">Select State</option>
@@ -746,7 +740,6 @@ export default function EmployeesPage() {
                             border: '1px solid #D1D5DB', 
                             color: '#374151', 
                             backgroundColor: '#FFFFFF',
-                            focusRingColor: '#4D6DBE'
                           }}
                         />
                       </div>
@@ -763,7 +756,6 @@ export default function EmployeesPage() {
                           border: '1px solid #D1D5DB', 
                           color: '#374151', 
                           backgroundColor: '#FFFFFF',
-                          focusRingColor: '#4D6DBE'
                         }}
                       />
                     </div>
@@ -779,7 +771,6 @@ export default function EmployeesPage() {
                             border: '1px solid #D1D5DB', 
                             color: '#374151', 
                             backgroundColor: '#FFFFFF',
-                            focusRingColor: '#4D6DBE'
                           }}
                         >
                           <option value="">Select Gender</option>
@@ -808,7 +799,6 @@ export default function EmployeesPage() {
                           border: '1px solid #D1D5DB', 
                           color: '#374151', 
                           backgroundColor: '#FFFFFF',
-                          focusRingColor: '#4D6DBE'
                         }}
                       />
                     </div>
@@ -825,7 +815,6 @@ export default function EmployeesPage() {
                           border: '1px solid #D1D5DB', 
                           color: '#374151', 
                           backgroundColor: '#FFFFFF',
-                          focusRingColor: '#4D6DBE'
                         }}
                       />
                     </div>
@@ -841,7 +830,6 @@ export default function EmployeesPage() {
                           border: '1px solid #D1D5DB', 
                           color: '#374151', 
                           backgroundColor: '#FFFFFF',
-                          focusRingColor: '#4D6DBE'
                         }}
                       />
                     </div>
@@ -858,7 +846,6 @@ export default function EmployeesPage() {
                           border: '1px solid #D1D5DB', 
                           color: '#374151', 
                           backgroundColor: '#FFFFFF',
-                          focusRingColor: '#4D6DBE'
                         }}
                       />
                     </div>
@@ -874,7 +861,6 @@ export default function EmployeesPage() {
                           border: '1px solid #D1D5DB', 
                           color: '#374151', 
                           backgroundColor: '#FFFFFF',
-                          focusRingColor: '#4D6DBE'
                         }}
                       />
                     </div>
@@ -890,7 +876,6 @@ export default function EmployeesPage() {
                             border: '1px solid #D1D5DB', 
                             color: '#374151', 
                             backgroundColor: '#FFFFFF',
-                            focusRingColor: '#4D6DBE'
                           }}
                         >
                           <option value="">Select Department</option>
@@ -917,7 +902,6 @@ export default function EmployeesPage() {
                             border: '1px solid #D1D5DB', 
                             color: '#374151', 
                             backgroundColor: '#FFFFFF',
-                            focusRingColor: '#4D6DBE'
                           }}
                         >
                           <option value="">Select Status</option>

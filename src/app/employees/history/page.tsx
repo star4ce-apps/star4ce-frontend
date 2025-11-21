@@ -277,8 +277,7 @@ export default function EmployeeRoleHistoryPage() {
                 style={{ 
                   border: '1px solid #E5E7EB', 
                   color: '#374151', 
-                  backgroundColor: '#FFFFFF',
-                  focusRingColor: '#4D6DBE'
+                  backgroundColor: '#FFFFFF'
                 }}
               />
               <svg 

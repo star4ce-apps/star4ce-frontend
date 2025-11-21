@@ -19,7 +19,7 @@ export async function getUserPermissions(): Promise<Permissions> {
   }
 
   // Start new request
-  permissionsPromise = (async () => {
+  permissionsPromise = (async (): Promise<Permissions> => {
     try {
       const token = getToken();
       if (!token) {
@@ -33,7 +33,7 @@ export async function getUserPermissions(): Promise<Permissions> {
       if (res.ok) {
         const data = await res.json();
         cachedPermissions = data.permissions || {};
-        return cachedPermissions;
+        return cachedPermissions || {};
       }
     } catch (err) {
       console.error('Failed to load permissions:', err);

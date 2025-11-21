@@ -250,7 +250,7 @@ export default function AnalyticsPage() {
                       {averages.training_avg.toFixed(1)}/5
                     </p>
                     <p className="text-xs mt-1" style={{ color: '#9CA3AF' }}>
-                      Based on {averages.training_count} responses
+                      Based on {averages.total_responses} responses
                     </p>
                   </div>
                 )}

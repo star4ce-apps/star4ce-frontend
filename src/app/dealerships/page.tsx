@@ -18,6 +18,7 @@ type Dealership = {
   trial_ends_at: string | null;
   subscription_ends_at: string | null;
   is_assigned?: boolean;
+  has_pending_request?: boolean;
 };
 
 export default function DealershipsPage() {

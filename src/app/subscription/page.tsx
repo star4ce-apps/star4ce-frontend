@@ -224,7 +224,6 @@ function SubscriptionPageContent() {
   if (loading) {
     return (
       <RequireAuth>
-        <Suspense fallback={<div>Loading...</div>}>
         <div className="flex min-h-screen" style={{ width: '100%', overflow: 'hidden', backgroundColor: '#F5F7FA' }}>
           <HubSidebar />
           <main className="ml-64 p-8 pl-10 flex-1" style={{ overflowX: 'hidden', minWidth: 0 }}>
@@ -370,11 +369,6 @@ function SubscriptionPageContent() {
   // Admin/Manager View - Show only their own dealership subscription
   return (
     <RequireAuth>
-      <Suspense fallback={
-        <div className="min-h-screen flex items-center justify-center">
-          <div className="text-white">Loading...</div>
-        </div>
-      }>
       <div className="flex min-h-screen" style={{ width: '100%', overflow: 'hidden', backgroundColor: '#F5F7FA' }}>
         <HubSidebar />
         
