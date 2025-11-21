@@ -1,0 +1,24 @@
+'use client';
+
+import HubSidebar from '@/components/sidebar/HubSidebar';
+import RequireAuth from '@/components/layout/RequireAuth';
+
+export default function UserManagementPage() {
+  return (
+    <RequireAuth>
+      <div className="flex min-h-screen" style={{ width: '100%', overflow: 'hidden', backgroundColor: '#F5F7FA' }}>
+        <HubSidebar />
+        <main className="ml-64 p-8 pl-10 flex-1" style={{ overflowX: 'hidden', minWidth: 0 }}>
+          <div className="mb-8">
+            <h1 className="text-4xl font-bold mb-2" style={{ color: '#232E40', letterSpacing: '-0.02em' }}>User Management</h1>
+            <p className="text-base" style={{ color: '#6B7280' }}>Manage user accounts and permissions</p>
+          </div>
+          <div className="rounded-xl p-8" style={{ backgroundColor: '#FFFFFF', border: '1px solid #E5E7EB', boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05)' }}>
+            <p style={{ color: '#9CA3AF' }}>User management content will be displayed here.</p>
+          </div>
+        </main>
+      </div>
+    </RequireAuth>
+  );
+}
+
