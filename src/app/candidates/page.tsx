@@ -47,7 +47,9 @@ type CandidateProfile = {
   notes: string;
 };
 
-// Mock profile data
+// TODO: Replace with real candidate data from API endpoint
+// NOTE: There is currently no candidates API endpoint in the backend
+// This mock data should be removed once the API is implemented
 const mockCandidateProfiles: Record<number, CandidateProfile> = {
   1: {
     id: 1,
@@ -213,16 +215,10 @@ export default function CandidateListPage() {
     stage: '',
   });
 
-  // Mock data
-  const [candidates] = useState<Candidate[]>([
-    { id: 1, name: 'Priscilla Lopez', email: 'Pris.lez@gmail.com', avgScore: 7.2, job: 'Technician', createdDate: '08 Sep 2025', interviewer: 'Mike Long', stage: 'Interviewing' },
-    { id: 2, name: 'Ryan Clark', email: 'Ryry.cl@gmail.com', avgScore: 5.3, job: 'Sales Manager', createdDate: '01 Jul 2025', interviewer: 'Sabrina Lee', stage: 'Review' },
-    { id: 3, name: 'Jaehun Lee', email: 'Jaehun.L@gmail.com', avgScore: 5.3, job: 'Office Staff', createdDate: '19 Jun 2025', interviewer: 'Matt Seamark', stage: 'Interviewing' },
-    { id: 4, name: 'Klein Morreti', email: 'kmtti@gmail.com', avgScore: 9.7, job: 'Parts Manager', createdDate: '15 Jun 2025', interviewer: 'Mike Long', stage: 'Offer' },
-    { id: 5, name: 'John Johnson', email: 'JJsonsn@gmail.com', avgScore: 2.2, job: 'IT', createdDate: '12 Jun 2025', interviewer: 'Loid Nguyen', stage: 'Reject' },
-    { id: 6, name: 'Quinn Smith', email: 'Quinni.smith@gmail.com', avgScore: 8.8, job: 'Receptionist', createdDate: '12 Jun 2025', interviewer: 'Jennifer Tran', stage: 'Ready' },
-    { id: 7, name: 'Jose Porras', email: 'hosayPP@gmail.com', avgScore: null, job: 'Technician', createdDate: '31 May 2025', interviewer: 'John Wayne', stage: 'Applied' },
-  ]);
+  // TODO: Replace with real candidate data from API endpoint
+  // NOTE: Backend API endpoint for candidates does not exist yet
+  // This is mock data - remove once API is implemented
+  const [candidates] = useState<Candidate[]>([]);
 
   const handleSort = (column: string) => {
     if (sortColumn === column) {

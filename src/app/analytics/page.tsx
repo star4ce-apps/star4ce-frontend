@@ -46,72 +46,33 @@ export default function AnalyticsPage() {
   const [dateRangePreset, setDateRangePreset] = useState<string>('This month');
   const [selectedDepartment, setSelectedDepartment] = useState<string>('All Departments');
 
-  // Mock data for now
-  const [totalCandidates] = useState(233);
-  const [totalEmployees] = useState(406);
-  const [involuntaryLeave] = useState(90);
-  const [voluntaryLeave] = useState(32);
-  const [retentionRate] = useState(34.8);
-  const [turnoverRate] = useState(65.2);
+  // TODO: These should come from the API summary response, not hardcoded
+  // For now using 0 as default - replace with actual API data
+  const [totalCandidates] = useState(0);
+  const [totalEmployees] = useState(0);
+  const [involuntaryLeave] = useState(0);
+  const [voluntaryLeave] = useState(0);
+  const [retentionRate] = useState(0);
+  const [turnoverRate] = useState(0);
 
-  const surveyFeedbackData = [
-    { name: 'Extremely Negative', value: 33, color: '#ef4444' },
-    { name: 'Semi Negative', value: 67.5, color: '#f97316' },
-    { name: 'Neutral', value: 73, color: '#eab308' },
-    { name: 'Semi Positive', value: 80, color: '#22c55e' },
-    { name: 'Extremely Positive', value: 80, color: '#3b82f6' },
-  ];
+  // TODO: Replace with real survey feedback data from API
+  const [surveyFeedbackData, setSurveyFeedbackData] = useState<Array<{ name: string; value: number; color: string }>>([]);
 
-  const recentFeedback = [
-    { date: 'September 01, 2025', comment: 'I wish the managers were kinder' },
-    { date: 'August 25, 2025', comment: 'I am being treated poorly and I have no voice' },
-    { date: 'August 23, 2025', comment: 'Staff is amazing and I feel like part of a family' },
-    { date: 'August 23, 2025', comment: 'Karen should be retrained, this behavior is unacceptable' },
-    { date: 'August 21, 2025', comment: "I'm being underpaid this is..." },
-  ];
+  // TODO: Replace with real feedback data from API endpoint
+  const [recentFeedback, setRecentFeedback] = useState<Array<{ date: string; comment: string }>>([]);
 
-  const turnoverData = [
-    { month: 'Jan', turnover: 75, retention: 25 },
-    { month: 'Feb', turnover: 85, retention: 15 },
-    { month: 'Mar', turnover: 65, retention: 35 },
-    { month: 'Apr', turnover: 70, retention: 30 },
-    { month: 'May', turnover: 80, retention: 20 },
-    { month: 'Jun', turnover: 72, retention: 28 },
-    { month: 'Jul', turnover: 68, retention: 32 },
-    { month: 'Aug', turnover: 62, retention: 38 },
-    { month: 'Sep', turnover: 58, retention: 42 },
-    { month: 'Oct', turnover: 55, retention: 45 },
-    { month: 'Nov', turnover: 52, retention: 48 },
-    { month: 'Dec', turnover: 48, retention: 52 },
-  ];
+  // TODO: Replace with real time-series data from /analytics/time-series API
+  const [turnoverData, setTurnoverData] = useState<Array<{ month: string; turnover: number; retention: number }>>([]);
 
-  const departmentTableData = [
-    { department: 'Salespeople', leaveCount: 15, retentionRate: 33, turnoverRate: 67, severity: 'High', severityColor: '#ef4444' },
-    { department: 'Office Staff', leaveCount: 12, retentionRate: 67.5, turnoverRate: 32.5, severity: 'Moderate', severityColor: '#f97316' },
-    { department: 'Sales Manager', leaveCount: 5, retentionRate: 73, turnoverRate: 27, severity: 'Low', severityColor: '#22c55e' },
-    { department: 'Technician', leaveCount: 3, retentionRate: 80, turnoverRate: 20, severity: 'Low', severityColor: '#22c55e' },
-  ];
+  // TODO: Replace with real department breakdown from /analytics/role-breakdown API
+  const [departmentTableData, setDepartmentTableData] = useState<Array<{ department: string; leaveCount: number; retentionRate: number; turnoverRate: number; severity: string; severityColor: string }>>([]);
 
-  const terminatedQuitData = [
-    { name: 'Quit', value: 50, percentage: 68.5, color: '#ef4444' },
-    { name: 'Terminated', value: 23, percentage: 31.5, color: '#a855f7' },
-  ];
+  // TODO: Replace with real terminated/quit data from API
+  const [terminatedQuitData, setTerminatedQuitData] = useState<Array<{ name: string; value: number; percentage: number; color: string }>>([]);
 
-  const terminatedByRole = [
-    { name: 'Technician', value: 12, percentage: 32.4, color: '#f97316' },
-    { name: 'Sales', value: 16, percentage: 43.2, color: '#ef4444' },
-    { name: 'Manager', value: 2, percentage: 5.4, color: '#eab308' },
-    { name: 'Receptionist', value: 5, percentage: 13.5, color: '#84cc16' },
-    { name: 'Finance Advisor', value: 2, percentage: 5.4, color: '#22c55e' },
-  ];
-
-  const quitByRole = [
-    { name: 'Technician', value: 12, percentage: 32.4, color: '#f97316' },
-    { name: 'Sales', value: 16, percentage: 43.2, color: '#ef4444' },
-    { name: 'Manager', value: 2, percentage: 5.4, color: '#eab308' },
-    { name: 'Receptionist', value: 5, percentage: 13.5, color: '#84cc16' },
-    { name: 'Finance Advisor', value: 2, percentage: 5.4, color: '#22c55e' },
-  ];
+  // TODO: Replace with real role breakdown data from /analytics/role-breakdown API
+  const [terminatedByRole, setTerminatedByRole] = useState<Array<{ name: string; value: number; percentage: number; color: string }>>([]);
+  const [quitByRole, setQuitByRole] = useState<Array<{ name: string; value: number; percentage: number; color: string }>>([]);
 
   const roleColors = ['#f97316', '#ef4444', '#84cc16', '#eab308', '#22c55e', '#3b82f6', '#a855f7', '#ec4899'];
 

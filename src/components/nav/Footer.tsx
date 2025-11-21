@@ -104,14 +104,14 @@ export default function Footer()
               </p>
               <p className="flex items-start gap-2">
                 <span className="text-white">📞</span>
-                <a href="tel:+15551234567" className="text-white hover:text-white/90 transition-colors">
-                  (555) 123-4567
+                <a href="mailto:info@starace.com" className="text-white hover:text-white/90 transition-colors">
+                  Contact us via email
                 </a>
               </p>
               <p className="flex items-start gap-2">
                 <span className="text-white">📍</span>
                 <span className="text-white">
-                  123 Business Ave<br />
+                  United States<br />
                   Suite 100<br />
                   Los Angeles, CA 90210
                 </span>

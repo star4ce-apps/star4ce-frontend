@@ -274,7 +274,7 @@ export default function HubSidebar() {
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold truncate whitespace-nowrap text-left" style={{ color: '#394B67' }}>{name || 'User'}</p>
-            <p className="text-xs truncate whitespace-nowrap text-left" style={{ color: '#394B67' }}>{email || 'user@example.com'}</p>
+            <p className="text-xs truncate whitespace-nowrap text-left" style={{ color: '#394B67' }}>{email || 'No email'}</p>
           </div>
           <div className="relative user-menu-container">
             <button 

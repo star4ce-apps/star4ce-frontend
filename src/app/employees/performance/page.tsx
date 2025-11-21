@@ -19,18 +19,10 @@ export default function EmployeePerformancePage() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 9;
 
-  // Mock data
-  const [employees] = useState<Employee[]>([
-    { id: 1, name: 'Alice Johnson', department: 'Marketing', lastReview: 'March 2023', status: 'Overdue' },
-    { id: 2, name: 'Bob Smith', department: 'Sales', lastReview: 'January 2023', status: 'Overdue' },
-    { id: 3, name: 'Catherine Lee', department: 'Development', lastReview: 'February 2023', status: 'Due' },
-    { id: 4, name: 'David Brown', department: 'HR', lastReview: 'April 2023', status: 'Completed', reviewDate: '04/29' },
-    { id: 5, name: 'Frank White', department: 'IT', lastReview: 'November 2022', status: 'Completed', reviewDate: '05/28' },
-    { id: 6, name: 'Eva Green', department: 'Finance', lastReview: 'December 2022', status: 'Completed' },
-    { id: 7, name: 'Grace Black', department: 'Customer Support', lastReview: 'September 2023', status: 'Completed', reviewDate: '06/21' },
-    { id: 8, name: 'Isabella Clark', department: 'Research', lastReview: 'May 2023', status: 'Completed' },
-    { id: 9, name: 'Henry Adams', department: 'Logistics', lastReview: 'October 2022', status: 'Completed' },
-  ]);
+  // TODO: Replace with real employee performance data from API
+  // NOTE: Performance review API endpoint does not exist yet
+  // This is mock data - remove once API is implemented
+  const [employees] = useState<Employee[]>([]);
 
   const filteredEmployees = employees.filter(emp => {
     const matchesSearch = 

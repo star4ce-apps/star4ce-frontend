@@ -24,7 +24,8 @@ export default function EmployeeRoleHistoryPage() {
   const [openMenuId, setOpenMenuId] = useState<number | null>(null);
   const itemsPerPage = 20;
 
-  // Mock data - history log entries
+  // TODO: Replace with real audit log data from /audit-logs API endpoint
+  // This is mock data - remove once connected to real API
   const [historyEntries] = useState<HistoryEntry[]>([
     {
       id: 1,
