@@ -32,12 +32,26 @@ export default function RequireAuth({ children }: Props) {
           headers: {
             Authorization: `Bearer ${token}`,
           },
+          cache: 'no-store',
         });
 
         if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
           // Token invalid / unverified / expired -> logout
           clearSession();
-          router.replace('/login?expired=1');
+          // Only show expired message if it's actually expired, not network errors
+          if (data.error === 'token expired' || res.status === 401) {
+            router.replace('/login?expired=1');
+          } else {
+            router.replace('/login');
+          }
+          return;
+        }
+
+        const data = await res.json().catch(() => ({}));
+        if (!data.ok) {
+          clearSession();
+          router.replace('/login');
           return;
         }
 
@@ -45,9 +59,18 @@ export default function RequireAuth({ children }: Props) {
           setChecking(false);
         }
       } catch (err) {
-        // Network error -> treat as logged out for now
-        clearSession();
-        router.replace('/login?expired=1');
+        // Network error - don't logout immediately, might be temporary
+        console.error('Auth check failed:', err);
+        // Only logout if it's clearly an auth error, not a network issue
+        if (err instanceof TypeError && err.message.includes('fetch')) {
+          // Network error - keep session but show error
+          if (!cancelled) {
+            setChecking(false);
+          }
+        } else {
+          clearSession();
+          router.replace('/login');
+        }
       }
     }
 

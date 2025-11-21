@@ -65,7 +65,8 @@ export default function RegisterPage() {
     try {
       // Backend only uses email/password today; keep sending other fields for future use
       const data = await registerApi(email, password, role);
-      saveSession({ token: data.token, email: data.email, role: data.role });
+      // Don't save session - user must verify email first
+      // Backend doesn't return a token until verified
       router.push(`/verify?email=${encodeURIComponent(email)}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Register failed');
@@ -163,7 +164,7 @@ export default function RegisterPage() {
                       <button
                         type="button"
                         onClick={() => setRole('corporate')}
-                        className={`p-4 rounded-lg border-2 text-center transition-all ${
+                        className={`cursor-pointer p-4 rounded-lg border-2 text-center transition-all ${
                           role === 'corporate'
                             ? 'border-[#0B2E65] bg-[#0B2E65]/10'
                             : 'border-gray-300 hover:border-[#0B2E65]/50'
@@ -179,7 +180,7 @@ export default function RegisterPage() {
                       <button
                         type="button"
                         onClick={() => setRole('manager')}
-                        className={`p-4 rounded-lg border-2 text-center transition-all ${
+                        className={`cursor-pointer p-4 rounded-lg border-2 text-center transition-all ${
                           role === 'manager'
                             ? 'border-[#0B2E65] bg-[#0B2E65]/10'
                             : 'border-gray-300 hover:border-[#0B2E65]/50'
@@ -197,7 +198,7 @@ export default function RegisterPage() {
                   <button
                     type="submit"
                     disabled={!role}
-                    className="w-full bg-[#0B2E65] text-white py-3 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                    className="cursor-pointer w-full bg-[#0B2E65] text-white py-3 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     Next
                   </button>
@@ -209,7 +210,7 @@ export default function RegisterPage() {
                 <>
                   <div className="space-y-2">
                     <select
-                      className="w-full px-3 py-2 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none"
+                      className="cursor-pointer w-full px-3 py-2 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none"
                       value={companyType === 'other' ? 'other' : company}
                       onChange={(e) => {
                         if (e.target.value === 'other') {

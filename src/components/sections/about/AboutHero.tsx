@@ -2,7 +2,7 @@ export default function AboutHero() {
   return (
     <section className="bg-[#E6E6E6] py-20 about-hero-section">
       <div className="max-w-[1200px] mx-auto px-5 text-center">
-        <button className="bg-[#0B2E65] text-white px-6 py-3 rounded-full font-bold mb-8">
+        <button className="cursor-pointer bg-[#0B2E65] text-white px-6 py-3 rounded-full font-bold mb-8 hover:bg-[#2c5aa0] transition-colors">
           Meet Star4ce
         </button>
         <h1 className="text-4xl md:text-5xl font-bold text-[#0B2E65] mb-6">

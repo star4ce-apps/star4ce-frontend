@@ -17,10 +17,12 @@ export default function VerifyPage() {
   const [resendLoading, setResendLoading] = useState(false);
 
   // Pre-fill email from ?email=...
+  const [emailFromUrl, setEmailFromUrl] = useState(false);
   useEffect(() => {
     const qEmail = search.get('email');
     if (qEmail) {
       setEmail(qEmail);
+      setEmailFromUrl(true);
     }
   }, [search]);
 
@@ -151,10 +153,18 @@ export default function VerifyPage() {
                   type="email"
                   value={email}
                   onChange={e => setEmail(e.target.value)}
+                  readOnly={emailFromUrl}
                   required
-                  className="w-full px-4 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none"
+                  className={`w-full px-4 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none ${
+                    emailFromUrl ? 'bg-gray-50 cursor-not-allowed' : ''
+                  }`}
                   placeholder="Enter your email"
                 />
+                {emailFromUrl && (
+                  <p className="mt-1 text-xs text-gray-500">
+                    Email pre-filled from verification link
+                  </p>
+                )}
               </div>
 
               <div>
@@ -164,11 +174,16 @@ export default function VerifyPage() {
                 <input
                   type="text"
                   value={code}
-                  onChange={e => setCode(e.target.value)}
+                  onChange={e => {
+                    // Only allow digits
+                    const value = e.target.value.replace(/\D/g, '').slice(0, 6);
+                    setCode(value);
+                  }}
                   required
                   maxLength={6}
-                  className="w-full px-4 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none tracking-[0.3em] text-center uppercase"
-                  placeholder="123456"
+                  className="w-full px-4 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none tracking-[0.3em] text-center text-lg font-semibold"
+                  placeholder="000000"
+                  inputMode="numeric"
                 />
                 <p className="mt-1 text-xs text-gray-600">
                   Enter the 6-digit code we sent to your email.
@@ -178,7 +193,7 @@ export default function VerifyPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-[#0B2E65] text-white py-3 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                className="cursor-pointer w-full bg-[#0B2E65] text-white py-3 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 {loading ? 'Verifying…' : 'Verify Email'}
               </button>
@@ -190,7 +205,7 @@ export default function VerifyPage() {
                 type="button"
                 onClick={handleResend}
                 disabled={resendLoading || !email}
-                className="text-[#0B2E65] hover:underline disabled:opacity-60 disabled:cursor-not-allowed"
+                className="cursor-pointer text-[#0B2E65] hover:underline disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 {resendLoading ? 'Resending…' : 'Resend verification code'}
               </button>

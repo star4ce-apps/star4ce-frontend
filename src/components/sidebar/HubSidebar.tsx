@@ -4,13 +4,13 @@ import { usePathname } from "next/navigation";
 
 const items = [
   { href: "/dashboard", label: "Dashboard" },
-  { href: "/employee", label: "Employee Management", disabled: true },
-  { href: "/candidate", label: "Candidate Management", disabled: true },
+  { href: "/employees", label: "Employee Management" },
   { href: "/analytics", label: "Analytics" },
   { href: "/access-codes", label: "Access Codes" },
   { href: "/survey", label: "Survey" },
-  { href: "/standings", label: "Dealership Standings" },
-  { href: "/settings", label: "Settings" },
+  { href: "/subscription", label: "Subscription" },
+  { href: "/standings", label: "Dealership Standings", disabled: true },
+  { href: "/settings", label: "Settings", disabled: true },
 ];
 
 export default function HubSidebar() {

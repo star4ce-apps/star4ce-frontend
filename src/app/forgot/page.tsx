@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { API_BASE, saveSession } from '@/lib/auth';
 
@@ -9,9 +9,20 @@ type Step = 'request' | 'reset' | 'done';
 
 export default function ForgotPage() {
   const router = useRouter();
+  const search = useSearchParams();
 
   const [step, setStep] = useState<Step>('request');
   const [email, setEmail] = useState('');
+  const [emailFromUrl, setEmailFromUrl] = useState(false);
+
+  // Pre-fill email from ?email=... (from email link)
+  useEffect(() => {
+    const qEmail = search.get('email');
+    if (qEmail) {
+      setEmail(qEmail);
+      setEmailFromUrl(true);
+    }
+  }, [search]);
   const [code, setCode] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -171,17 +182,25 @@ export default function ForgotPage() {
                   </label>
                   <input
                     type="email"
-                    className="w-full px-3 py-2 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none"
+                    className={`w-full px-3 py-2 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none ${
+                      emailFromUrl ? 'bg-gray-50 cursor-not-allowed' : ''
+                    }`}
                     value={email}
                     onChange={e => setEmail(e.target.value)}
+                    readOnly={emailFromUrl}
                     required
                   />
+                  {emailFromUrl && (
+                    <p className="mt-1 text-xs text-gray-500">
+                      Email pre-filled from reset link
+                    </p>
+                  )}
                 </div>
 
                 <button
                   type="submit"
                   disabled={loading}
-                  className="hover:cursor-pointer w-full bg-[#0B2E65] text-white py-3 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="cursor-pointer w-full bg-[#0B2E65] text-white py-3 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   {loading ? 'Sending code…' : 'Send reset code'}
                 </button>
@@ -209,10 +228,17 @@ export default function ForgotPage() {
                   </label>
                   <input
                     type="text"
-                    className="w-full px-3 py-2 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none"
+                    className="w-full px-3 py-2 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none tracking-[0.2em] text-center font-semibold"
                     value={code}
-                    onChange={e => setCode(e.target.value)}
+                    onChange={e => {
+                      // Only allow digits
+                      const value = e.target.value.replace(/\D/g, '').slice(0, 6);
+                      setCode(value);
+                    }}
+                    maxLength={6}
                     required
+                    placeholder="000000"
+                    inputMode="numeric"
                   />
                   {devCode && (
                     <p className="text-xs text-gray-600 mt-1">
@@ -248,7 +274,7 @@ export default function ForgotPage() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="hover:cursor-pointer w-full bg-[#0B2E65] text-white py-3 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="cursor-pointer w-full bg-[#0B2E65] text-white py-3 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   {loading ? 'Resetting…' : 'Reset password'}
                 </button>

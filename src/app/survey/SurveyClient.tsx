@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { API_BASE } from '@/lib/auth';
+import toast from 'react-hot-toast';
 
 export default function SurveyPage() {
   const search = useSearchParams();
@@ -23,13 +24,69 @@ export default function SurveyPage() {
   const [validatingCode, setValidatingCode] = useState(false); // for "Start Survey"
   const [codeError, setCodeError] = useState<string | null>(null);
 
+  // Calculate progress percentage
+  const getProgress = () => {
+    if (currentStep === 0) return 0;
+    if (currentStep === 1) return 20;
+    if (currentStep === 2) return 40;
+    if (currentStep === 3) return 60;
+    if (currentStep === 4) return 80;
+    if (currentStep === 5) return 100;
+    return 0;
+  };
+
   // Prefill access code from URL: /survey?code=XXXXX
   useEffect(() => {
     const fromUrl = search.get('code');
     if (fromUrl) {
       setAccessCode(fromUrl);
     }
+    
+    // Load saved progress from localStorage
+    const saved = localStorage.getItem('survey_progress');
+    if (saved && fromUrl) {
+      try {
+        const progress = JSON.parse(saved);
+        if (progress.accessCode === fromUrl) {
+          setEmployeeStatus(progress.employeeStatus || '');
+          setRole(progress.role || '');
+          setSatisfactionAnswers(progress.satisfactionAnswers || {});
+          setTrainingAnswers(progress.trainingAnswers || {});
+          setTerminationReason(progress.terminationReason || '');
+          setTerminationOther(progress.terminationOther || '');
+          setLeaveReason(progress.leaveReason || '');
+          setLeaveOther(progress.leaveOther || '');
+          setAdditionalFeedback(progress.additionalFeedback || '');
+          if (progress.currentStep) setCurrentStep(progress.currentStep);
+          toast.success('Resumed previous survey progress');
+        }
+      } catch (e) {
+        // Ignore parse errors
+      }
+    }
   }, [search]);
+
+  // Save progress to localStorage whenever it changes
+  useEffect(() => {
+    if (accessCode && currentStep > 0) {
+      const progress = {
+        accessCode,
+        employeeStatus,
+        role,
+        satisfactionAnswers,
+        trainingAnswers,
+        terminationReason,
+        terminationOther,
+        leaveReason,
+        leaveOther,
+        additionalFeedback,
+        currentStep,
+      };
+      localStorage.setItem('survey_progress', JSON.stringify(progress));
+    }
+  }, [accessCode, employeeStatus, role, satisfactionAnswers, trainingAnswers, 
+      terminationReason, terminationOther, leaveReason, leaveOther, 
+      additionalFeedback, currentStep]);
 
   const roles = [
     'Sales Department',
@@ -83,11 +140,11 @@ export default function SurveyPage() {
 
   function nextStep() {
     if (currentStep === 1 && (!employeeStatus || !role)) {
-      alert('Please complete all required fields');
+      toast.error('Please complete all required fields');
       return;
     }
     if (currentStep === 2 && Object.keys(satisfactionAnswers).length < satisfactionQuestions.length) {
-      alert('Please answer all satisfaction questions');
+      toast.error('Please answer all satisfaction questions');
       return;
     }
     // Skip conditional questions if "none" is selected
@@ -131,15 +188,27 @@ export default function SurveyPage() {
 
       if (!res.ok || !data.ok) {
         // If invalid / inactive / expired
-        setCodeError(data.error || 'This access code is invalid or inactive.');
+        const errorMsg = data.error || 'This access code is invalid or inactive.';
+        setCodeError(errorMsg);
+        
+        // Better error messages
+        if (errorMsg.includes('expired')) {
+          toast.error('This access code has expired. Please request a new one from your administrator.');
+        } else if (errorMsg.includes('inactive')) {
+          toast.error('This access code has already been used. Each code can only be used once.');
+        } else {
+          toast.error('Invalid access code. Please check and try again.');
+        }
         return;
       }
 
       // ✅ Code is valid – move to next step
       setCurrentStep(1);
+      toast.success('Access code validated! Starting survey...');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Could not validate access code.';
       setCodeError(msg);
+      toast.error('Network error. Please check your connection and try again.');
     } finally {
       setValidatingCode(false);
     }
@@ -181,7 +250,7 @@ export default function SurveyPage() {
       setCurrentStep(5);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to submit survey';
-      alert(msg);
+        toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -228,6 +297,22 @@ export default function SurveyPage() {
                 />
               </Link>
             </div>
+
+            {/* Progress Bar - Only show after intro */}
+            {currentStep > 0 && currentStep < 5 && (
+              <div className="mb-8">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-sm text-gray-600">Progress</span>
+                  <span className="text-sm font-medium text-gray-700">{getProgress()}%</span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div
+                    className="bg-[#0B2E65] h-2 rounded-full transition-all duration-300"
+                    style={{ width: `${getProgress()}%` }}
+                  />
+                </div>
+              </div>
+            )}
 
             {/* Progress Dots - Only show after intro */}
             {currentStep > 0 && (

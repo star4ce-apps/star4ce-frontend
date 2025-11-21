@@ -29,7 +29,7 @@ export default function Hero() {
           </p>
           <Link
             href="/survey"
-            className="inline-block bg-[#e74c3c] text-white px-8 py-4 rounded-lg text-lg font-bold hover:bg-[#c0392b] transition-colors"
+            className="cursor-pointer inline-block bg-[#e74c3c] text-white px-8 py-4 rounded-lg text-lg font-bold hover:bg-[#c0392b] transition-colors"
           >
             Take Survey
           </Link>

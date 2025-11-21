@@ -8,11 +8,22 @@ export async function loginApi(email: string, password: string) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, password }),
   });
+  
+  const data = await res.json().catch(() => ({}));
+  
   if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.error || `Login failed (${res.status})`);
+    // Handle unverified users specially
+    if (res.status === 403 && data.error === "unverified") {
+      const error = new Error("unverified");
+      (error as any).data = data;
+      throw error;
+    }
+    // Provide more helpful error messages
+    const errorMsg = data.error || `Login failed (${res.status})`;
+    throw new Error(errorMsg);
   }
-  return res.json() as Promise<{ token: string; role: string; email: string }>;
+  
+  return data as { token: string; role: string; email: string };
 }
 
 export async function registerApi(email: string, password: string, role: string) {
@@ -25,7 +36,7 @@ export async function registerApi(email: string, password: string, role: string)
     const err = await res.json().catch(() => ({}));
     throw new Error(err.error || `Register failed (${res.status})`);
   }
-  return res.json() as Promise<{ ok: boolean; token: string; role: string; email: string }>;
+  return res.json() as Promise<{ ok: boolean; email: string; role: string; message: string }>;
 }
 
 export async function meApi(token: string) {

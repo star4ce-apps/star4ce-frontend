@@ -19,7 +19,7 @@ export default function LoginForm() {
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError('');
-    setLoading(true);              // start loading
+    setLoading(true);
     try {
       const data = await loginApi(email, password);
       saveSession(data);
@@ -30,19 +30,19 @@ export default function LoginForm() {
       if (err instanceof Error) {
         if (err.message === 'unverified') {
           // Special case: backend said this user is not verified yet
-          msg = 'Please verify your email before signing in.';
+          msg = 'Please verify your email before signing in. A new verification code has been sent to your email.';
           // Send them straight to the verify page with their email filled in
           router.push(`/verify?email=${encodeURIComponent(email)}`);
+          return; // Don't set error since we're redirecting
         } else {
           msg = err.message;
         }
       }
 
       setError(msg);
-  } finally {
-      setLoading(false);           // stop loading
-  }
-
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -94,6 +94,11 @@ export default function LoginForm() {
             {error && (
               <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
                 {error}
+                {error.includes('invalid credentials') && (
+                  <div className="mt-2 text-xs text-red-600">
+                    Please check your email and password. If you haven't verified your email, check your inbox for a verification code.
+                  </div>
+                )}
               </div>
             )}
             {expired && (
@@ -141,7 +146,7 @@ export default function LoginForm() {
               <button
                 type="submit"
                 disabled={loading}
-                className="hover:cursor-pointer w-full bg-[#0B2E65] text-white py-3 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                className="cursor-pointer w-full bg-[#0B2E65] text-white py-3 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 {loading ? 'Signing in...' : 'Sign in'}
               </button>

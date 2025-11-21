@@ -94,8 +94,8 @@ export default function TopNav()
       {/* Main Navigation */}
       <div className="bg-[#f5f5f5] py-3">
         <div className="max-w-[1200px] mx-auto px-5">
-          <div className="flex justify-between items-center">
-            <Link href="/" className="flex items-center hover:scale-[1.02] transition-transform">
+          <div className="flex justify-between items-center gap-4">
+            <Link href="/" className="flex items-center hover:scale-[1.02] transition-transform flex-shrink-0">
               <Image
                 src="/images/Logo 4.png"
                 alt="Star4ce"
@@ -105,81 +105,250 @@ export default function TopNav()
               />
             </Link>
 
-            <nav className="hidden md:flex items-center gap-10">
+            <nav className="hidden lg:flex items-center gap-4 xl:gap-6 flex-wrap">
               {email ? (
                 <>
-                  <Link href="/dashboard" className="cursor-pointer text-[#0B2E65] font-bold text-[0.95rem] hover:text-[#2c5aa0] transition-colors">
+                  <Link 
+                    href="/dashboard" 
+                    className={`cursor-pointer text-[#0B2E65] font-bold text-sm whitespace-nowrap hover:text-[#2c5aa0] transition-colors ${
+                      pathname === '/dashboard' ? 'text-[#2c5aa0] border-b-2 border-[#2c5aa0] pb-1' : ''
+                    }`}
+                  >
                     Dashboard
                   </Link>
-                  <Link href="/analytics" className="cursor-pointer text-[#0B2E65] font-bold text-[0.95rem] hover:text-[#2c5aa0] transition-colors">
+                  <Link 
+                    href="/employees" 
+                    className={`cursor-pointer text-[#0B2E65] font-bold text-sm whitespace-nowrap hover:text-[#2c5aa0] transition-colors ${
+                      pathname === '/employees' ? 'text-[#2c5aa0] border-b-2 border-[#2c5aa0] pb-1' : ''
+                    }`}
+                  >
+                    Employees
+                  </Link>
+                  <Link 
+                    href="/analytics" 
+                    className={`cursor-pointer text-[#0B2E65] font-bold text-sm whitespace-nowrap hover:text-[#2c5aa0] transition-colors ${
+                      pathname === '/analytics' ? 'text-[#2c5aa0] border-b-2 border-[#2c5aa0] pb-1' : ''
+                    }`}
+                  >
                     Analytics
                   </Link>
-                  <Link href="/access-codes" className="cursor-pointer text-[#0B2E65] font-bold text-[0.95rem] hover:text-[#2c5aa0] transition-colors">
+                  <Link 
+                    href="/access-codes" 
+                    className={`cursor-pointer text-[#0B2E65] font-bold text-sm whitespace-nowrap hover:text-[#2c5aa0] transition-colors ${
+                      pathname === '/access-codes' ? 'text-[#2c5aa0] border-b-2 border-[#2c5aa0] pb-1' : ''
+                    }`}
+                  >
                     Access Codes
                   </Link>
-                  <Link href="/survey" className="cursor-pointer text-[#0B2E65] font-bold text-[0.95rem] hover:text-[#2c5aa0] transition-colors">
+                  <Link 
+                    href="/survey" 
+                    className={`cursor-pointer text-[#0B2E65] font-bold text-sm whitespace-nowrap hover:text-[#2c5aa0] transition-colors ${
+                      pathname === '/survey' ? 'text-[#2c5aa0] border-b-2 border-[#2c5aa0] pb-1' : ''
+                    }`}
+                  >
                     Survey
                   </Link>
-                  <Link href="/standings" className="cursor-pointer text-[#0B2E65] font-bold text-[0.95rem] hover:text-[#2c5aa0] transition-colors">
+                  <Link 
+                    href="/subscription" 
+                    className={`cursor-pointer text-[#0B2E65] font-bold text-sm whitespace-nowrap hover:text-[#2c5aa0] transition-colors ${
+                      pathname === '/subscription' ? 'text-[#2c5aa0] border-b-2 border-[#2c5aa0] pb-1' : ''
+                    }`}
+                  >
+                    Subscription
+                  </Link>
+                  <Link 
+                    href="/standings" 
+                    className={`cursor-pointer text-[#0B2E65] font-bold text-sm whitespace-nowrap hover:text-[#2c5aa0] transition-colors ${
+                      pathname === '/standings' ? 'text-[#2c5aa0] border-b-2 border-[#2c5aa0] pb-1' : ''
+                    }`}
+                  >
                     Standings
                   </Link>
-                  <Link href="/settings" className="cursor-pointer text-[#0B2E65] font-bold text-[0.95rem] hover:text-[#2c5aa0] transition-colors">
+                  <Link 
+                    href="/settings" 
+                    className={`cursor-pointer text-[#0B2E65] font-bold text-sm whitespace-nowrap hover:text-[#2c5aa0] transition-colors ${
+                      pathname === '/settings' ? 'text-[#2c5aa0] border-b-2 border-[#2c5aa0] pb-1' : ''
+                    }`}
+                  >
                     Settings
                   </Link>
                 </>
               ) : (
                 <>
-                  <Link href="/choose-star4ce" className="cursor-pointer text-[#0B2E65] font-bold text-[0.95rem] hover:text-[#2c5aa0] transition-colors">
+                  <Link 
+                    href="/choose-star4ce" 
+                    className={`cursor-pointer text-[#0B2E65] font-bold text-sm whitespace-nowrap hover:text-[#2c5aa0] transition-colors ${
+                      pathname === '/choose-star4ce' ? 'text-[#2c5aa0] border-b-2 border-[#2c5aa0] pb-1' : ''
+                    }`}
+                  >
                     Choose Star4ce
                   </Link>
-                  <Link href="/case-studies" className="cursor-pointer text-[#0B2E65] font-bold text-[0.95rem] hover:text-[#2c5aa0] transition-colors">
+                  <Link 
+                    href="/case-studies" 
+                    className={`cursor-pointer text-[#0B2E65] font-bold text-sm whitespace-nowrap hover:text-[#2c5aa0] transition-colors ${
+                      pathname === '/case-studies' ? 'text-[#2c5aa0] border-b-2 border-[#2c5aa0] pb-1' : ''
+                    }`}
+                  >
                     Case Studies
                   </Link>
-                  <Link href="/survey" className="cursor-pointer text-[#0B2E65] font-bold text-[0.95rem] hover:text-[#2c5aa0] transition-colors">
+                  <Link 
+                    href="/survey" 
+                    className={`cursor-pointer text-[#0B2E65] font-bold text-sm whitespace-nowrap hover:text-[#2c5aa0] transition-colors ${
+                      pathname === '/survey' ? 'text-[#2c5aa0] border-b-2 border-[#2c5aa0] pb-1' : ''
+                    }`}
+                  >
                     Survey
                   </Link>
                 </>
               )}
             </nav>
 
-
-            <button
-              className="md:hidden text-[#0B2E65] text-2xl font-bold p-2"
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            >
-              ☰
-            </button>
-
-            <Link
-              href="/pricing"
-              className="hidden md:block cursor-pointer bg-[#e74c3c] text-white px-5 py-2.5 rounded uppercase text-sm font-bold hover:bg-[#c0392b] transition-all hover:-translate-y-0.5"
-            >
-              BOOK NOW
-            </Link>
+            <div className="flex items-center gap-3 flex-shrink-0">
+              <Link
+                href="/pricing"
+                className="hidden lg:block cursor-pointer bg-[#e74c3c] text-white px-4 py-2 rounded uppercase text-xs font-bold hover:bg-[#c0392b] transition-colors whitespace-nowrap"
+              >
+                BOOK NOW
+              </Link>
+              <button
+                className="cursor-pointer lg:hidden text-[#0B2E65] text-2xl font-bold p-2 hover:bg-gray-200 rounded transition-colors"
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                aria-label="Toggle menu"
+              >
+                {mobileMenuOpen ? '✕' : '☰'}
+              </button>
+            </div>
 
 
             {/* Mobile Navigation */}
             {mobileMenuOpen && (
-              <div className="absolute top-full left-0 right-0 bg-white shadow-lg border-t border-gray-200 md:hidden">
-                <div className="flex flex-col py-4">
-                  <Link href="/choose-star4ce" className="px-8 py-4 text-[#0B2E65] font-bold hover:bg-gray-50" onClick={() => setMobileMenuOpen(false)}>
-                    Choose Star4ce
-                  </Link>
-                  <Link href="/case-studies" className="px-8 py-4 text-[#0B2E65] font-bold hover:bg-gray-50" onClick={() => setMobileMenuOpen(false)}>
-                    Case Studies
-                  </Link>
-                  <Link href="/survey" className="px-8 py-4 text-[#0B2E65] font-bold hover:bg-gray-50" onClick={() => setMobileMenuOpen(false)}>
-                    Survey
-                  </Link>
-                  <div className="px-8 py-4">
-                    <Link
-                      href="/pricing"
-                      className="block bg-[#e74c3c] text-white px-5 py-2.5 rounded text-center uppercase text-sm font-bold hover:bg-[#c0392b]"
-                      onClick={() => setMobileMenuOpen(false)}
-                    >
-                      BOOK NOW
-                    </Link>
-                  </div>
+              <div className="absolute top-full left-0 right-0 bg-white shadow-lg border-t border-gray-200 lg:hidden z-50">
+                <div className="flex flex-col py-2 max-h-[80vh] overflow-y-auto">
+                  {email ? (
+                    <>
+                      <Link 
+                        href="/dashboard" 
+                        className={`px-6 py-3 text-[#0B2E65] font-semibold hover:bg-gray-50 transition-colors ${
+                          pathname === '/dashboard' ? 'bg-blue-50 text-[#2c5aa0] border-l-4 border-[#2c5aa0]' : ''
+                        }`}
+                        onClick={() => setMobileMenuOpen(false)}
+                      >
+                        Dashboard
+                      </Link>
+                      <Link 
+                        href="/employees" 
+                        className={`px-6 py-3 text-[#0B2E65] font-semibold hover:bg-gray-50 transition-colors ${
+                          pathname === '/employees' ? 'bg-blue-50 text-[#2c5aa0] border-l-4 border-[#2c5aa0]' : ''
+                        }`}
+                        onClick={() => setMobileMenuOpen(false)}
+                      >
+                        Employees
+                      </Link>
+                      <Link 
+                        href="/analytics" 
+                        className={`px-6 py-3 text-[#0B2E65] font-semibold hover:bg-gray-50 transition-colors ${
+                          pathname === '/analytics' ? 'bg-blue-50 text-[#2c5aa0] border-l-4 border-[#2c5aa0]' : ''
+                        }`}
+                        onClick={() => setMobileMenuOpen(false)}
+                      >
+                        Analytics
+                      </Link>
+                      <Link 
+                        href="/access-codes" 
+                        className={`px-6 py-3 text-[#0B2E65] font-semibold hover:bg-gray-50 transition-colors ${
+                          pathname === '/access-codes' ? 'bg-blue-50 text-[#2c5aa0] border-l-4 border-[#2c5aa0]' : ''
+                        }`}
+                        onClick={() => setMobileMenuOpen(false)}
+                      >
+                        Access Codes
+                      </Link>
+                      <Link 
+                        href="/survey" 
+                        className={`px-6 py-3 text-[#0B2E65] font-semibold hover:bg-gray-50 transition-colors ${
+                          pathname === '/survey' ? 'bg-blue-50 text-[#2c5aa0] border-l-4 border-[#2c5aa0]' : ''
+                        }`}
+                        onClick={() => setMobileMenuOpen(false)}
+                      >
+                        Survey
+                      </Link>
+                      <Link 
+                        href="/subscription" 
+                        className={`px-6 py-3 text-[#0B2E65] font-semibold hover:bg-gray-50 transition-colors ${
+                          pathname === '/subscription' ? 'bg-blue-50 text-[#2c5aa0] border-l-4 border-[#2c5aa0]' : ''
+                        }`}
+                        onClick={() => setMobileMenuOpen(false)}
+                      >
+                        Subscription
+                      </Link>
+                      <Link 
+                        href="/standings" 
+                        className={`px-6 py-3 text-[#0B2E65] font-semibold hover:bg-gray-50 transition-colors ${
+                          pathname === '/standings' ? 'bg-blue-50 text-[#2c5aa0] border-l-4 border-[#2c5aa0]' : ''
+                        }`}
+                        onClick={() => setMobileMenuOpen(false)}
+                      >
+                        Standings
+                      </Link>
+                      <Link 
+                        href="/settings" 
+                        className={`px-6 py-3 text-[#0B2E65] font-semibold hover:bg-gray-50 transition-colors ${
+                          pathname === '/settings' ? 'bg-blue-50 text-[#2c5aa0] border-l-4 border-[#2c5aa0]' : ''
+                        }`}
+                        onClick={() => setMobileMenuOpen(false)}
+                      >
+                        Settings
+                      </Link>
+                      <div className="border-t border-gray-200 my-2"></div>
+                      <button
+                        onClick={() => {
+                          handleLogout();
+                          setMobileMenuOpen(false);
+                        }}
+                        className="cursor-pointer px-6 py-3 text-left text-red-600 font-semibold hover:bg-red-50 transition-colors"
+                      >
+                        Logout
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <Link 
+                        href="/choose-star4ce" 
+                        className={`px-6 py-3 text-[#0B2E65] font-semibold hover:bg-gray-50 transition-colors ${
+                          pathname === '/choose-star4ce' ? 'bg-blue-50 text-[#2c5aa0] border-l-4 border-[#2c5aa0]' : ''
+                        }`}
+                        onClick={() => setMobileMenuOpen(false)}
+                      >
+                        Choose Star4ce
+                      </Link>
+                      <Link 
+                        href="/case-studies" 
+                        className={`px-6 py-3 text-[#0B2E65] font-semibold hover:bg-gray-50 transition-colors ${
+                          pathname === '/case-studies' ? 'bg-blue-50 text-[#2c5aa0] border-l-4 border-[#2c5aa0]' : ''
+                        }`}
+                        onClick={() => setMobileMenuOpen(false)}
+                      >
+                        Case Studies
+                      </Link>
+                      <Link 
+                        href="/survey" 
+                        className={`px-6 py-3 text-[#0B2E65] font-semibold hover:bg-gray-50 transition-colors ${
+                          pathname === '/survey' ? 'bg-blue-50 text-[#2c5aa0] border-l-4 border-[#2c5aa0]' : ''
+                        }`}
+                        onClick={() => setMobileMenuOpen(false)}
+                      >
+                        Survey
+                      </Link>
+                      <div className="px-6 py-4 border-t border-gray-200 mt-2">
+                        <Link
+                          href="/pricing"
+                          className="cursor-pointer block bg-[#e74c3c] text-white px-5 py-2.5 rounded text-center uppercase text-sm font-bold hover:bg-[#c0392b] transition-colors"
+                          onClick={() => setMobileMenuOpen(false)}
+                        >
+                          BOOK NOW
+                        </Link>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
             )}
