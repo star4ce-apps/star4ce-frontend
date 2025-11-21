@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import RequireAuth from '@/components/layout/RequireAuth';
 import { API_BASE, getToken } from '@/lib/auth';
+import toast from 'react-hot-toast';
 import {
   LineChart,
   Line,
@@ -68,6 +69,8 @@ export default function AnalyticsPage() {
   const [error, setError] = useState<string | null>(null);
   const [dateRange, setDateRange] = useState(30);
   const [groupBy, setGroupBy] = useState<'day' | 'week' | 'month'>('day');
+  const [exporting, setExporting] = useState(false);
+  const [exportingResponses, setExportingResponses] = useState(false);
 
   useEffect(() => {
     loadAllData();
@@ -128,6 +131,100 @@ export default function AnalyticsPage() {
     }
   }
 
+  async function handleExportAnalytics() {
+    setExporting(true);
+    setError(null);
+    try {
+      const token = getToken();
+      if (!token) {
+        throw new Error('Not logged in');
+      }
+
+      const res = await fetch(`${API_BASE}/analytics/export?days=${dateRange}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Failed to export analytics');
+      }
+
+      const contentDisposition = res.headers.get('Content-Disposition');
+      let filename = 'analytics_export.csv';
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename="?(.+)"?/);
+        if (filenameMatch) {
+          filename = filenameMatch[1];
+        }
+      }
+
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      toast.success('Analytics exported successfully');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to export analytics';
+      setError(msg);
+      toast.error(msg);
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  async function handleExportResponses() {
+    setExportingResponses(true);
+    setError(null);
+    try {
+      const token = getToken();
+      if (!token) {
+        throw new Error('Not logged in');
+      }
+
+      const res = await fetch(`${API_BASE}/survey/responses/export?days=${dateRange}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Failed to export survey responses');
+      }
+
+      const contentDisposition = res.headers.get('Content-Disposition');
+      let filename = 'survey_responses_export.csv';
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename="?(.+)"?/);
+        if (filenameMatch) {
+          filename = filenameMatch[1];
+        }
+      }
+
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      toast.success('Survey responses exported successfully');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to export survey responses';
+      setError(msg);
+      toast.error(msg);
+    } finally {
+      setExportingResponses(false);
+    }
+  }
+
   // Format date for display
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
@@ -151,9 +248,23 @@ export default function AnalyticsPage() {
   return (
     <RequireAuth>
       <div className="mx-auto max-w-7xl px-4 py-8 md:px-0">
-        <div className="flex justify-between items-center mb-6">
+        <div className="flex justify-between items-center mb-6 flex-wrap gap-4">
           <h1 className="text-2xl font-semibold text-slate-900">Analytics Dashboard</h1>
           <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center">
+            <button
+              onClick={handleExportAnalytics}
+              disabled={exporting || loading}
+              className="cursor-pointer bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed text-sm"
+            >
+              {exporting ? 'Exporting...' : '📥 Export Analytics'}
+            </button>
+            <button
+              onClick={handleExportResponses}
+              disabled={exportingResponses || loading}
+              className="cursor-pointer bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed text-sm"
+            >
+              {exportingResponses ? 'Exporting...' : '📥 Export Responses'}
+            </button>
             <select
               value={dateRange}
               onChange={e => setDateRange(Number(e.target.value))}

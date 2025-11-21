@@ -161,7 +161,9 @@ export default function AccessCodesPage() {
                 <div>
                   <span className="font-semibold">Survey link:</span>{' '}
                   <code className="bg-slate-100 px-2 py-1 rounded break-all">
-                    {`http://localhost:3000/survey?code=${encodeURIComponent(result.code)}`}
+                    {typeof window !== 'undefined' 
+                      ? `${window.location.origin}/survey?code=${encodeURIComponent(result.code)}`
+                      : `/survey?code=${encodeURIComponent(result.code)}`}
                   </code>
                 </div>
               </div>
@@ -240,7 +242,9 @@ export default function AccessCodesPage() {
                             </td>
                             <td className="px-3 py-2">
                               <code className="bg-slate-100 px-2 py-1 rounded break-all">
-                                {`http://localhost:3000/survey?code=${encodeURIComponent(c.code)}`}
+                                {typeof window !== 'undefined'
+                                  ? `${window.location.origin}/survey?code=${encodeURIComponent(c.code)}`
+                                  : `/survey?code=${encodeURIComponent(c.code)}`}
                               </code>
                             </td>
                           </tr>

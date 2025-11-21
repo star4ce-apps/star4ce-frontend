@@ -27,6 +27,7 @@ export default function EmployeesPage() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [invitingEmployeeId, setInvitingEmployeeId] = useState<number | null>(null);
+  const [exporting, setExporting] = useState(false);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -81,8 +82,16 @@ export default function EmployeesPage() {
     e.preventDefault();
     setError(null);
 
+    // Frontend validation
     if (!formData.name || !formData.email || !formData.department) {
       setError('Name, email, and department are required');
+      return;
+    }
+
+    // Email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(formData.email)) {
+      setError('Please enter a valid email address');
       return;
     }
 
@@ -212,6 +221,55 @@ export default function EmployeesPage() {
     setEditingEmployee(null);
   }
 
+  async function handleExport() {
+    setExporting(true);
+    setError(null);
+    try {
+      const token = getToken();
+      if (!token) {
+        throw new Error('Not logged in');
+      }
+
+      const res = await fetch(`${API_BASE}/employees/export`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Failed to export employees');
+      }
+
+      // Get filename from Content-Disposition header or use default
+      const contentDisposition = res.headers.get('Content-Disposition');
+      let filename = 'employees_export.csv';
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename="?(.+)"?/);
+        if (filenameMatch) {
+          filename = filenameMatch[1];
+        }
+      }
+
+      // Download the file
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      toast.success('Employees exported successfully');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to export employees';
+      setError(msg);
+      toast.error(msg);
+    } finally {
+      setExporting(false);
+    }
+  }
+
   function startEdit(employee: Employee) {
     setFormData({
       name: employee.name,
@@ -253,18 +311,27 @@ export default function EmployeesPage() {
   return (
     <RequireAuth>
       <div className="mx-auto max-w-6xl px-4 py-8 md:px-0">
-        <div className="flex justify-between items-center mb-6">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
           <h1 className="text-2xl font-semibold text-slate-900">Employee Management</h1>
           {!showAddForm && (
-            <button
-              onClick={() => {
-                resetForm();
-                setShowAddForm(true);
-              }}
-              className="cursor-pointer bg-[#0B2E65] text-white px-4 py-2 rounded-lg hover:bg-[#2c5aa0] transition-colors"
-            >
-              + Add Employee
-            </button>
+            <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+              <button
+                onClick={handleExport}
+                disabled={exporting || employees.length === 0}
+                className="cursor-pointer bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed text-sm"
+              >
+                {exporting ? 'Exporting...' : '📥 Export CSV'}
+              </button>
+              <button
+                onClick={() => {
+                  resetForm();
+                  setShowAddForm(true);
+                }}
+                className="cursor-pointer bg-[#0B2E65] text-white px-4 py-2 rounded-lg hover:bg-[#2c5aa0] transition-colors text-sm"
+              >
+                + Add Employee
+              </button>
+            </div>
           )}
         </div>
 
@@ -362,70 +429,126 @@ export default function EmployeesPage() {
         ) : employees.length === 0 ? (
           <p className="text-slate-500">No employees yet. Add your first employee above.</p>
         ) : (
-          <div className="bg-white border rounded-lg overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-sm">
-                <thead className="bg-slate-50">
-                  <tr>
-                    <th className="px-4 py-3 text-left font-medium">Name</th>
-                    <th className="px-4 py-3 text-left font-medium">Email</th>
-                    <th className="px-4 py-3 text-left font-medium">Department</th>
-                    <th className="px-4 py-3 text-left font-medium">Position</th>
-                    <th className="px-4 py-3 text-left font-medium">Status</th>
-                    <th className="px-4 py-3 text-left font-medium">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {employees.map(emp => (
-                    <tr key={emp.id} className="border-t">
-                      <td className="px-4 py-3">{emp.name}</td>
-                      <td className="px-4 py-3">{emp.email}</td>
-                      <td className="px-4 py-3">{emp.department}</td>
-                      <td className="px-4 py-3">{emp.position || '—'}</td>
-                      <td className="px-4 py-3">
-                        <span
-                          className={`px-2 py-1 rounded text-xs ${
-                            emp.is_active
-                              ? 'bg-emerald-100 text-emerald-700'
-                              : 'bg-gray-100 text-gray-700'
-                          }`}
-                        >
-                          {emp.is_active ? 'Active' : 'Inactive'}
-                        </span>
-                      </td>
-                    <td className="px-4 py-3">
-                      <div className="flex flex-wrap gap-2">
-                        <button
-                          onClick={() => startEdit(emp)}
-                          className="cursor-pointer text-[#0B2E65] hover:underline text-xs"
-                        >
-                          Edit
-                        </button>
-                        {emp.is_active && (
-                          <button
-                            onClick={() => handleInvite(emp)}
-                            disabled={invitingEmployeeId === emp.id}
-                            className="cursor-pointer text-xs bg-[#0B2E65] text-white px-3 py-1 rounded hover:bg-[#2c5aa0] disabled:opacity-60 disabled:cursor-not-allowed"
-                          >
-                            {invitingEmployeeId === emp.id ? 'Sending...' : 'Invite to Survey'}
-                          </button>
-                        )}
-                        {emp.is_active && (
-                          <button
-                            onClick={() => handleDelete(emp)}
-                            className="cursor-pointer text-red-600 hover:underline text-xs"
-                          >
-                            Deactivate
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+          <>
+            {/* Mobile Card View */}
+            <div className="md:hidden space-y-4">
+              {employees.map(emp => (
+                <div key={emp.id} className="bg-white border rounded-lg p-4">
+                  <div className="flex justify-between items-start mb-3">
+                    <div>
+                      <h3 className="font-semibold text-slate-900">{emp.name}</h3>
+                      <p className="text-sm text-slate-600">{emp.email}</p>
+                    </div>
+                    <span
+                      className={`px-2 py-1 rounded text-xs ${
+                        emp.is_active
+                          ? 'bg-emerald-100 text-emerald-700'
+                          : 'bg-gray-100 text-gray-700'
+                      }`}
+                    >
+                      {emp.is_active ? 'Active' : 'Inactive'}
+                    </span>
+                  </div>
+                  <div className="space-y-1 text-sm text-slate-600 mb-3">
+                    <p><span className="font-medium">Department:</span> {emp.department}</p>
+                    {emp.position && <p><span className="font-medium">Position:</span> {emp.position}</p>}
+                    {emp.phone && <p><span className="font-medium">Phone:</span> {emp.phone}</p>}
+                  </div>
+                  <div className="flex flex-wrap gap-2 pt-2 border-t">
+                    <button
+                      onClick={() => startEdit(emp)}
+                      className="cursor-pointer text-[#0B2E65] hover:underline text-xs"
+                    >
+                      Edit
+                    </button>
+                    {emp.is_active && (
+                      <button
+                        onClick={() => handleInvite(emp)}
+                        disabled={invitingEmployeeId === emp.id}
+                        className="cursor-pointer text-xs bg-[#0B2E65] text-white px-3 py-1 rounded hover:bg-[#2c5aa0] disabled:opacity-60 disabled:cursor-not-allowed"
+                      >
+                        {invitingEmployeeId === emp.id ? 'Sending...' : 'Invite'}
+                      </button>
+                    )}
+                    {emp.is_active && (
+                      <button
+                        onClick={() => handleDelete(emp)}
+                        className="cursor-pointer text-red-600 hover:underline text-xs"
+                      >
+                        Deactivate
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
             </div>
-          </div>
+
+            {/* Desktop Table View */}
+            <div className="hidden md:block bg-white border rounded-lg overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-sm">
+                  <thead className="bg-slate-50">
+                    <tr>
+                      <th className="px-4 py-3 text-left font-medium">Name</th>
+                      <th className="px-4 py-3 text-left font-medium">Email</th>
+                      <th className="px-4 py-3 text-left font-medium">Department</th>
+                      <th className="px-4 py-3 text-left font-medium">Position</th>
+                      <th className="px-4 py-3 text-left font-medium">Status</th>
+                      <th className="px-4 py-3 text-left font-medium">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {employees.map(emp => (
+                      <tr key={emp.id} className="border-t">
+                        <td className="px-4 py-3">{emp.name}</td>
+                        <td className="px-4 py-3">{emp.email}</td>
+                        <td className="px-4 py-3">{emp.department}</td>
+                        <td className="px-4 py-3">{emp.position || '—'}</td>
+                        <td className="px-4 py-3">
+                          <span
+                            className={`px-2 py-1 rounded text-xs ${
+                              emp.is_active
+                                ? 'bg-emerald-100 text-emerald-700'
+                                : 'bg-gray-100 text-gray-700'
+                            }`}
+                          >
+                            {emp.is_active ? 'Active' : 'Inactive'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              onClick={() => startEdit(emp)}
+                              className="cursor-pointer text-[#0B2E65] hover:underline text-xs"
+                            >
+                              Edit
+                            </button>
+                            {emp.is_active && (
+                              <button
+                                onClick={() => handleInvite(emp)}
+                                disabled={invitingEmployeeId === emp.id}
+                                className="cursor-pointer text-xs bg-[#0B2E65] text-white px-3 py-1 rounded hover:bg-[#2c5aa0] disabled:opacity-60 disabled:cursor-not-allowed"
+                              >
+                                {invitingEmployeeId === emp.id ? 'Sending...' : 'Invite to Survey'}
+                              </button>
+                            )}
+                            {emp.is_active && (
+                              <button
+                                onClick={() => handleDelete(emp)}
+                                className="cursor-pointer text-red-600 hover:underline text-xs"
+                              >
+                                Deactivate
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </>
         )}
       </div>
     </RequireAuth>

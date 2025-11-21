@@ -118,44 +118,72 @@ export default function Dashboard() {
             {/* Analytics error / loading */}
             <div className="mt-4">
               {analyticsLoading && (
-                <p className="text-sm text-slate-500">Loading analytics…</p>
+                <div className="flex items-center gap-2">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-[#0B2E65]"></div>
+                  <p className="text-sm text-slate-500">Loading analytics…</p>
+                </div>
               )}
               {analyticsError && (
-                <p className="text-sm text-red-600">{analyticsError}</p>
+                <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                  <p className="text-sm text-red-600">{analyticsError}</p>
+                </div>
               )}
             </div>
 
             {/* KPI tiles */}
             <div className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="rounded-lg border p-4">
-                <div className="text-xs uppercase text-slate-500 mb-1">
-                  Total Survey Responses
-                </div>
-                <div className="text-2xl font-bold">{totalResponses}</div>
-                <div className="text-slate-600 text-xs mt-1">
-                  All-time for this dealership
-                </div>
-              </div>
+              {analyticsLoading ? (
+                // Skeleton loaders
+                <>
+                  <div className="rounded-lg border p-4 animate-pulse">
+                    <div className="h-3 bg-slate-200 rounded w-32 mb-2"></div>
+                    <div className="h-8 bg-slate-200 rounded w-16 mb-2"></div>
+                    <div className="h-3 bg-slate-200 rounded w-24"></div>
+                  </div>
+                  <div className="rounded-lg border p-4 animate-pulse">
+                    <div className="h-3 bg-slate-200 rounded w-32 mb-2"></div>
+                    <div className="h-8 bg-slate-200 rounded w-16 mb-2"></div>
+                    <div className="h-3 bg-slate-200 rounded w-24"></div>
+                  </div>
+                  <div className="rounded-lg border p-4 animate-pulse">
+                    <div className="h-3 bg-slate-200 rounded w-32 mb-2"></div>
+                    <div className="h-8 bg-slate-200 rounded w-16 mb-2"></div>
+                    <div className="h-3 bg-slate-200 rounded w-24"></div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="rounded-lg border p-4">
+                    <div className="text-xs uppercase text-slate-500 mb-1">
+                      Total Survey Responses
+                    </div>
+                    <div className="text-2xl font-bold">{totalResponses}</div>
+                    <div className="text-slate-600 text-xs mt-1">
+                      All-time for this dealership
+                    </div>
+                  </div>
 
-              <div className="rounded-lg border p-4">
-                <div className="text-xs uppercase text-slate-500 mb-1">
-                  Termination Responses
-                </div>
-                <div className="text-2xl font-bold">{terminations}</div>
-                <div className="text-slate-600 text-xs mt-1">
-                  Employees who selected “Termination”
-                </div>
-              </div>
+                  <div className="rounded-lg border p-4">
+                    <div className="text-xs uppercase text-slate-500 mb-1">
+                      Termination Responses
+                    </div>
+                    <div className="text-2xl font-bold">{terminations}</div>
+                    <div className="text-slate-600 text-xs mt-1">
+                      Employees who selected "Termination"
+                    </div>
+                  </div>
 
-              <div className="rounded-lg border p-4">
-                <div className="text-xs uppercase text-slate-500 mb-1">
-                  Last 30 Days
-                </div>
-                <div className="text-2xl font-bold">{last30}</div>
-                <div className="text-slate-600 text-xs mt-1">
-                  New responses in the last 30 days
-                </div>
-              </div>
+                  <div className="rounded-lg border p-4">
+                    <div className="text-xs uppercase text-slate-500 mb-1">
+                      Last 30 Days
+                    </div>
+                    <div className="text-2xl font-bold">{last30}</div>
+                    <div className="text-slate-600 text-xs mt-1">
+                      New responses in the last 30 days
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           </section>
         </div>
