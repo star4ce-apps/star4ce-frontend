@@ -69,17 +69,7 @@ export default function RegisterPage() {
       // Backend doesn't return a token until verified
       router.push(`/verify?email=${encodeURIComponent(email)}`);
     } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : 'Registration failed';
-      // Make error messages more user-friendly
-      if (errorMsg.includes('already registered')) {
-        setError('This email is already registered. Please sign in instead or use a different email.');
-      } else if (errorMsg.includes('password')) {
-        setError('Password must be at least 8 characters and include both letters and numbers.');
-      } else if (errorMsg.includes('email')) {
-        setError('Please enter a valid email address.');
-      } else {
-        setError(errorMsg);
-      }
+      setError(err instanceof Error ? err.message : 'Register failed');
     } finally {
       setLoading(false);
     }
