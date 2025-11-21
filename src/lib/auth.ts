@@ -62,6 +62,35 @@ export function getToken() {
   return typeof window !== "undefined" ? localStorage.getItem(TOKEN_KEY) : null;
 }
 
+export function getRole() {
+  return typeof window !== "undefined" ? localStorage.getItem(ROLE_KEY) : null;
+}
+
+export function getEmail() {
+  return typeof window !== "undefined" ? localStorage.getItem(EMAIL_KEY) : null;
+}
+
+export async function getCurrentUser() {
+  const token = getToken();
+  if (!token) return null;
+  
+  try {
+    const res = await fetch(`${API_BASE}/auth/me`, {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store",
+    });
+    
+    if (res.ok) {
+      const data = await res.json();
+      return data;
+    }
+    return null;
+  } catch (err) {
+    console.error('Failed to get current user:', err);
+    return null;
+  }
+}
+
 export function clearSession() {
   if (typeof window !== "undefined") {
     localStorage.removeItem(TOKEN_KEY);

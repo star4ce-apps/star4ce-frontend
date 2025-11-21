@@ -1,0 +1,215 @@
+'use client';
+
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { API_BASE } from '@/lib/auth';
+import toast from 'react-hot-toast';
+
+export default function CorporateRegisterPage() {
+  const router = useRouter();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError('');
+
+    // Validation
+    if (!email.trim()) {
+      setError('Email is required');
+      return;
+    }
+
+    if (!password) {
+      setError('Password is required');
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setError('Passwords do not match');
+      return;
+    }
+
+    if (password.length < 8 || !/[a-zA-Z]/.test(password) || !/[0-9]/.test(password)) {
+      setError('Password must be at least 8 characters and include both letters and numbers');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // Register as corporate user
+      const res = await fetch(`${API_BASE}/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: email.trim().toLowerCase(),
+          password,
+          role: 'corporate',
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        toast.success('Registration successful! Please check your email for verification code.');
+        router.push(`/verify?email=${encodeURIComponent(email)}`);
+      } else {
+        setError(data.error || 'Registration failed');
+        toast.error(data.error || 'Registration failed');
+      }
+    } catch (err) {
+      setError('Failed to register. Please try again.');
+      toast.error('Failed to register');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div 
+      className="min-h-screen flex items-center justify-center py-12 px-4"
+      style={{
+        backgroundImage: 'url(/images/header.jpg)',
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundAttachment: 'fixed',
+        paddingTop: '140px', // Add padding to account for navbar
+      }}
+    >
+      {/* Blurred background overlay */}
+      <div 
+        className="fixed inset-0 backdrop-blur-sm z-0"
+        style={{
+          backgroundColor: 'rgba(9, 21, 39, 0.7)',
+        }}
+      />
+
+      {/* Register Modal */}
+      <div className="relative z-10 w-full max-w-2xl mx-5 my-8">
+        <div className="bg-white rounded-lg shadow-2xl overflow-hidden flex min-h-[500px] isolate">
+          {/* Left Section - Gradient Blue Sidebar */}
+          <div 
+            className="w-1/4 hidden md:block"
+            style={{
+              background: 'linear-gradient(180deg, #071F45 0%, #203F70 100%)',
+              flexShrink: 0,
+            }}
+          ></div>
+
+          {/* Right Section - Form */}
+          <div className="bg-[#E6E6E6] flex-1 p-10 md:p-12 flex flex-col justify-center overflow-y-auto max-h-[calc(90vh-140px)]">
+            {/* Logo and Tagline */}
+            <div className="text-center mb-10">
+              <Link href="/" className="inline-block">
+                <img 
+                  src="/images/Logo 4.png" 
+                  alt="Star4ce" 
+                  className="h-12 md:h-16 mx-auto mb-4"
+                />
+              </Link>
+              <p className="text-gray-700 text-lg font-medium mb-2">
+                Corporate Registration
+              </p>
+              <p className="text-gray-600 text-sm">
+                Create your corporate account to view multiple dealerships
+              </p>
+            </div>
+
+            {/* Error Messages */}
+            {error && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+                {error}
+              </div>
+            )}
+
+            {/* Registration Form */}
+            <form onSubmit={handleSubmit} className="space-y-5">
+              {/* Email Field */}
+              <div>
+                <input
+                  type="email"
+                  placeholder="Email"
+                  autoComplete="email"
+                  className="w-full px-4 py-3 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
+              </div>
+
+              {/* Password Field */}
+              <div>
+                <input
+                  type="password"
+                  placeholder="Password (min 8 chars, letters & numbers)"
+                  autoComplete="new-password"
+                  className="w-full px-4 py-3 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  minLength={8}
+                />
+              </div>
+
+              {/* Confirm Password Field */}
+              <div>
+                <input
+                  type="password"
+                  placeholder="Confirm Password"
+                  autoComplete="new-password"
+                  className="w-full px-4 py-3 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  required
+                  minLength={8}
+                />
+              </div>
+
+              {/* Info Box */}
+              <div className="rounded-lg bg-blue-50 border border-blue-200 p-3">
+                <p className="text-xs text-blue-800">
+                  <strong>Note:</strong> Corporate accounts can view multiple dealerships assigned by admins. 
+                  After registration, verify your email. An admin will need to assign dealerships to your account.
+                </p>
+              </div>
+
+              {/* Register Button */}
+              <button
+                type="submit"
+                disabled={loading}
+                className="cursor-pointer w-full bg-[#0B2E65] text-white py-3 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {loading ? 'Registering...' : 'Register as Corporate'}
+              </button>
+
+              {/* Links */}
+              <div className="text-center space-y-2">
+                <p className="text-sm text-gray-700">
+                  Already have an account?{' '}
+                  <Link href="/login" className="text-[#0B2E65] hover:underline font-medium">
+                    Sign in
+                  </Link>
+                </p>
+                <p className="text-sm text-gray-700">
+                  Want to register as manager or admin?{' '}
+                  <Link href="/manager-register" className="text-[#0B2E65] hover:underline font-medium">
+                    Manager
+                  </Link>
+                  {' or '}
+                  <Link href="/admin-register" className="text-[#0B2E65] hover:underline font-medium">
+                    Admin
+                  </Link>
+                </p>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+

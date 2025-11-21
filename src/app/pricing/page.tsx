@@ -14,23 +14,25 @@ export default function PricingPage() {
 
   return (
     <div 
-      className="fixed inset-0 flex items-center justify-center overflow-hidden"
+      className="min-h-screen flex items-center justify-center py-12 px-4"
       style={{
         backgroundImage: 'url(/images/header.jpg)',
         backgroundSize: 'cover',
         backgroundPosition: 'center',
+        backgroundAttachment: 'fixed',
+        paddingTop: '140px', // Add padding to account for navbar
       }}
     >
       {/* Blurred background overlay */}
       <div 
-        className="absolute inset-0 backdrop-blur-sm z-[1500]"
+        className="fixed inset-0 backdrop-blur-sm z-0"
         style={{
           backgroundColor: 'rgba(9, 21, 39, 0.7)',
         }}
       />
 
       {/* Pricing Modal */}
-      <div className="relative z-[2000] w-full max-w-6xl mx-5 my-8">
+      <div className="relative z-10 w-full max-w-6xl mx-5 my-8">
         <div className="bg-white rounded-lg shadow-2xl overflow-hidden flex isolate">
           {/* Left Section - Gradient Blue Sidebar */}
           <div 
@@ -69,7 +71,7 @@ export default function PricingPage() {
                   <p className="text-gray-700 text-sm">Perfect for teams starting their hiring transformation journey</p>
                 </div>
                 <Link
-                  href="/register"
+                  href="/admin-register?plan=monthly"
                   className="block w-full bg-[#0B2E65] text-white text-center py-3 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-all hover:shadow-md hover:scale-[1.02]"
                 >
                   Sign up
@@ -111,7 +113,7 @@ export default function PricingPage() {
                   <p className="text-gray-700 text-sm">Maximum savings for committed teams building long-term success</p>
                 </div>
                 <Link
-                  href="/register"
+                  href="/admin-register?plan=annual"
                   className="block w-full bg-[#0B2E65] text-white text-center py-3 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-all hover:shadow-md hover:scale-[1.02]"
                 >
                   Sign up

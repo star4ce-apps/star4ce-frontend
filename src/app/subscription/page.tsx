@@ -18,30 +18,68 @@ type SubscriptionStatus = {
   cancel_at_period_end?: boolean;
 };
 
+type CorporateSubscription = {
+  dealership_id: number;
+  dealership_name: string;
+  subscription_status: string;
+  subscription_plan: string | null;
+  trial_ends_at: string | null;
+  subscription_ends_at: string | null;
+  days_remaining_in_trial: number;
+  is_active: boolean;
+};
+
 export default function SubscriptionPage() {
   const router = useRouter();
   const search = useSearchParams();
+  const [userRole, setUserRole] = useState<string | null>(null);
   const [status, setStatus] = useState<SubscriptionStatus | null>(null);
+  const [corporateSubscriptions, setCorporateSubscriptions] = useState<CorporateSubscription[]>([]);
   const [loading, setLoading] = useState(true);
   const [creatingCheckout, setCreatingCheckout] = useState(false);
-  const [canceling, setCanceling] = useState(false);
-  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  const [canceling, setCanceling] = useState<{ [key: number]: boolean }>({});
+  const [showCancelConfirm, setShowCancelConfirm] = useState<{ [key: number]: boolean }>({});
+  const [selectedDealershipId, setSelectedDealershipId] = useState<number | null>(null);
 
   useEffect(() => {
-    loadSubscriptionStatus();
+    loadUserRole();
     
     // Check for subscription success/cancel from URL
     const subscriptionParam = search.get('subscription');
     if (subscriptionParam === 'success') {
       toast.success('Subscription activated! You are now an admin.');
       loadSubscriptionStatus();
-      // Clean URL
       router.replace('/subscription');
     } else if (subscriptionParam === 'canceled') {
       toast.error('Subscription canceled. You can try again anytime.');
       router.replace('/subscription');
     }
   }, [search, router]);
+
+  async function loadUserRole() {
+    try {
+      const token = getToken();
+      if (!token) return;
+
+      const res = await fetch(`${API_BASE}/auth/me`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        const role = data.user?.role || data.role;
+        setUserRole(role);
+        
+        if (role === 'corporate') {
+          loadCorporateSubscriptions();
+        } else {
+          loadSubscriptionStatus();
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load user role:', err);
+    }
+  }
 
   async function loadSubscriptionStatus() {
     setLoading(true);
@@ -69,8 +107,8 @@ export default function SubscriptionPage() {
     }
   }
 
-  async function handleSubscribe() {
-    setCreatingCheckout(true);
+  async function loadCorporateSubscriptions() {
+    setLoading(true);
     try {
       const token = getToken();
       if (!token) {
@@ -78,17 +116,64 @@ export default function SubscriptionPage() {
         return;
       }
 
+      const res = await fetch(`${API_BASE}/corporate/subscriptions`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        setCorporateSubscriptions(data.subscriptions || []);
+      } else {
+        toast.error(data.error || 'Failed to load subscriptions');
+      }
+    } catch (err) {
+      toast.error('Failed to load subscriptions');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleSubscribe(dealershipId?: number) {
+    setCreatingCheckout(true);
+    try {
+      const token = getToken();
+      
+      // Get user email for new admin registration
+      let userEmail = '';
+      if (token) {
+        try {
+          const meRes = await fetch(`${API_BASE}/auth/me`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (meRes.ok) {
+            const meData = await meRes.json();
+            userEmail = meData.user?.email || meData.email || '';
+          }
+        } catch (e) {
+          // Ignore errors
+        }
+      }
+
+      const body: any = dealershipId ? { dealership_id: dealershipId } : {};
+      if (userEmail) {
+        body.email = userEmail;
+      }
+      
+      const headers: any = {
+        'Content-Type': 'application/json',
+      };
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+
       const res = await fetch(`${API_BASE}/subscription/create-checkout`, {
         method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
+        headers,
+        body: JSON.stringify(body),
       });
 
       const data = await res.json();
       if (res.ok && data.checkout_url) {
-        // Redirect to Stripe checkout
         window.location.href = data.checkout_url;
       } else {
         toast.error(data.error || 'Failed to create checkout session');
@@ -100,8 +185,8 @@ export default function SubscriptionPage() {
     }
   }
 
-  async function handleCancel() {
-    setCanceling(true);
+  async function handleCancel(dealershipId: number) {
+    setCanceling({ ...canceling, [dealershipId]: true });
     try {
       const token = getToken();
       if (!token) {
@@ -115,22 +200,24 @@ export default function SubscriptionPage() {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ cancel_at_period_end: true }),
+        body: JSON.stringify({ 
+          cancel_at_period_end: true,
+          dealership_id: dealershipId 
+        }),
       });
 
       const data = await res.json();
       if (res.ok) {
-        toast.success(data.message || 'Subscription will be canceled at the end of the billing period. You will continue to have access until then.');
-        setShowCancelConfirm(false);
-        // Reload subscription status
-        await loadSubscriptionStatus();
+        toast.success(data.message || 'Subscription will be canceled at the end of the billing period.');
+        setShowCancelConfirm({ ...showCancelConfirm, [dealershipId]: false });
+        await loadCorporateSubscriptions();
       } else {
         toast.error(data.error || 'Failed to cancel subscription');
       }
     } catch (err) {
       toast.error('Failed to cancel subscription');
     } finally {
-      setCanceling(false);
+      setCanceling({ ...canceling, [dealershipId]: false });
     }
   }
 
@@ -149,13 +236,143 @@ export default function SubscriptionPage() {
     );
   }
 
+  // Corporate View - Show all dealership subscriptions
+  if (userRole === 'corporate') {
+    return (
+      <RequireAuth>
+        <div className="flex min-h-screen" style={{ width: '100%', overflow: 'hidden', backgroundColor: '#F5F7FA' }}>
+          <HubSidebar />
+          
+          <main className="ml-64 p-8 pl-10 flex-1" style={{ overflowX: 'hidden', minWidth: 0 }}>
+            <div className="mb-8">
+              <div className="mb-6">
+                <h1 className="text-4xl font-bold mb-2" style={{ color: '#232E40', letterSpacing: '-0.02em' }}>Subscription Management</h1>
+                <p className="text-base" style={{ color: '#6B7280' }}>Manage subscriptions for all assigned dealerships</p>
+              </div>
+            </div>
+
+            {corporateSubscriptions.length === 0 ? (
+              <div className="rounded-xl p-8 text-center" style={{ backgroundColor: '#FFFFFF', border: '1px solid #E5E7EB' }}>
+                <p className="text-base" style={{ color: '#9CA3AF' }}>No dealerships assigned yet.</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {corporateSubscriptions.map((sub) => (
+                  <div key={sub.dealership_id} className="rounded-xl p-6 transition-all duration-200 hover:shadow-lg" style={{ 
+                    backgroundColor: '#FFFFFF', 
+                    border: '1px solid #E5E7EB',
+                    boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05)'
+                  }}>
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="flex-1">
+                        <h3 className="text-xl font-semibold mb-2" style={{ color: '#232E40' }}>{sub.dealership_name}</h3>
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium" style={{ color: '#6B7280' }}>Status:</span>
+                            <span className={`text-sm font-semibold ${
+                              sub.is_active ? 'text-emerald-600' : 'text-red-600'
+                            }`}>
+                              {sub.subscription_status === 'trial' && 'Free Trial'}
+                              {sub.subscription_status === 'active' && 'Active'}
+                              {sub.subscription_status === 'canceled' && 'Canceled'}
+                              {sub.subscription_status === 'expired' && 'Expired'}
+                              {!sub.subscription_status && 'No Subscription'}
+                            </span>
+                          </div>
+                          {sub.subscription_plan && (
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-medium" style={{ color: '#6B7280' }}>Plan:</span>
+                              <span className="text-sm font-semibold capitalize" style={{ color: '#232E40' }}>{sub.subscription_plan}</span>
+                            </div>
+                          )}
+                          {sub.subscription_status === 'trial' && sub.days_remaining_in_trial > 0 && (
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-medium" style={{ color: '#6B7280' }}>Trial Days Remaining:</span>
+                              <span className="text-sm font-semibold text-amber-600">{sub.days_remaining_in_trial} days</span>
+                            </div>
+                          )}
+                          {sub.subscription_ends_at && (
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-medium" style={{ color: '#6B7280' }}>Renews On:</span>
+                              <span className="text-sm font-semibold" style={{ color: '#232E40' }}>
+                                {new Date(sub.subscription_ends_at).toLocaleDateString()}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex gap-2 ml-4">
+                        {!sub.is_active && (
+                          <button
+                            onClick={() => handleSubscribe(sub.dealership_id)}
+                            disabled={creatingCheckout}
+                            className="cursor-pointer bg-[#0B2E65] text-white px-6 py-2 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-colors disabled:opacity-60 disabled:cursor-not-allowed whitespace-nowrap"
+                          >
+                            Subscribe
+                          </button>
+                        )}
+                        {sub.is_active && (
+                          <button
+                            onClick={() => setShowCancelConfirm({ ...showCancelConfirm, [sub.dealership_id]: true })}
+                            disabled={canceling[sub.dealership_id]}
+                            className="cursor-pointer bg-red-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-red-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed whitespace-nowrap"
+                          >
+                            Cancel
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Cancel Confirmation Modal */}
+                    {showCancelConfirm[sub.dealership_id] && (
+                      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => setShowCancelConfirm({ ...showCancelConfirm, [sub.dealership_id]: false })}>
+                        <div className="rounded-xl p-6 max-w-md w-full mx-4" style={{ 
+                          backgroundColor: '#FFFFFF', 
+                          border: '1px solid #E5E7EB',
+                          boxShadow: '0 10px 25px 0 rgba(0, 0, 0, 0.15)'
+                        }} onClick={(e) => e.stopPropagation()}>
+                          <h3 className="text-xl font-semibold mb-4" style={{ color: '#232E40' }}>Cancel Subscription?</h3>
+                          <p className="text-base mb-2" style={{ color: '#6B7280' }}>
+                            Cancel subscription for {sub.dealership_name}?
+                          </p>
+                          <p className="text-base mb-6" style={{ color: '#6B7280' }}>
+                            The subscription will remain active until {sub.subscription_ends_at ? new Date(sub.subscription_ends_at).toLocaleDateString() : 'the end of the billing period'}.
+                          </p>
+                          <div className="flex gap-3">
+                            <button
+                              onClick={() => setShowCancelConfirm({ ...showCancelConfirm, [sub.dealership_id]: false })}
+                              className="flex-1 cursor-pointer bg-gray-200 text-gray-800 px-6 py-2.5 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
+                            >
+                              Keep Subscription
+                            </button>
+                            <button
+                              onClick={() => handleCancel(sub.dealership_id)}
+                              disabled={canceling[sub.dealership_id]}
+                              className="flex-1 cursor-pointer bg-red-600 text-white px-6 py-2.5 rounded-lg font-semibold hover:bg-red-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                            >
+                              {canceling[sub.dealership_id] ? 'Canceling...' : 'Yes, Cancel'}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </main>
+        </div>
+      </RequireAuth>
+    );
+  }
+
+  // Admin/Manager View - Show only their own dealership subscription
   return (
     <RequireAuth>
       <div className="flex min-h-screen" style={{ width: '100%', overflow: 'hidden', backgroundColor: '#F5F7FA' }}>
         <HubSidebar />
         
         <main className="ml-64 p-8 pl-10 flex-1" style={{ overflowX: 'hidden', minWidth: 0 }}>
-          {/* Header */}
           <div className="mb-8">
             <div className="mb-6">
               <h1 className="text-4xl font-bold mb-2" style={{ color: '#232E40', letterSpacing: '-0.02em' }}>Subscription & Billing</h1>
@@ -222,14 +439,18 @@ export default function SubscriptionPage() {
                   border: '1px solid #E5E7EB',
                   boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05)'
                 }}>
-                  <h2 className="text-xl font-semibold mb-4" style={{ color: '#232E40' }}>Subscribe to Star4ce</h2>
+                  <h2 className="text-xl font-semibold mb-4" style={{ color: '#232E40' }}>
+                    {userRole === 'manager' ? 'Upgrade to Admin' : 'Subscribe to Star4ce'}
+                  </h2>
                   <p className="text-base mb-6" style={{ color: '#6B7280' }}>
                     {status.subscription_status === 'trial' 
                       ? `Your ${status.days_remaining_in_trial}-day trial is ending soon. Subscribe now to continue using all features.`
+                      : userRole === 'manager'
+                      ? 'Subscribe now to upgrade your account to admin. You\'ll get full access to manage your dealership, create employees, view analytics, and more.'
                       : 'Subscribe to unlock all features and become an admin of your dealership.'}
                   </p>
                   <button
-                    onClick={handleSubscribe}
+                    onClick={() => handleSubscribe()}
                     disabled={creatingCheckout}
                     className="cursor-pointer bg-[#0B2E65] text-white px-8 py-3 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                     style={{ minWidth: '160px' }}
@@ -262,8 +483,8 @@ export default function SubscriptionPage() {
                       )}
                     </div>
                     <button
-                      onClick={() => setShowCancelConfirm(true)}
-                      disabled={canceling}
+                      onClick={() => setShowCancelConfirm({ ...showCancelConfirm, [0]: true })}
+                      disabled={canceling[0]}
                       className="ml-4 cursor-pointer bg-red-600 text-white px-6 py-2.5 rounded-lg font-semibold hover:bg-red-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed whitespace-nowrap"
                     >
                       Cancel Subscription
@@ -306,8 +527,8 @@ export default function SubscriptionPage() {
           )}
 
           {/* Cancel Confirmation Modal */}
-          {showCancelConfirm && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => setShowCancelConfirm(false)}>
+          {showCancelConfirm[0] && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => setShowCancelConfirm({ ...showCancelConfirm, [0]: false })}>
               <div className="rounded-xl p-6 max-w-md w-full mx-4" style={{ 
                 backgroundColor: '#FFFFFF', 
                 border: '1px solid #E5E7EB',
@@ -322,17 +543,46 @@ export default function SubscriptionPage() {
                 </p>
                 <div className="flex gap-3">
                   <button
-                    onClick={() => setShowCancelConfirm(false)}
+                    onClick={() => setShowCancelConfirm({ ...showCancelConfirm, [0]: false })}
                     className="flex-1 cursor-pointer bg-gray-200 text-gray-800 px-6 py-2.5 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
                   >
                     Keep Subscription
                   </button>
                   <button
-                    onClick={handleCancel}
-                    disabled={canceling}
+                    onClick={async () => {
+                      // For admin, cancel their own subscription (no dealership_id needed)
+                      setCanceling({ ...canceling, [0]: true });
+                      try {
+                        const token = getToken();
+                        if (!token) return;
+
+                        const res = await fetch(`${API_BASE}/subscription/cancel`, {
+                          method: 'POST',
+                          headers: {
+                            Authorization: `Bearer ${token}`,
+                            'Content-Type': 'application/json',
+                          },
+                          body: JSON.stringify({ cancel_at_period_end: true }),
+                        });
+
+                        const data = await res.json();
+                        if (res.ok) {
+                          toast.success(data.message || 'Subscription will be canceled at the end of the billing period.');
+                          setShowCancelConfirm({ ...showCancelConfirm, [0]: false });
+                          await loadSubscriptionStatus();
+                        } else {
+                          toast.error(data.error || 'Failed to cancel subscription');
+                        }
+                      } catch (err) {
+                        toast.error('Failed to cancel subscription');
+                      } finally {
+                        setCanceling({ ...canceling, [0]: false });
+                      }
+                    }}
+                    disabled={canceling[0]}
                     className="flex-1 cursor-pointer bg-red-600 text-white px-6 py-2.5 rounded-lg font-semibold hover:bg-red-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                   >
-                    {canceling ? 'Canceling...' : 'Yes, Cancel'}
+                    {canceling[0] ? 'Canceling...' : 'Yes, Cancel'}
                   </button>
                 </div>
               </div>
@@ -343,4 +593,3 @@ export default function SubscriptionPage() {
     </RequireAuth>
   );
 }
-

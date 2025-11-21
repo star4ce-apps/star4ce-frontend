@@ -18,6 +18,10 @@ export default function AppShell({ children }: { children: ReactNode }) {
                           pathname?.startsWith('/users') ||
                           pathname?.startsWith('/support') ||
                           pathname?.startsWith('/surveys');
+  
+  if (isDashboardPage) {
+    return <>{children}</>;
+  }
 
   if (isDashboardPage) {
     return <>{children}</>;

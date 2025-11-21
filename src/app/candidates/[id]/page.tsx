@@ -244,7 +244,7 @@ export default function CandidateProfilePage() {
                   <button
                     onClick={() => navigateCandidate('prev')}
                     disabled={currentCandidateIndex === 0}
-                    className="p-2 rounded-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100"
+                    className="cursor-pointer p-2 rounded-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100"
                     style={{ border: '1px solid #E5E7EB' }}
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: '#374151' }}>
@@ -254,7 +254,7 @@ export default function CandidateProfilePage() {
                   <button
                     onClick={() => navigateCandidate('next')}
                     disabled={currentCandidateIndex >= totalCandidates - 1}
-                    className="p-2 rounded-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100"
+                    className="cursor-pointer p-2 rounded-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100"
                     style={{ border: '1px solid #E5E7EB' }}
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: '#374151' }}>
@@ -292,7 +292,7 @@ export default function CandidateProfilePage() {
                   </div>
                 </div>
                 <button
-                  className="px-4 py-2 rounded-lg text-sm font-semibold transition-all hover:opacity-90"
+                  className="cursor-pointer px-4 py-2 rounded-lg text-sm font-semibold transition-all hover:opacity-90"
                   style={{ backgroundColor: '#4D6DBE', color: '#FFFFFF' }}
                 >
                   <div className="flex items-center gap-2">
@@ -331,7 +331,7 @@ export default function CandidateProfilePage() {
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab.toLowerCase().replace(' ', '-'))}
-                className="px-4 py-3 text-sm font-semibold transition-all relative"
+                className="cursor-pointer px-4 py-3 text-sm font-semibold transition-all relative"
                 style={{
                   color: activeTab === tab.toLowerCase().replace(' ', '-') ? '#4D6DBE' : '#6B7280',
                 }}
@@ -357,7 +357,7 @@ export default function CandidateProfilePage() {
                       style={{ backgroundColor: '#FFFFFF', border: '1px solid #E5E7EB' }}
                     >
                       <button
-                        className="absolute top-4 right-4 p-2 hover:bg-gray-100 rounded-lg transition-all"
+                        className="cursor-pointer absolute top-4 right-4 p-2 hover:bg-gray-100 rounded-lg transition-all"
                         style={{ color: '#6B7280' }}
                       >
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -389,7 +389,7 @@ export default function CandidateProfilePage() {
                             </div>
                           </div>
                           <button
-                            className="px-4 py-2 rounded-lg text-sm font-semibold transition-all hover:opacity-90"
+                            className="cursor-pointer px-4 py-2 rounded-lg text-sm font-semibold transition-all hover:opacity-90"
                             style={{ backgroundColor: '#4D6DBE', color: '#FFFFFF' }}
                           >
                             View Details
@@ -401,7 +401,7 @@ export default function CandidateProfilePage() {
 
                   {/* Add New Score Card */}
                   <button
-                    className="w-full rounded-xl p-5 border-2 border-dashed transition-all hover:border-solid hover:bg-gray-50"
+                    className="cursor-pointer w-full rounded-xl p-5 border-2 border-dashed transition-all hover:border-solid hover:bg-gray-50"
                     style={{ borderColor: '#E5E7EB', color: '#6B7280' }}
                   >
                     <div className="flex items-center justify-center gap-2">
@@ -434,7 +434,7 @@ export default function CandidateProfilePage() {
                     <div className="flex items-center gap-3">
                       <button
                         onClick={() => setHiringDecision('continue')}
-                        className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all flex items-center gap-2 ${
+                        className={`cursor-pointer px-4 py-2 rounded-lg text-sm font-semibold transition-all flex items-center gap-2 ${
                           hiringDecision === 'continue' ? 'opacity-100' : 'opacity-60 hover:opacity-80'
                         }`}
                         style={{ backgroundColor: '#4D6DBE', color: '#FFFFFF' }}
@@ -446,7 +446,7 @@ export default function CandidateProfilePage() {
                       </button>
                       <button
                         onClick={() => setHiringDecision('stop')}
-                        className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all flex items-center gap-2 ${
+                        className={`cursor-pointer px-4 py-2 rounded-lg text-sm font-semibold transition-all flex items-center gap-2 ${
                           hiringDecision === 'stop' ? 'opacity-100' : 'opacity-60 hover:opacity-80'
                         }`}
                         style={{ backgroundColor: '#FFFFFF', color: '#374151', border: '1px solid #E5E7EB' }}
@@ -561,17 +561,17 @@ export default function CandidateProfilePage() {
                   }}
                 />
                 <div className="flex items-center gap-2 mt-3">
-                  <button className="p-2 hover:bg-gray-100 rounded-lg transition-all" style={{ color: '#6B7280' }}>
+                  <button className="cursor-pointer p-2 hover:bg-gray-100 rounded-lg transition-all" style={{ color: '#6B7280' }}>
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                   </button>
-                  <button className="p-2 hover:bg-gray-100 rounded-lg transition-all" style={{ color: '#6B7280' }}>
+                  <button className="cursor-pointer p-2 hover:bg-gray-100 rounded-lg transition-all" style={{ color: '#6B7280' }}>
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
                     </svg>
                   </button>
-                  <button className="p-2 hover:bg-gray-100 rounded-lg transition-all" style={{ color: '#6B7280' }}>
+                  <button className="cursor-pointer p-2 hover:bg-gray-100 rounded-lg transition-all" style={{ color: '#6B7280' }}>
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
                     </svg>

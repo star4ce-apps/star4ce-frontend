@@ -323,7 +323,7 @@ export default function EmployeesPage() {
               </div>
               <button
                 onClick={() => setShowModal(true)}
-                className="px-4 py-2 rounded-lg text-sm font-medium transition-all hover:shadow-md"
+                className="cursor-pointer px-4 py-2 rounded-lg text-sm font-medium transition-all hover:shadow-md"
                 style={{ 
                   backgroundColor: '#4D6DBE',
                   color: '#FFFFFF'
@@ -423,7 +423,7 @@ export default function EmployeesPage() {
                 <thead>
                   <tr style={{ backgroundColor: '#4D6DBE' }}>
                     <th 
-                      className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider cursor-pointer hover:opacity-90 transition-opacity text-white"
+                      className="cursor-pointer text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider hover:opacity-90 transition-opacity text-white"
                       onClick={() => handleSort('name')}
                     >
                       <div className="flex items-center gap-1.5">
@@ -561,7 +561,7 @@ export default function EmployeesPage() {
                 <button
                   onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                   disabled={currentPage === 1}
-                  className="px-2.5 py-1.5 rounded-md transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50"
+                  className="cursor-pointer px-2.5 py-1.5 rounded-md transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50"
                   style={{ 
                     border: '1px solid #E5E7EB',
                     color: currentPage === 1 ? '#9CA3AF' : '#374151',
@@ -588,7 +588,7 @@ export default function EmployeesPage() {
                       <button
                         key={pageNum}
                         onClick={() => setCurrentPage(pageNum)}
-                        className="px-2.5 py-1.5 rounded-md text-xs font-medium transition-all hover:bg-gray-50"
+                        className="cursor-pointer px-2.5 py-1.5 rounded-md text-xs font-medium transition-all hover:bg-gray-50"
                         style={{ 
                           border: '1px solid #E5E7EB',
                           color: currentPage === pageNum ? '#FFFFFF' : '#374151',
@@ -603,7 +603,7 @@ export default function EmployeesPage() {
                 <button
                   onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                   disabled={currentPage === totalPages}
-                  className="px-2.5 py-1.5 rounded-md transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50"
+                  className="cursor-pointer px-2.5 py-1.5 rounded-md transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50"
                   style={{ 
                     border: '1px solid #E5E7EB',
                     color: currentPage === totalPages ? '#9CA3AF' : '#374151',
@@ -942,7 +942,7 @@ export default function EmployeesPage() {
                     <button
                       type="button"
                       onClick={resetForm}
-                      className="px-5 py-2 text-sm font-semibold rounded-lg transition-all hover:bg-gray-50"
+                      className="cursor-pointer px-5 py-2 text-sm font-semibold rounded-lg transition-all hover:bg-gray-50"
                       style={{ 
                         border: '1px solid #E5E7EB',
                         color: '#374151',
@@ -954,7 +954,7 @@ export default function EmployeesPage() {
                     <button
                       type="submit"
                       disabled={loading}
-                      className="px-5 py-2 text-sm font-semibold text-white rounded-lg transition-all hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed"
+                      className="cursor-pointer px-5 py-2 text-sm font-semibold text-white rounded-lg transition-all hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed"
                       style={{ backgroundColor: '#4D6DBE' }}
                     >
                       {loading ? 'Adding...' : 'Add'}

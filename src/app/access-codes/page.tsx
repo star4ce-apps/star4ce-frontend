@@ -80,12 +80,12 @@ export default function AccessCodesPage() {
     }
   }
 
-  // Once we know user is admin, load existing codes
+  // Load codes if user has view permission
   useEffect(() => {
-    if (isAdmin) {
+    if (role) {
       loadCodes();
     }
-  }, [isAdmin]);
+  }, [role]);
 
   async function handleGenerate() {
     setError(null);
@@ -125,11 +125,11 @@ export default function AccessCodesPage() {
 
         {role && !isAdmin && (
           <p className="text-red-600 mb-4">
-            Only Admin users can create and manage survey access codes.
+            You do not have permission to create and manage survey access codes.
           </p>
         )}
 
-        {isAdmin && (
+        {(isAdmin || role === 'manager' || role === 'corporate') && (
           <div className="space-y-6 bg-white border rounded-lg p-6">
             {error && (
               <div className="rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700">

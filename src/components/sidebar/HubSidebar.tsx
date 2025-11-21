@@ -41,6 +41,12 @@ const StandingsIcon = () => (
   </svg>
 );
 
+const DealershipIcon = () => (
+  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+  </svg>
+);
+
 const SubscriptionIcon = () => (
   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -65,7 +71,10 @@ export default function HubSidebar() {
   const router = useRouter();
   const [email, setEmail] = useState<string | null>(null);
   const [name, setName] = useState<string | null>(null);
+  const [role, setRole] = useState<string | null>(null);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [selectedDealership, setSelectedDealership] = useState<{ id: number; name: string } | null>(null);
+  const [dealerships, setDealerships] = useState<Array<{ id: number; name: string }>>([]);
 
   const handleLogout = () => {
     clearSession();
@@ -76,6 +85,9 @@ export default function HubSidebar() {
   useEffect(() => {
     if (typeof window !== 'undefined') {
       setEmail(localStorage.getItem('email') ?? null);
+      // Try both 'role' and 'userRole' keys for compatibility
+      const storedRole = localStorage.getItem('role') ?? localStorage.getItem('userRole') ?? null;
+      setRole(storedRole);
       const storedEmail = localStorage.getItem('email');
       if (storedEmail) {
         const emailParts = storedEmail.split('@')[0].split('.');
@@ -83,8 +95,80 @@ export default function HubSidebar() {
         const lastName = emailParts[1]?.charAt(0).toUpperCase() + emailParts[1]?.slice(1) || '';
         setName(`${firstName} ${lastName}`.trim() || 'User');
       }
+      
+      // Load selected dealership for corporate users
+      const selectedId = localStorage.getItem('selected_dealership_id');
+      const selectedName = localStorage.getItem('selected_dealership_name');
+      if (selectedId && selectedName) {
+        setSelectedDealership({ id: parseInt(selectedId), name: selectedName });
+      }
+      
+      // Also fetch role from API if not in localStorage
+      if (!storedRole) {
+        fetchUserRole();
+      }
     }
   }, []);
+
+  useEffect(() => {
+    if (role === 'corporate') {
+      loadCorporateDealerships();
+    }
+  }, [role]);
+
+  async function loadCorporateDealerships() {
+    try {
+      const { getToken, API_BASE } = await import('@/lib/auth');
+      const token = getToken();
+      if (!token) return;
+
+      const res = await fetch(`${API_BASE}/corporate/dealerships`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setDealerships((data.dealerships || []).map((d: any) => ({ id: d.id, name: d.name })));
+        
+        // If no selected dealership but we have dealerships, select the first one
+        if (!selectedDealership && data.dealerships && data.dealerships.length > 0) {
+          const first = data.dealerships[0];
+          setSelectedDealership({ id: first.id, name: first.name });
+          localStorage.setItem('selected_dealership_id', first.id.toString());
+          localStorage.setItem('selected_dealership_name', first.name);
+        }
+      }
+    } catch (err) {
+      // Suppress errors
+    }
+  }
+
+  async function fetchUserRole() {
+    try {
+      const { getToken, API_BASE } = await import('@/lib/auth');
+      const token = getToken();
+      if (!token) return;
+
+      const res = await fetch(`${API_BASE}/auth/me`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.role) {
+          setRole(data.role);
+          localStorage.setItem('role', data.role);
+        }
+      }
+    } catch (err) {
+      // Suppress network errors in console (backend might be starting)
+      // Only log non-network errors
+      if (!(err instanceof TypeError && err.message.includes('fetch'))) {
+        console.error('Failed to fetch user role:', err);
+      }
+      // If network error, role will remain null and sidebar will work with localStorage only
+    }
+  }
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -134,6 +218,15 @@ export default function HubSidebar() {
     { label: 'Our Performance', href: '/analytics', icon: <PerformanceIcon /> },
     { label: 'Survey', href: '/surveys', icon: <SurveyIcon /> },
     { label: 'Dealership Standings', href: '/standings', icon: <StandingsIcon /> },
+    ...(role === 'admin' ? [
+      { label: 'User Management', href: '/users', icon: <DealershipIcon /> },
+      { label: 'Dealership Requests', href: '/admin/dealership-requests', icon: <DealershipIcon /> }
+    ] : []),
+    ...(role === 'corporate' ? [
+      { label: 'Select Dealership', href: '/corporate/select-dealership', icon: <DealershipIcon /> },
+      { label: 'Dealership Overview', href: '/dealerships', icon: <DealershipIcon /> },
+      { label: 'Admin Requests', href: '/corporate/admin-requests', icon: <DealershipIcon /> }
+    ] : []),
   ];
 
   const paymentItems: MenuItem[] = [
@@ -237,6 +330,50 @@ export default function HubSidebar() {
         </nav>
       </div>
 
+      {/* Dealership Selector for Corporate */}
+      {role === 'corporate' && dealerships.length > 0 && (
+        <div className="px-4 pb-4 border-t pt-4" style={{ borderColor: '#D1D5DB' }}>
+          <h3 className="text-xs font-semibold uppercase mb-3" style={{ color: '#394B67' }}>VIEWING</h3>
+          <div className="relative">
+            <select
+              value={selectedDealership?.id || ''}
+              onChange={(e) => {
+                const id = parseInt(e.target.value);
+                const dealership = dealerships.find(d => d.id === id);
+                if (dealership) {
+                  setSelectedDealership(dealership);
+                  localStorage.setItem('selected_dealership_id', id.toString());
+                  localStorage.setItem('selected_dealership_name', dealership.name);
+                  router.push('/dashboard');
+                }
+              }}
+              className="cursor-pointer w-full px-3 py-2 rounded-md text-sm font-medium appearance-none transition-colors"
+              style={{
+                backgroundColor: '#FFFFFF',
+                border: '1px solid #D1D5DB',
+                color: '#394B67',
+              }}
+            >
+              {dealerships.map((d) => (
+                <option key={d.id} value={d.id}>{d.name}</option>
+              ))}
+            </select>
+            <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: '#6B7280' }}>
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
+          </div>
+          <Link
+            href="/corporate/select-dealership"
+            className="mt-2 block text-xs text-center font-medium hover:underline"
+            style={{ color: '#4D6DBE' }}
+          >
+            Change Dealership
+          </Link>
+        </div>
+      )}
+
       {/* PAYMENT */}
       <div className="px-4 pb-4 border-t pt-4" style={{ borderColor: '#D1D5DB' }}>
         <h3 className="text-xs font-semibold uppercase mb-3" style={{ color: '#394B67' }}>PAYMENT</h3>
@@ -288,26 +425,28 @@ export default function HubSidebar() {
             </button>
             {showUserMenu && (
               <div className="absolute bottom-full right-0 mb-2 w-48 bg-white rounded-md shadow-lg border border-gray-200 py-1 z-50">
-                <Link
-                  href="/users"
-                  onClick={() => setShowUserMenu(false)}
-                  className={`flex items-center gap-3 px-4 py-2 text-sm font-medium transition-colors whitespace-nowrap ${
-                    isActive('/users')
-                      ? 'text-white'
-                      : ''
-                  }`}
-                  style={{
-                    backgroundColor: isActive('/users') ? '#4D6DBE' : 'transparent',
-                    color: isActive('/users') ? '#FFFFFF' : '#394B67',
-                  }}
-                >
-                  <span style={{ color: isActive('/users') ? '#FFFFFF' : '#394B67' }}>
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-                    </svg>
-                  </span>
-                  <span className="text-left">User Management</span>
-                </Link>
+                {role === 'admin' && (
+                  <Link
+                    href="/users"
+                    onClick={() => setShowUserMenu(false)}
+                    className={`flex items-center gap-3 px-4 py-2 text-sm font-medium transition-colors whitespace-nowrap ${
+                      isActive('/users')
+                        ? 'text-white'
+                        : ''
+                    }`}
+                    style={{
+                      backgroundColor: isActive('/users') ? '#4D6DBE' : 'transparent',
+                      color: isActive('/users') ? '#FFFFFF' : '#394B67',
+                    }}
+                  >
+                    <span style={{ color: isActive('/users') ? '#FFFFFF' : '#394B67' }}>
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                      </svg>
+                    </span>
+                    <span className="text-left">Sub Accounts</span>
+                  </Link>
+                )}
                 <Link
                   href="/support"
                   onClick={() => setShowUserMenu(false)}

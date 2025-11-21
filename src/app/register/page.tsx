@@ -8,7 +8,7 @@ export default function RegisterPage() {
   const router = useRouter();
 
   const [currentStep, setCurrentStep] = useState(1);
-  const [role, setRole] = useState<'corporate' | 'manager' | ''>('');
+  const [role, setRole] = useState<'corporate' | 'manager' | 'admin' | ''>('');
   const [company, setCompany] = useState('');
   const [companyType, setCompanyType] = useState<'select' | 'other'>('select');
   const [address, setAddress] = useState('');
@@ -38,6 +38,20 @@ export default function RegisterPage() {
   ];
 
   function nextStep() {
+    // If on step 1 and role is selected, redirect to appropriate registration page
+    if (currentStep === 1 && role) {
+      if (role === 'manager') {
+        router.push('/manager-register');
+        return;
+      } else if (role === 'corporate') {
+        router.push('/corporate-register');
+        return;
+      } else if (role === 'admin') {
+        router.push('/admin-register');
+        return;
+      }
+    }
+    
     if (currentStep < totalSteps) {
       setCurrentStep(currentStep + 1);
       setError('');
@@ -77,23 +91,25 @@ export default function RegisterPage() {
 
   return (
     <div 
-      className="fixed inset-0 flex items-start justify-center overflow-y-auto pt-32 md:pt-40"
+      className="min-h-screen flex items-start justify-center py-12 px-4"
       style={{
         backgroundImage: 'url(/images/header.jpg)',
         backgroundSize: 'cover',
         backgroundPosition: 'center',
+        backgroundAttachment: 'fixed',
+        paddingTop: '140px', // Add padding to account for navbar
       }}
     >
       {/* Blurred background overlay */}
       <div 
-        className="absolute inset-0 backdrop-blur-sm z-[1500]"
+        className="fixed inset-0 backdrop-blur-sm z-0"
         style={{
           backgroundColor: 'rgba(9, 21, 39, 0.7)',
         }}
       />
 
       {/* Register Modal */}
-      <div className="relative z-[2000] w-full max-w-2xl mx-5 mb-8">
+      <div className="relative z-10 w-full max-w-2xl mx-5 my-8">
         <div className="bg-white rounded-lg shadow-2xl overflow-hidden flex min-h-[500px] isolate">
           {/* Left Section - Gradient Blue Sidebar */}
           <div 
@@ -160,7 +176,7 @@ export default function RegisterPage() {
                     <label className="block text-gray-700 text-sm font-medium mb-4">
                       Select your account type
                     </label>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-3 gap-4">
                       <button
                         type="button"
                         onClick={() => setRole('corporate')}
@@ -191,6 +207,22 @@ export default function RegisterPage() {
                         </div>
                         <div className="text-sm text-gray-600">
                           <p>Manage your own dealership</p>
+                        </div>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setRole('admin')}
+                        className={`cursor-pointer p-4 rounded-lg border-2 text-center transition-all ${
+                          role === 'admin'
+                            ? 'border-[#0B2E65] bg-[#0B2E65]/10'
+                            : 'border-gray-300 hover:border-[#0B2E65]/50'
+                        }`}
+                      >
+                        <div className={`font-semibold text-lg mb-2 ${role === 'admin' ? 'text-[#0B2E65]' : 'text-gray-700'}`}>
+                          Admin
+                        </div>
+                        <div className="text-sm text-gray-600">
+                          <p>Full access with subscription</p>
                         </div>
                       </button>
                     </div>

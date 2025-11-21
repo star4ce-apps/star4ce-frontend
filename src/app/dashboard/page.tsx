@@ -370,7 +370,7 @@ export default function Dashboard() {
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-xl font-bold" style={{ color: '#232E40' }}>Role Distribution</h2>
                 <div className="relative">
-                  <select className="text-sm py-2.5 appearance-none cursor-pointer transition-colors rounded-lg" style={{ 
+                  <select className="cursor-pointer text-sm py-2.5 appearance-none transition-colors rounded-lg" style={{ 
                     border: '1px solid #E5E7EB', 
                     color: '#374151',
                     backgroundColor: '#FFFFFF',
@@ -449,7 +449,7 @@ export default function Dashboard() {
                   <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
                     <button
                       onClick={() => setCurrentChart('quit')}
-                      className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+                      className={`cursor-pointer px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
                         currentChart === 'quit' 
                           ? 'bg-white shadow-sm' 
                           : 'hover:bg-gray-50'
@@ -462,7 +462,7 @@ export default function Dashboard() {
                     </button>
                     <button
                       onClick={() => setCurrentChart('terminated')}
-                      className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+                      className={`cursor-pointer px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
                         currentChart === 'terminated' 
                           ? 'bg-white shadow-sm' 
                           : 'hover:bg-gray-50'
@@ -536,7 +536,7 @@ export default function Dashboard() {
             }}>
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-xl font-bold" style={{ color: '#232E40' }}>Turnover Report</h2>
-                <button className="px-3 py-1.5 text-xs font-medium rounded-lg transition-colors hover:bg-gray-50" style={{ 
+                <button className="cursor-pointer px-3 py-1.5 text-xs font-medium rounded-lg transition-colors hover:bg-gray-50" style={{ 
                   border: '1px solid #E5E7EB', 
                   color: '#374151', 
                   backgroundColor: '#FFFFFF' 

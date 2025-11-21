@@ -47,23 +47,25 @@ export default function LoginForm() {
 
   return (
     <div 
-      className="fixed inset-0 flex items-center justify-center overflow-hidden"
+      className="min-h-screen flex items-center justify-center py-12 px-4"
       style={{
         backgroundImage: 'url(/images/header.jpg)',
         backgroundSize: 'cover',
         backgroundPosition: 'center',
+        backgroundAttachment: 'fixed',
+        paddingTop: '140px', // Add padding to account for navbar
       }}
     >
       {/* Blurred background overlay */}
       <div 
-        className="absolute inset-0 backdrop-blur-sm z-[1500]"
+        className="fixed inset-0 backdrop-blur-sm z-0"
         style={{
           backgroundColor: 'rgba(9, 21, 39, 0.7)',
         }}
       />
 
       {/* Login Modal */}
-      <div className="relative z-[2000] w-full max-w-2xl mx-5">
+      <div className="relative z-10 w-full max-w-2xl mx-5 my-8">
         <div className="bg-white rounded-lg shadow-2xl overflow-hidden flex min-h-[500px] isolate">
           {/* Left Section - Gradient Blue Sidebar */}
           <div 
@@ -153,9 +155,9 @@ export default function LoginForm() {
 
               {/* Register Link */}
               <div className="text-center text-sm text-gray-700">
-                Don't have a Login?{' '}
+                Don't have an account?{' '}
                 <Link href="/register" className="text-[#0B2E65] hover:underline font-medium">
-                  Click here to register
+                  Register
                 </Link>
               </div>
             </form>
