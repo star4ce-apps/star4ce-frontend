@@ -1,6 +1,6 @@
 // src/lib/auth.ts
 export const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE || "http://127.0.0.1:5000";
+  process.env.NEXT_PUBLIC_STAR4CE_API_BASE || "http://127.0.0.1:5000";
 
 export async function loginApi(email: string, password: string) {
   const res = await fetch(`${API_BASE}/auth/login`, {
