@@ -54,6 +54,13 @@ function SubscriptionPageContent() {
       toast.error('Subscription canceled. You can try again anytime.');
       router.replace('/subscription');
     }
+    
+    // Check if coming from admin registration verification
+    const adminReg = search.get('admin_registration');
+    const adminEmail = search.get('email');
+    if (adminReg === 'true' && adminEmail) {
+      toast.success('Email verified! Please complete your subscription below.');
+    }
   }, [search, router]);
 
   async function loadUserRole() {

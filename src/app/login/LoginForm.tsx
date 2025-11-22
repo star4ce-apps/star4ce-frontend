@@ -8,9 +8,12 @@ import { loginApi, saveSession } from '@/lib/auth';
 export default function LoginForm() {
   const search = useSearchParams();
   const expired = search.get('expired') === '1';
+  const redirect = search.get('redirect');
+  const adminReg = search.get('admin_registration');
+  const adminEmail = search.get('email');
   const router = useRouter();
 
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(adminEmail || '');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
 
@@ -23,7 +26,13 @@ export default function LoginForm() {
     try {
       const data = await loginApi(email, password);
       saveSession(data);
-      router.push('/dashboard');
+      
+      // Check if we need to redirect to subscription after login
+      if (redirect === 'subscription' || adminReg === 'true') {
+        router.push('/subscription');
+      } else {
+        router.push('/dashboard');
+      }
     } catch (err: unknown) {
       let msg = 'Login failed';
 

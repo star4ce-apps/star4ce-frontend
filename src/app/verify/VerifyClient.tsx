@@ -18,13 +18,43 @@ export default function VerifyPage() {
 
   // Pre-fill email from ?email=...
   const [emailFromUrl, setEmailFromUrl] = useState(false);
+  
   useEffect(() => {
     const qEmail = search.get('email');
     if (qEmail) {
+      // Next.js searchParams automatically decodes URL parameters
       setEmail(qEmail);
       setEmailFromUrl(true);
     }
-  }, [search]);
+    
+    // Check if coming from subscription success
+    const subscriptionParam = search.get('subscription');
+    if (subscriptionParam === 'success') {
+      setMessage('🎉 Subscription successful! Your admin account has been created. Please check your email for the verification code to complete setup.');
+      
+      // If email is pre-filled, automatically try to resend verification code
+      // (in case webhook hasn't fired yet or email failed)
+      const emailToUse = qEmail || email;
+      if (emailToUse) {
+        // Wait a moment then check if we need to resend
+        setTimeout(async () => {
+          try {
+            const res = await fetch(`${API_BASE}/auth/resend-verify`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ email: emailToUse }),
+            });
+            if (res.ok) {
+              setMessage('🎉 Subscription successful! Verification code has been sent to your email. Please check your inbox.');
+            }
+          } catch (err) {
+            // Silently fail - user can manually resend
+            console.error('Auto-resend failed:', err);
+          }
+        }, 2000); // Wait 2 seconds for webhook to potentially fire first
+      }
+    }
+  }, [search, router, email]);
 
   async function handleVerify(e: React.FormEvent) {
     e.preventDefault();
@@ -45,11 +75,20 @@ export default function VerifyPage() {
         throw new Error(data.error || 'Verification failed');
       }
 
-      setMessage('Your email has been verified. You can now sign in.');
-      // Optionally auto-redirect to login after a moment
-      setTimeout(() => {
-        router.push('/login');
-      }, 1500);
+      // Check if this is an admin registration that needs to subscribe
+      if (data.redirect_to_subscription || search.get('admin') === 'true') {
+        setMessage('Your email has been verified! Redirecting to subscription selection...');
+        // Redirect directly to subscription selection page
+        setTimeout(() => {
+          router.push('/admin-subscribe?email=' + encodeURIComponent(email));
+        }, 1500);
+      } else {
+        setMessage('Your email has been verified. You can now sign in.');
+        // Auto-redirect to login after a moment
+        setTimeout(() => {
+          router.push('/login');
+        }, 2000);
+      }
     } catch (err: unknown) {
       setError(
         err instanceof Error ? err.message : 'Verification failed. Please try again.'
