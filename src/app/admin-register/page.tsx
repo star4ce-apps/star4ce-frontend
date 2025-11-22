@@ -12,6 +12,12 @@ function AdminRegisterPageContent() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [fullName, setFullName] = useState('');
+  const [dealershipName, setDealershipName] = useState('');
+  const [dealershipAddress, setDealershipAddress] = useState('');
+  const [dealershipCity, setDealershipCity] = useState('');
+  const [dealershipState, setDealershipState] = useState('');
+  const [dealershipZipCode, setDealershipZipCode] = useState('');
   const [billingPlan, setBillingPlan] = useState<'monthly' | 'annual'>('monthly');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -33,6 +39,16 @@ function AdminRegisterPageContent() {
     // Validation
     if (!email.trim()) {
       setError('Email is required');
+      return;
+    }
+
+    if (!fullName.trim()) {
+      setError('Full name is required');
+      return;
+    }
+
+    if (!dealershipName.trim()) {
+      setError('Dealership name is required');
       return;
     }
 
@@ -60,6 +76,7 @@ function AdminRegisterPageContent() {
         body: JSON.stringify({
           email: email.trim().toLowerCase(),
           password,
+          full_name: fullName.trim(),
           is_admin_registration: true,  // Flag for admin registration
         }),
       });
@@ -80,6 +97,11 @@ function AdminRegisterPageContent() {
           email: email.trim().toLowerCase(),
           user_id: registerData.user_id,  // Pass user_id from registration
           billing_plan: billingPlan,  // 'monthly' or 'annual'
+          dealership_name: dealershipName.trim(),
+          dealership_address: dealershipAddress.trim(),
+          dealership_city: dealershipCity.trim(),
+          dealership_state: dealershipState.trim(),
+          dealership_zip_code: dealershipZipCode.trim(),
         }),
       });
 
@@ -158,11 +180,24 @@ function AdminRegisterPageContent() {
 
             {/* Registration Form */}
             <form onSubmit={handleSubmit} className="space-y-5">
+              {/* Full Name Field */}
+              <div>
+                <input
+                  type="text"
+                  placeholder="Full Name *"
+                  autoComplete="name"
+                  className="w-full px-4 py-3 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  required
+                />
+              </div>
+
               {/* Email Field */}
               <div>
                 <input
                   type="email"
-                  placeholder="Email"
+                  placeholder="Email *"
                   autoComplete="email"
                   className="w-full px-4 py-3 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none"
                   value={email}
@@ -189,7 +224,7 @@ function AdminRegisterPageContent() {
               <div>
                 <input
                   type="password"
-                  placeholder="Confirm Password"
+                  placeholder="Confirm Password *"
                   autoComplete="new-password"
                   className="w-full px-4 py-3 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none"
                   value={confirmPassword}
@@ -197,6 +232,71 @@ function AdminRegisterPageContent() {
                   required
                   minLength={8}
                 />
+              </div>
+
+              {/* Dealership Information Section */}
+              <div className="border-t border-gray-300 pt-5 mt-5">
+                <h3 className="text-lg font-semibold text-gray-800 mb-4">Dealership Information</h3>
+                
+                {/* Dealership Name */}
+                <div className="mb-4">
+                  <input
+                    type="text"
+                    placeholder="Dealership Name *"
+                    className="w-full px-4 py-3 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none"
+                    value={dealershipName}
+                    onChange={(e) => setDealershipName(e.target.value)}
+                    required
+                  />
+                </div>
+
+                {/* Address */}
+                <div className="mb-4">
+                  <input
+                    type="text"
+                    placeholder="Street Address"
+                    autoComplete="street-address"
+                    className="w-full px-4 py-3 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none"
+                    value={dealershipAddress}
+                    onChange={(e) => setDealershipAddress(e.target.value)}
+                  />
+                </div>
+
+                {/* City, State, Zip */}
+                <div className="grid grid-cols-3 gap-3 mb-4">
+                  <div className="col-span-2">
+                    <input
+                      type="text"
+                      placeholder="City"
+                      autoComplete="address-level2"
+                      className="w-full px-4 py-3 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none"
+                      value={dealershipCity}
+                      onChange={(e) => setDealershipCity(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <input
+                      type="text"
+                      placeholder="State"
+                      autoComplete="address-level1"
+                      className="w-full px-4 py-3 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none"
+                      value={dealershipState}
+                      onChange={(e) => setDealershipState(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                {/* Zip Code */}
+                <div className="mb-4">
+                  <input
+                    type="text"
+                    placeholder="Zip Code"
+                    autoComplete="postal-code"
+                    className="w-full px-4 py-3 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none"
+                    value={dealershipZipCode}
+                    onChange={(e) => setDealershipZipCode(e.target.value)}
+                  />
+                </div>
               </div>
 
               {/* Billing Plan Selection */}
