@@ -27,6 +27,7 @@ type CorporateSubscription = {
   subscription_ends_at: string | null;
   days_remaining_in_trial: number;
   is_active: boolean;
+  cancel_at_period_end?: boolean;
 };
 
 function SubscriptionPageContent() {
@@ -38,6 +39,7 @@ function SubscriptionPageContent() {
   const [loading, setLoading] = useState(true);
   const [creatingCheckout, setCreatingCheckout] = useState(false);
   const [canceling, setCanceling] = useState<{ [key: number]: boolean }>({});
+  const [resuming, setResuming] = useState<{ [key: number]: boolean }>({});
   const [showCancelConfirm, setShowCancelConfirm] = useState<{ [key: number]: boolean }>({});
   const [selectedDealershipId, setSelectedDealershipId] = useState<number | null>(null);
 
@@ -217,7 +219,11 @@ function SubscriptionPageContent() {
       if (res.ok) {
         toast.success(data.message || 'Subscription will be canceled at the end of the billing period.');
         setShowCancelConfirm({ ...showCancelConfirm, [dealershipId]: false });
-        await loadCorporateSubscriptions();
+        if (userRole === 'corporate') {
+          await loadCorporateSubscriptions();
+        } else {
+          await loadSubscriptionStatus();
+        }
       } else {
         toast.error(data.error || 'Failed to cancel subscription');
       }
@@ -225,6 +231,44 @@ function SubscriptionPageContent() {
       toast.error('Failed to cancel subscription');
     } finally {
       setCanceling({ ...canceling, [dealershipId]: false });
+    }
+  }
+
+  async function handleResume(dealershipId: number) {
+    setResuming({ ...resuming, [dealershipId]: true });
+    try {
+      const token = getToken();
+      if (!token) {
+        router.push('/login');
+        return;
+      }
+
+      const res = await fetch(`${API_BASE}/subscription/resume`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          dealership_id: dealershipId 
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        toast.success(data.message || 'Subscription resumed successfully. Your subscription will continue to renew.');
+        if (userRole === 'corporate') {
+          await loadCorporateSubscriptions();
+        } else {
+          await loadSubscriptionStatus();
+        }
+      } else {
+        toast.error(data.error || 'Failed to resume subscription');
+      }
+    } catch (err) {
+      toast.error('Failed to resume subscription');
+    } finally {
+      setResuming({ ...resuming, [dealershipId]: false });
     }
   }
 
@@ -319,13 +363,23 @@ function SubscriptionPageContent() {
                           </button>
                         )}
                         {sub.is_active && (
-                          <button
-                            onClick={() => setShowCancelConfirm({ ...showCancelConfirm, [sub.dealership_id]: true })}
-                            disabled={canceling[sub.dealership_id]}
-                            className="cursor-pointer bg-red-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-red-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed whitespace-nowrap"
-                          >
-                            Cancel
-                          </button>
+                          sub.cancel_at_period_end ? (
+                            <button
+                              onClick={() => handleResume(sub.dealership_id)}
+                              disabled={resuming[sub.dealership_id]}
+                              className="cursor-pointer bg-emerald-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-emerald-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed whitespace-nowrap"
+                            >
+                              {resuming[sub.dealership_id] ? 'Resuming...' : 'Continue Renewal'}
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => setShowCancelConfirm({ ...showCancelConfirm, [sub.dealership_id]: true })}
+                              disabled={canceling[sub.dealership_id]}
+                              className="cursor-pointer bg-red-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-red-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed whitespace-nowrap"
+                            >
+                              Cancel
+                            </button>
+                          )
                         )}
                       </div>
                     </div>
@@ -489,13 +543,23 @@ function SubscriptionPageContent() {
                         </p>
                       )}
                     </div>
-                    <button
-                      onClick={() => setShowCancelConfirm({ ...showCancelConfirm, [0]: true })}
-                      disabled={canceling[0]}
-                      className="ml-4 cursor-pointer bg-red-600 text-white px-6 py-2.5 rounded-lg font-semibold hover:bg-red-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed whitespace-nowrap"
-                    >
-                      Cancel Subscription
-                    </button>
+                    {status.cancel_at_period_end ? (
+                      <button
+                        onClick={() => handleResume(0)}
+                        disabled={resuming[0]}
+                        className="ml-4 cursor-pointer bg-emerald-600 text-white px-6 py-2.5 rounded-lg font-semibold hover:bg-emerald-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed whitespace-nowrap"
+                      >
+                        {resuming[0] ? 'Resuming...' : 'Continue Renewal'}
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => setShowCancelConfirm({ ...showCancelConfirm, [0]: true })}
+                        disabled={canceling[0]}
+                        className="ml-4 cursor-pointer bg-red-600 text-white px-6 py-2.5 rounded-lg font-semibold hover:bg-red-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed whitespace-nowrap"
+                      >
+                        Cancel Subscription
+                      </button>
+                    )}
                   </div>
                 </div>
               )}
