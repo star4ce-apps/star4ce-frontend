@@ -26,31 +26,6 @@ function AdminRegisterPageContent() {
     }
   }, [searchParams]);
 
-  // Handle checkout cancellation - clean up user account
-  useEffect(() => {
-    const subscriptionParam = searchParams?.get('subscription');
-    const userId = searchParams?.get('user_id');
-    
-    if (subscriptionParam === 'canceled' && userId) {
-      // Clean up the pending user account
-      fetch(`${API_BASE}/subscription/cleanup-pending`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: parseInt(userId) }),
-      }).catch(err => {
-        console.error('Failed to cleanup pending registration:', err);
-      });
-      
-      toast.error('Registration canceled. Your account has been removed. You can try again anytime.');
-      // Clear the form
-      setEmail('');
-      setPassword('');
-      setConfirmPassword('');
-      // Remove query params
-      router.replace('/admin-register');
-    }
-  }, [searchParams, router]);
-
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError('');
