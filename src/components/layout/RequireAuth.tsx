@@ -37,6 +37,17 @@ export default function RequireAuth({ children }: Props) {
 
         if (!res.ok) {
           const data = await res.json().catch(() => ({}));
+          
+          // Handle manager_not_approved - show waiting message
+          if (data.error === 'manager_not_approved' || res.status === 403) {
+            // Don't logout, just show waiting message
+            if (!cancelled) {
+              setChecking(false);
+            }
+            // The page will handle showing the waiting message
+            return;
+          }
+          
           // Token invalid / unverified / expired -> logout
           clearSession();
           // Only show expired message if it's actually expired, not network errors

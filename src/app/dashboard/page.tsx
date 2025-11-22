@@ -54,6 +54,8 @@ export default function Dashboard() {
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
   const [analyticsError, setAnalyticsError] = useState<string | null>(null);
   const [currentChart, setCurrentChart] = useState<'quit' | 'terminated'>('quit');
+  const [userRole, setUserRole] = useState<string | null>(null);
+  const [isApproved, setIsApproved] = useState<boolean | null>(null);
   
   // Real data states
   const [terminatedQuitData, setTerminatedQuitData] = useState<{ name: string; value: number; percentage: number; color: string }[]>([]);
@@ -62,7 +64,7 @@ export default function Dashboard() {
   const [turnoverTimeSeries, setTurnoverTimeSeries] = useState<{ month: string; value: number }[]>([]);
   const [dataLoading, setDataLoading] = useState(false);
 
-  // Read email from localStorage
+  // Read email from localStorage and check user role
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const storedEmail = localStorage.getItem('email');
@@ -73,6 +75,34 @@ export default function Dashboard() {
         const lastName = emailParts[1]?.charAt(0).toUpperCase() + emailParts[1]?.slice(1) || '';
         setName(`${firstName} ${lastName}`.trim() || 'User');
       }
+      
+      // Check user role and approval status
+      async function checkUserStatus() {
+        try {
+          const token = getToken();
+          if (!token) return;
+          
+          const res = await fetch(`${API_BASE}/auth/me`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          
+          if (res.ok) {
+            const data = await res.json();
+            setUserRole(data.role);
+            setIsApproved(data.is_approved !== false);
+          } else {
+            const data = await res.json();
+            if (data.error === 'manager_not_approved') {
+              setUserRole('manager');
+              setIsApproved(false);
+            }
+          }
+        } catch (err) {
+          console.error('Failed to check user status:', err);
+        }
+      }
+      
+      checkUserStatus();
     }
   }, []);
 
@@ -214,6 +244,33 @@ export default function Dashboard() {
     if (hour < 18) return 'Good Afternoon';
     return 'Good Evening';
   };
+
+  // Show waiting message for unapproved managers
+  if (userRole === 'manager' && isApproved === false) {
+    return (
+      <RequireAuth>
+        <div className="flex min-h-screen" style={{ width: '100%', overflow: 'hidden', backgroundColor: '#F5F7FA' }}>
+          <HubSidebar />
+          <main className="ml-64 p-8 pl-10 flex-1" style={{ overflowX: 'hidden', minWidth: 0 }}>
+            <div className="rounded-xl p-12 text-center" style={{ backgroundColor: '#FFFFFF', border: '1px solid #E5E7EB', boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05)' }}>
+              <div className="mb-6">
+                <svg className="mx-auto h-16 w-16 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <h2 className="text-2xl font-bold mb-4" style={{ color: '#232E40' }}>Waiting for Admin Approval</h2>
+              <p className="text-base mb-2" style={{ color: '#6B7280' }}>
+                Your account is pending admin approval.
+              </p>
+              <p className="text-base" style={{ color: '#6B7280' }}>
+                Please wait for an admin to approve your request to join the dealership. You'll be able to access the dashboard once approved.
+              </p>
+            </div>
+          </main>
+        </div>
+      </RequireAuth>
+    );
+  }
 
   return (
     <RequireAuth>

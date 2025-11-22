@@ -142,7 +142,8 @@ export default function DealershipRequestsPage() {
     }
   }
 
-  if (loading) {
+  // Wait for role to be loaded before checking
+  if (loading || userRole === null) {
     return (
       <RequireAuth>
         <div className="flex min-h-screen" style={{ width: '100%', overflow: 'hidden', backgroundColor: '#F5F7FA' }}>
@@ -157,7 +158,8 @@ export default function DealershipRequestsPage() {
     );
   }
 
-  if (userRole !== 'admin') {
+  // Only show error if role is explicitly not admin (not null/undefined)
+  if (userRole && userRole !== 'admin') {
     return (
       <RequireAuth>
         <div className="flex min-h-screen" style={{ width: '100%', overflow: 'hidden', backgroundColor: '#F5F7FA' }}>

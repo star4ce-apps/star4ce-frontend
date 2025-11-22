@@ -82,6 +82,10 @@ export default function VerifyPage() {
         setTimeout(() => {
           router.push('/admin-subscribe?email=' + encodeURIComponent(email));
         }, 1500);
+      } else if (data.is_manager_pending) {
+        // Manager with pending request - show waiting message
+        setMessage('Your email has been verified! Your request to join the dealership is pending admin approval. Please wait for an admin to approve your request before logging in.');
+        // Don't auto-redirect, let them read the message
       } else {
         setMessage('Your email has been verified. You can now sign in.');
         // Auto-redirect to login after a moment
