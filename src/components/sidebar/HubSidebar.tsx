@@ -103,10 +103,8 @@ export default function HubSidebar() {
         setSelectedDealership({ id: parseInt(selectedId), name: selectedName });
       }
       
-      // Also fetch role from API if not in localStorage
-      if (!storedRole) {
-        fetchUserRole();
-      }
+      // Always fetch role from API to ensure it's up-to-date (especially important on first login)
+      fetchUserRole();
     }
   }, []);
 

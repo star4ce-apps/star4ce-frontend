@@ -11,6 +11,7 @@ export default function LoginForm() {
   const redirect = search.get('redirect');
   const adminReg = search.get('admin_registration');
   const adminEmail = search.get('email');
+  const subscriptionSuccess = search.get('subscription') === 'success';
   const router = useRouter();
 
   const [email, setEmail] = useState(adminEmail || '');
@@ -112,7 +113,12 @@ export default function LoginForm() {
                 )}
               </div>
             )}
-            {expired && (
+            {subscriptionSuccess && (
+              <div className="mb-4 rounded-lg bg-green-50 border border-green-200 px-3 py-2 text-sm text-green-800">
+                🎉 Thank you for subscribing! Your admin account has been created. You may now log in.
+              </div>
+            )}
+            {expired && !subscriptionSuccess && (
               <div className="mb-4 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-sm text-amber-800">
                 Your session expired. Please sign in again.
               </div>

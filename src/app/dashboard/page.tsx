@@ -1,9 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import HubSidebar from '@/components/sidebar/HubSidebar';
 import RequireAuth from '@/components/layout/RequireAuth';
 import { API_BASE, getToken } from '@/lib/auth';
+import toast from 'react-hot-toast';
 import {
   PieChart,
   Pie,
@@ -46,7 +48,8 @@ const feedbackColors: Record<string, string> = {
 
 const roleColors = ['#f97316', '#ef4444', '#84cc16', '#eab308', '#22c55e', '#3b82f6', '#a855f7', '#ec4899'];
 
-export default function Dashboard() {
+function DashboardContent() {
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState<string | null>(null);
   const [name, setName] = useState<string | null>(null);
   const [apiOk, setApiOk] = useState<null | boolean>(null);
@@ -103,8 +106,18 @@ export default function Dashboard() {
       }
       
       checkUserStatus();
+      
+      // Check for subscription success message
+      const subscriptionSuccess = searchParams?.get('subscription') === 'success';
+      if (subscriptionSuccess) {
+        toast.success('🎉 Thank you for subscribing! Your admin account has been created and you are now logged in.', {
+          duration: 6000,
+        });
+        // Remove the parameter from URL
+        window.history.replaceState({}, '', '/dashboard');
+      }
     }
-  }, []);
+  }, [searchParams]);
 
   // Health check
   useEffect(() => {
@@ -642,5 +655,24 @@ export default function Dashboard() {
         </main>
       </div>
     </RequireAuth>
+  );
+}
+
+export default function Dashboard() {
+  return (
+    <Suspense fallback={
+      <RequireAuth>
+        <div className="flex min-h-screen" style={{ width: '100%', overflow: 'hidden', backgroundColor: '#F5F7FA' }}>
+          <HubSidebar />
+          <main className="ml-64 p-8 pl-10 flex-1" style={{ overflowX: 'hidden', minWidth: 0 }}>
+            <div className="flex items-center justify-center h-full">
+              <p className="text-base" style={{ color: '#6B7280' }}>Loading...</p>
+            </div>
+          </main>
+        </div>
+      </RequireAuth>
+    }>
+      <DashboardContent />
+    </Suspense>
   );
 }
