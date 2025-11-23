@@ -59,6 +59,12 @@ const HelpIcon = () => (
   </svg>
 );
 
+const AdminIcon = () => (
+  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+  </svg>
+);
+
 interface MenuItem {
   label: string;
   href?: string;
@@ -228,17 +234,18 @@ export default function HubSidebar() {
     { label: 'Our Performance', href: '/analytics', icon: <PerformanceIcon /> },
     { label: 'Survey', href: '/surveys', icon: <SurveyIcon /> },
     { label: 'Dealership Standings', href: '/standings', icon: <StandingsIcon /> },
-    ...(role === 'admin' ? [
-      { label: 'User Management', href: '/users', icon: <DealershipIcon /> },
-      { label: 'Dealership Requests', href: '/admin/dealership-requests', icon: <DealershipIcon /> },
-      { label: 'Manager Requests', href: '/admin/manager-requests', icon: <DealershipIcon /> }
-    ] : []),
     ...(role === 'corporate' ? [
       { label: 'Select Dealership', href: '/corporate/select-dealership', icon: <DealershipIcon /> },
       { label: 'Dealership Overview', href: '/dealerships', icon: <DealershipIcon /> },
       { label: 'Admin Requests', href: '/corporate/admin-requests', icon: <DealershipIcon /> }
     ] : []),
   ];
+
+  const administratorItems: MenuItem[] = role === 'admin' ? [
+    { label: 'User Management', href: '/users', icon: <AdminIcon /> },
+    { label: 'Dealership Requests', href: '/admin/dealership-requests', icon: <AdminIcon /> },
+    { label: 'Manager Requests', href: '/admin/manager-requests', icon: <AdminIcon /> }
+  ] : [];
 
   const paymentItems: MenuItem[] = [
     { label: 'Subscription', href: '/subscription', icon: <SubscriptionIcon /> },
@@ -394,6 +401,50 @@ export default function HubSidebar() {
           ))}
         </nav>
       </div>
+
+      {/* ADMINISTRATOR */}
+      {administratorItems.length > 0 && (
+        <div className="px-4 pb-4 border-t pt-4" style={{ borderColor: '#D1D5DB' }}>
+          <h3 className="text-xs font-semibold uppercase mb-3" style={{ color: '#394B67' }}>ADMINISTRATOR</h3>
+          <nav className="space-y-1">
+            {administratorItems.map((item, idx) => (
+              isManagerNotApproved ? (
+                <div
+                  key={idx}
+                  className="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium whitespace-nowrap cursor-not-allowed opacity-50"
+                  style={{ color: '#9CA3AF' }}
+                  title="Waiting for admin approval"
+                >
+                  <span style={{ color: '#9CA3AF' }}>
+                    {item.icon}
+                  </span>
+                  <span className="text-left">{item.label}</span>
+                </div>
+              ) : (
+                <Link
+                  key={idx}
+                  href={item.href || '#'}
+                  onClick={(e) => handleLinkClick(e, item.href)}
+                  className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
+                    isActive(item.href)
+                      ? 'text-white'
+                      : ''
+                  }`}
+                  style={{
+                    backgroundColor: isActive(item.href) ? '#4D6DBE' : 'transparent',
+                    color: isActive(item.href) ? '#FFFFFF' : '#394B67',
+                  }}
+                >
+                  <span style={{ color: isActive(item.href) ? '#FFFFFF' : '#394B67' }}>
+                    {item.icon}
+                  </span>
+                  <span className="text-left">{item.label}</span>
+                </Link>
+              )
+            ))}
+          </nav>
+        </div>
+      )}
 
       {/* Dealership Selector for Corporate */}
       {role === 'corporate' && dealerships.length > 0 && (
