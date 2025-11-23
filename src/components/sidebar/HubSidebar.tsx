@@ -72,6 +72,7 @@ export default function HubSidebar() {
   const [email, setEmail] = useState<string | null>(null);
   const [name, setName] = useState<string | null>(null);
   const [role, setRole] = useState<string | null>(null);
+  const [isApproved, setIsApproved] = useState<boolean | null>(null);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [selectedDealership, setSelectedDealership] = useState<{ id: number; name: string } | null>(null);
   const [dealerships, setDealerships] = useState<Array<{ id: number; name: string }>>([]);
@@ -157,6 +158,17 @@ export default function HubSidebar() {
           setRole(data.role);
           localStorage.setItem('role', data.role);
         }
+        if (data.user) {
+          setIsApproved(data.user.is_approved !== false);
+        } else {
+          setIsApproved(data.is_approved !== false);
+        }
+      } else {
+        const data = await res.json().catch(() => ({}));
+        if (data.error === 'manager_not_approved') {
+          setRole('manager');
+          setIsApproved(false);
+        }
       }
     } catch (err) {
       // Suppress network errors in console (backend might be starting)
@@ -233,6 +245,17 @@ export default function HubSidebar() {
   ];
 
   const isActive = (href?: string) => href && pathname === href;
+  
+  // Disable all navigation if manager is not approved
+  const isManagerNotApproved = role === 'manager' && isApproved === false;
+  
+  const handleLinkClick = (e: React.MouseEvent, href?: string) => {
+    if (isManagerNotApproved && href) {
+      e.preventDefault();
+      e.stopPropagation();
+      return false;
+    }
+  };
 
   return (
     <aside className="w-64 flex flex-col h-screen fixed left-0 top-0" style={{ backgroundColor: '#EDEDED' }}>
@@ -253,23 +276,37 @@ export default function HubSidebar() {
           {mainMenuItems.map((item, idx) => (
             <div key={idx}>
               {item.href ? (
-                <Link
-                  href={item.href}
-                  className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
-                    isActive(item.href)
-                      ? 'text-white'
-                      : ''
-                  }`}
-                  style={{
-                    backgroundColor: isActive(item.href) ? '#4D6DBE' : 'transparent',
-                    color: isActive(item.href) ? '#FFFFFF' : '#394B67',
-                  }}
-                >
-                  <span style={{ color: isActive(item.href) ? '#FFFFFF' : '#394B67' }}>
-                    {item.icon}
-                  </span>
-                  <span className="text-left">{item.label}</span>
-                </Link>
+                isManagerNotApproved ? (
+                  <div
+                    className="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium whitespace-nowrap cursor-not-allowed opacity-50"
+                    style={{ color: '#9CA3AF' }}
+                    title="Waiting for admin approval"
+                  >
+                    <span style={{ color: '#9CA3AF' }}>
+                      {item.icon}
+                    </span>
+                    <span className="text-left">{item.label}</span>
+                  </div>
+                ) : (
+                  <Link
+                    href={item.href}
+                    onClick={(e) => handleLinkClick(e, item.href)}
+                    className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
+                      isActive(item.href)
+                        ? 'text-white'
+                        : ''
+                    }`}
+                    style={{
+                      backgroundColor: isActive(item.href) ? '#4D6DBE' : 'transparent',
+                      color: isActive(item.href) ? '#FFFFFF' : '#394B67',
+                    }}
+                  >
+                    <span style={{ color: isActive(item.href) ? '#FFFFFF' : '#394B67' }}>
+                      {item.icon}
+                    </span>
+                    <span className="text-left">{item.label}</span>
+                  </Link>
+                )
               ) : (
                 <>
                   <div className="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium whitespace-nowrap text-left" style={{ color: '#394B67' }}>
@@ -279,21 +316,33 @@ export default function HubSidebar() {
                   {item.children && (
                     <div className="ml-8 mt-1 space-y-1">
                       {item.children.map((child, childIdx) => (
-                        <Link
-                          key={childIdx}
-                          href={child.href}
-                          className={`block px-3 py-2 rounded-md text-sm transition-colors whitespace-nowrap text-left ${
-                            isActive(child.href)
-                              ? 'text-white'
-                              : ''
-                          }`}
-                          style={{
-                            backgroundColor: isActive(child.href) ? '#4D6DBE' : 'transparent',
-                            color: isActive(child.href) ? '#FFFFFF' : '#394B67',
-                          }}
-                        >
-                          {child.label}
-                        </Link>
+                        isManagerNotApproved ? (
+                          <div
+                            key={childIdx}
+                            className="block px-3 py-2 rounded-md text-sm whitespace-nowrap text-left cursor-not-allowed opacity-50"
+                            style={{ color: '#9CA3AF' }}
+                            title="Waiting for admin approval"
+                          >
+                            {child.label}
+                          </div>
+                        ) : (
+                          <Link
+                            key={childIdx}
+                            href={child.href}
+                            onClick={(e) => handleLinkClick(e, child.href)}
+                            className={`block px-3 py-2 rounded-md text-sm transition-colors whitespace-nowrap text-left ${
+                              isActive(child.href)
+                                ? 'text-white'
+                                : ''
+                            }`}
+                            style={{
+                              backgroundColor: isActive(child.href) ? '#4D6DBE' : 'transparent',
+                              color: isActive(child.href) ? '#FFFFFF' : '#394B67',
+                            }}
+                          >
+                            {child.label}
+                          </Link>
+                        )
                       ))}
                     </div>
                   )}
@@ -309,24 +358,39 @@ export default function HubSidebar() {
         <h3 className="text-xs font-semibold uppercase mb-3" style={{ color: '#394B67' }}>ANALYTICS</h3>
         <nav className="space-y-1">
           {analyticsItems.map((item, idx) => (
-            <Link
-              key={idx}
-              href={item.href || '#'}
-              className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
-                isActive(item.href)
-                  ? 'text-white'
-                  : ''
-              }`}
-              style={{
-                backgroundColor: isActive(item.href) ? '#4D6DBE' : 'transparent',
-                color: isActive(item.href) ? '#FFFFFF' : '#394B67',
-              }}
-            >
-              <span style={{ color: isActive(item.href) ? '#FFFFFF' : '#394B67' }}>
-                {item.icon}
-              </span>
-              <span className="text-left">{item.label}</span>
-            </Link>
+            isManagerNotApproved ? (
+              <div
+                key={idx}
+                className="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium whitespace-nowrap cursor-not-allowed opacity-50"
+                style={{ color: '#9CA3AF' }}
+                title="Waiting for admin approval"
+              >
+                <span style={{ color: '#9CA3AF' }}>
+                  {item.icon}
+                </span>
+                <span className="text-left">{item.label}</span>
+              </div>
+            ) : (
+              <Link
+                key={idx}
+                href={item.href || '#'}
+                onClick={(e) => handleLinkClick(e, item.href)}
+                className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
+                  isActive(item.href)
+                    ? 'text-white'
+                    : ''
+                }`}
+                style={{
+                  backgroundColor: isActive(item.href) ? '#4D6DBE' : 'transparent',
+                  color: isActive(item.href) ? '#FFFFFF' : '#394B67',
+                }}
+              >
+                <span style={{ color: isActive(item.href) ? '#FFFFFF' : '#394B67' }}>
+                  {item.icon}
+                </span>
+                <span className="text-left">{item.label}</span>
+              </Link>
+            )
           ))}
         </nav>
       </div>
@@ -380,24 +444,39 @@ export default function HubSidebar() {
         <h3 className="text-xs font-semibold uppercase mb-3" style={{ color: '#394B67' }}>PAYMENT</h3>
         <nav className="space-y-1">
           {paymentItems.map((item, idx) => (
-            <Link
-              key={idx}
-              href={item.href || '#'}
-              className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
-                isActive(item.href)
-                  ? 'text-white'
-                  : ''
-              }`}
-              style={{
-                backgroundColor: isActive(item.href) ? '#4D6DBE' : 'transparent',
-                color: isActive(item.href) ? '#FFFFFF' : '#394B67',
-              }}
-            >
-              <span style={{ color: isActive(item.href) ? '#FFFFFF' : '#394B67' }}>
-                {item.icon}
-              </span>
-              <span className="text-left">{item.label}</span>
-            </Link>
+            isManagerNotApproved ? (
+              <div
+                key={idx}
+                className="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium whitespace-nowrap cursor-not-allowed opacity-50"
+                style={{ color: '#9CA3AF' }}
+                title="Waiting for admin approval"
+              >
+                <span style={{ color: '#9CA3AF' }}>
+                  {item.icon}
+                </span>
+                <span className="text-left">{item.label}</span>
+              </div>
+            ) : (
+              <Link
+                key={idx}
+                href={item.href || '#'}
+                onClick={(e) => handleLinkClick(e, item.href)}
+                className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
+                  isActive(item.href)
+                    ? 'text-white'
+                    : ''
+                }`}
+                style={{
+                  backgroundColor: isActive(item.href) ? '#4D6DBE' : 'transparent',
+                  color: isActive(item.href) ? '#FFFFFF' : '#394B67',
+                }}
+              >
+                <span style={{ color: isActive(item.href) ? '#FFFFFF' : '#394B67' }}>
+                  {item.icon}
+                </span>
+                <span className="text-left">{item.label}</span>
+              </Link>
+            )
           ))}
         </nav>
       </div>
@@ -427,7 +506,7 @@ export default function HubSidebar() {
             </button>
             {showUserMenu && (
               <div className="absolute bottom-full right-0 mb-2 w-48 bg-white rounded-md shadow-lg border border-gray-200 py-1 z-50">
-                {role === 'admin' && (
+                {role === 'admin' && !isManagerNotApproved && (
                   <Link
                     href="/users"
                     onClick={() => setShowUserMenu(false)}
@@ -449,24 +528,26 @@ export default function HubSidebar() {
                     <span className="text-left">Sub Accounts</span>
                   </Link>
                 )}
-                <Link
-                  href="/support"
-                  onClick={() => setShowUserMenu(false)}
-                  className={`flex items-center gap-3 px-4 py-2 text-sm font-medium transition-colors whitespace-nowrap ${
-                    isActive('/support')
-                      ? 'text-white'
-                      : ''
-                  }`}
-                  style={{
-                    backgroundColor: isActive('/support') ? '#4D6DBE' : 'transparent',
-                    color: isActive('/support') ? '#FFFFFF' : '#394B67',
-                  }}
-                >
-                  <span style={{ color: isActive('/support') ? '#FFFFFF' : '#394B67' }}>
-                    <HelpIcon />
-                  </span>
-                  <span className="text-left">Help & Support</span>
-                </Link>
+                {!isManagerNotApproved && (
+                  <Link
+                    href="/support"
+                    onClick={() => setShowUserMenu(false)}
+                    className={`flex items-center gap-3 px-4 py-2 text-sm font-medium transition-colors whitespace-nowrap ${
+                      isActive('/support')
+                        ? 'text-white'
+                        : ''
+                    }`}
+                    style={{
+                      backgroundColor: isActive('/support') ? '#4D6DBE' : 'transparent',
+                      color: isActive('/support') ? '#FFFFFF' : '#394B67',
+                    }}
+                  >
+                    <span style={{ color: isActive('/support') ? '#FFFFFF' : '#394B67' }}>
+                      <HelpIcon />
+                    </span>
+                    <span className="text-left">Help & Support</span>
+                  </Link>
+                )}
                 <div style={{ borderTop: '1px solid #E5E7EB', marginTop: '4px', marginBottom: '4px' }}></div>
                 <button
                   onClick={handleLogout}
