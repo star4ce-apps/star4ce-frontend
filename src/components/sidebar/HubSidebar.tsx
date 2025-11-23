@@ -236,17 +236,19 @@ export default function HubSidebar() {
   const isActive = (href?: string) => href && pathname === href;
 
   return (
-    <aside className="w-64 flex flex-col h-screen fixed left-0 top-0" style={{ backgroundColor: '#EDEDED', overflow: 'hidden' }}>
-      {/* Logo */}
-      <div className="p-4 border-b" style={{ borderColor: '#D1D5DB' }}>
+    <aside className="w-64 flex flex-col h-screen fixed left-0 top-0" style={{ backgroundColor: '#EDEDED' }}>
+      {/* Logo - Fixed at top */}
+      <div className="p-4 border-b flex-shrink-0" style={{ borderColor: '#D1D5DB' }}>
         <div className="flex items-center gap-2">
           <span className="text-[#0B2E65] italic font-bold text-xl">Star</span>
           <span className="text-[#e74c3c] italic font-bold text-xl">4ce</span>
         </div>
       </div>
 
-      {/* MAIN MENU */}
-      <div className="px-4 py-2">
+      {/* Scrollable content area */}
+      <div className="flex-1 overflow-y-auto overflow-x-hidden">
+        {/* MAIN MENU */}
+        <div className="px-4 py-2">
         <h3 className="text-xs font-semibold uppercase mb-2" style={{ color: '#394B67' }}>MAIN MENU</h3>
         <nav className="space-y-0.5">
           {mainMenuItems.map((item, idx) => (
@@ -400,9 +402,10 @@ export default function HubSidebar() {
           ))}
         </nav>
       </div>
+      </div>
 
-      {/* User Profile */}
-      <div className="mt-auto px-4 pb-4 border-t pt-4 relative" style={{ borderColor: '#D1D5DB' }}>
+      {/* User Profile - Fixed at bottom */}
+      <div className="mt-auto px-4 pb-4 border-t pt-4 relative flex-shrink-0" style={{ borderColor: '#D1D5DB' }}>
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ backgroundColor: '#D1D5DB' }}>
             <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24" style={{ color: '#394B67' }}>
