@@ -239,39 +239,54 @@ export default function ManagerRegisterPage() {
                           </p>
                         </div>
                       ) : (
-                        filteredDealerships.map((dealership) => (
-                          <button
-                            key={dealership.id}
-                            type="button"
-                            onClick={() => setDealershipId(dealership.id)}
-                            className={`cursor-pointer w-full text-left px-4 py-3 border-b transition-colors ${
-                              dealershipId === dealership.id
-                                ? 'bg-[#0B2E65] text-white'
-                                : 'hover:bg-gray-50'
-                            }`}
-                            style={{
-                              borderColor: dealershipId === dealership.id ? '#0B2E65' : '#E5E7EB',
-                            }}
-                          >
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <p className="font-semibold">{dealership.name}</p>
-                                {(dealership.city || dealership.state) && (
-                                  <p className={`text-xs mt-1 ${
-                                    dealershipId === dealership.id ? 'text-blue-100' : 'text-gray-500'
-                                  }`}>
-                                    {[dealership.city, dealership.state].filter(Boolean).join(', ')}
+                        filteredDealerships.map((dealership) => {
+                          const isSelected = dealershipId === dealership.id;
+                          return (
+                            <button
+                              key={dealership.id}
+                              type="button"
+                              onClick={() => setDealershipId(dealership.id)}
+                              className={`cursor-pointer w-full text-left px-4 py-3 border-b transition-colors ${
+                                isSelected
+                                  ? 'bg-[#0B2E65] text-white'
+                                  : 'hover:bg-gray-50 text-gray-900'
+                              }`}
+                              style={{
+                                borderColor: isSelected ? '#0B2E65' : '#E5E7EB',
+                                color: isSelected ? '#FFFFFF' : '#111827',
+                              }}
+                            >
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <p 
+                                    className="font-semibold"
+                                    style={{ color: isSelected ? '#FFFFFF' : '#111827' }}
+                                  >
+                                    {dealership.name}
                                   </p>
+                                  {(dealership.city || dealership.state) && (
+                                    <p 
+                                      className="text-xs mt-1"
+                                      style={{ color: isSelected ? '#E0E7FF' : '#6B7280' }}
+                                    >
+                                      {[dealership.city, dealership.state].filter(Boolean).join(', ')}
+                                    </p>
+                                  )}
+                                </div>
+                                {isSelected && (
+                                  <svg 
+                                    className="w-5 h-5" 
+                                    fill="currentColor" 
+                                    viewBox="0 0 20 20"
+                                    style={{ color: '#FFFFFF' }}
+                                  >
+                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                  </svg>
                                 )}
                               </div>
-                              {dealershipId === dealership.id && (
-                                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                </svg>
-                              )}
-                            </div>
-                          </button>
-                        ))
+                            </button>
+                          );
+                        })
                       )}
                     </div>
                   </>
