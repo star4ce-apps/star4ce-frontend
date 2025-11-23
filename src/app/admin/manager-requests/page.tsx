@@ -27,8 +27,10 @@ export default function ManagerRequestsPage() {
   const [error, setError] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
   const [showRejectModal, setShowRejectModal] = useState(false);
+  const [showApproveModal, setShowApproveModal] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState<ManagerRequest | null>(null);
   const [rejectNotes, setRejectNotes] = useState('');
+  const [selectedRole, setSelectedRole] = useState<'manager' | 'hiring_manager'>('manager');
 
   useEffect(() => {
     async function init() {
@@ -86,7 +88,7 @@ export default function ManagerRequestsPage() {
     }
   }
 
-  async function handleApprove(requestId: number) {
+  async function handleApprove(requestId: number, role: 'manager' | 'hiring_manager' = 'manager') {
     try {
       const token = getToken();
       if (!token) return;
@@ -97,11 +99,15 @@ export default function ManagerRequestsPage() {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
+        body: JSON.stringify({ role }),
       });
 
       const data = await res.json();
       if (res.ok) {
         toast.success(data.message || 'Request approved successfully');
+        setShowApproveModal(false);
+        setSelectedRequest(null);
+        setSelectedRole('manager');
         await loadRequests();
       } else {
         toast.error(data.error || 'Failed to approve request');
@@ -233,7 +239,11 @@ export default function ManagerRequestsPage() {
                         <td className="py-4 px-6">
                           <div className="flex gap-2 justify-center">
                             <button
-                              onClick={() => handleApprove(request.id)}
+                              onClick={() => {
+                                setSelectedRequest(request);
+                                setSelectedRole('manager');
+                                setShowApproveModal(true);
+                              }}
                               className="cursor-pointer px-4 py-2 text-xs font-semibold rounded-lg transition-colors"
                               style={{ 
                                 backgroundColor: '#10B981', 
@@ -318,6 +328,63 @@ export default function ManagerRequestsPage() {
                     ))}
                   </tbody>
                 </table>
+              </div>
+            </div>
+          )}
+
+          {/* Approve Modal */}
+          {showApproveModal && selectedRequest && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+              <div className="rounded-xl p-6 max-w-md w-full mx-4" style={{ backgroundColor: '#FFFFFF' }}>
+                <h2 className="text-2xl font-bold mb-4" style={{ color: '#232E40' }}>Approve Manager Request</h2>
+                <p className="text-sm mb-4" style={{ color: '#6B7280' }}>
+                  Approving request from <strong>{selectedRequest.manager_email}</strong> for <strong>{selectedRequest.dealership_name}</strong>
+                </p>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium mb-2" style={{ color: '#6B7280' }}>Select Role *</label>
+                  <div className="space-y-2">
+                    <label className="flex items-center cursor-pointer">
+                      <input
+                        type="radio"
+                        name="role"
+                        value="manager"
+                        checked={selectedRole === 'manager'}
+                        onChange={(e) => setSelectedRole(e.target.value as 'manager' | 'hiring_manager')}
+                        className="mr-2"
+                      />
+                      <span className="text-sm" style={{ color: '#232E40' }}>Manager</span>
+                    </label>
+                    <label className="flex items-center cursor-pointer">
+                      <input
+                        type="radio"
+                        name="role"
+                        value="hiring_manager"
+                        checked={selectedRole === 'hiring_manager'}
+                        onChange={(e) => setSelectedRole(e.target.value as 'manager' | 'hiring_manager')}
+                        className="mr-2"
+                      />
+                      <span className="text-sm" style={{ color: '#232E40' }}>Hiring Manager</span>
+                    </label>
+                  </div>
+                </div>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => {
+                      setShowApproveModal(false);
+                      setSelectedRequest(null);
+                      setSelectedRole('manager');
+                    }}
+                    className="cursor-pointer flex-1 bg-gray-200 text-gray-700 py-3 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => handleApprove(selectedRequest.id, selectedRole)}
+                    className="cursor-pointer flex-1 bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition-colors"
+                  >
+                    Approve as {selectedRole.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                  </button>
+                </div>
               </div>
             </div>
           )}

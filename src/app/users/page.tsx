@@ -42,6 +42,7 @@ export default function UserManagementPage() {
   const [createFormData, setCreateFormData] = useState({
     email: '',
     password: '',
+    role: 'manager' as 'manager' | 'hiring_manager',
   });
 
   useEffect(() => {
@@ -126,7 +127,7 @@ export default function UserManagementPage() {
       if (res.ok) {
         toast.success(data.message || 'Manager account created successfully');
         setShowCreateModal(false);
-        setCreateFormData({ email: '', password: '' });
+        setCreateFormData({ email: '', password: '', role: 'manager' });
         await loadManagers();
       } else {
         toast.error(data.error || 'Failed to create manager account');
@@ -260,17 +261,32 @@ export default function UserManagementPage() {
       create_survey: 'Create Surveys',
       manage_survey: 'Manage Surveys',
       create_employee: 'Create Employees',
+      modify_employee: 'Modify Employees',
       manage_employee: 'Manage Employees',
       create_candidate: 'Create Candidates',
+      modify_candidate: 'Modify Candidates',
       manage_candidate: 'Manage Candidates',
     };
     return labels[key] || key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+  }
+
+  // Check if a modify/manage permission should be disabled based on view permission
+  function shouldDisableModify(permissionKey: string, permissions: { [key: string]: boolean } | undefined): boolean {
+    if (!permissionKey.startsWith('modify_') && !permissionKey.startsWith('manage_')) return false;
+    // Handle both modify_ and manage_ prefixes
+    const viewKey = permissionKey.replace('modify_', 'view_').replace('manage_', 'view_');
+    const viewValue = permissions?.[viewKey] ?? false;
+    return !viewValue; // Disable modify/manage if view is false
   }
 
   async function handleToggleManagerPermission(managerId: number, permissionKey: string, currentValue: boolean) {
     try {
       const token = getToken();
       if (!token) return;
+
+      // Check if this is a view permission being disabled - need to disable corresponding modify
+      const isViewPermission = permissionKey.startsWith('view_');
+      const newValue = !currentValue;
 
       // If permission is currently set (not using role default), we need to toggle it
       // If it's using role default, we need to create a user-specific permission
@@ -287,7 +303,7 @@ export default function UserManagementPage() {
           },
           body: JSON.stringify({
             permission_key: permissionKey,
-            allowed: !currentValue,
+            allowed: newValue,
           }),
         });
 
@@ -313,7 +329,7 @@ export default function UserManagementPage() {
           },
           body: JSON.stringify({
             permission_key: permissionKey,
-            allowed: !currentValue,
+            allowed: newValue,
           }),
         });
 
@@ -500,15 +516,29 @@ export default function UserManagementPage() {
                               </td>
                               {roles.filter(r => r !== 'admin').map(role => {
                                 const isAllowed = permissions[role]?.[permissionKey] ?? false;
+                                const isModify = permissionKey.startsWith('modify_') || permissionKey.startsWith('manage_');
+                                const viewKey = permissionKey.replace('modify_', 'view_').replace('manage_', 'view_');
+                                const viewAllowed = permissions[role]?.[viewKey] ?? false;
+                                const isDisabled = isModify && !viewAllowed;
                                 return (
                                   <td key={role} className="py-4 px-6 text-center">
                                     <button
-                                      onClick={() => handleTogglePermission(role, permissionKey, isAllowed)}
-                                      className={`cursor-pointer w-6 h-6 rounded border-2 flex items-center justify-center transition-colors ${
-                                        isAllowed ? 'bg-[#0B2E65] border-[#0B2E65]' : 'bg-white border-gray-300'
+                                      onClick={() => {
+                                        if (!isDisabled) {
+                                          handleTogglePermission(role, permissionKey, isAllowed);
+                                        }
+                                      }}
+                                      disabled={isDisabled}
+                                      className={`w-6 h-6 rounded border-2 flex items-center justify-center transition-colors ${
+                                        isDisabled 
+                                          ? 'bg-gray-100 border-gray-300 cursor-not-allowed opacity-50'
+                                          : isAllowed 
+                                            ? 'bg-[#0B2E65] border-[#0B2E65] cursor-pointer' 
+                                            : 'bg-white border-gray-300 cursor-pointer'
                                       }`}
+                                      title={isDisabled ? 'Requires view permission' : ''}
                                     >
-                                      {isAllowed && (
+                                      {isAllowed && !isDisabled && (
                                         <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                                         </svg>
@@ -543,6 +573,7 @@ export default function UserManagementPage() {
                   <thead>
                     <tr style={{ borderBottom: '1px solid #E5E7EB' }}>
                       <th className="text-left py-4 px-6 text-sm font-semibold" style={{ color: '#6B7280' }}>Email</th>
+                      <th className="text-left py-4 px-6 text-sm font-semibold" style={{ color: '#6B7280' }}>Role</th>
                       <th className="text-left py-4 px-6 text-sm font-semibold" style={{ color: '#6B7280' }}>Status</th>
                       <th className="text-left py-4 px-6 text-sm font-semibold" style={{ color: '#6B7280' }}>Created</th>
                       <th className="text-center py-4 px-6 text-sm font-semibold" style={{ color: '#6B7280' }}>Actions</th>
@@ -553,6 +584,14 @@ export default function UserManagementPage() {
                       <tr key={manager.id} style={{ borderTop: '1px solid #E5E7EB' }}>
                         <td className="py-4 px-6">
                           <span className="text-base font-medium" style={{ color: '#232E40' }}>{manager.email}</span>
+                        </td>
+                        <td className="py-4 px-6">
+                          <span className="text-xs font-semibold px-2 py-1 rounded-full capitalize" style={{
+                            backgroundColor: manager.role === 'hiring_manager' ? '#DBEAFE' : '#D1FAE5',
+                            color: manager.role === 'hiring_manager' ? '#1E40AF' : '#065F46'
+                          }}>
+                            {manager.role.replace('_', ' ')}
+                          </span>
                         </td>
                         <td className="py-4 px-6">
                           <span className="text-xs font-semibold px-2 py-1 rounded-full bg-amber-100 text-amber-800">
@@ -628,6 +667,14 @@ export default function UserManagementPage() {
                           <span className="text-base font-medium" style={{ color: '#232E40' }}>{manager.email}</span>
                         </td>
                         <td className="py-4 px-6">
+                          <span className="text-xs font-semibold px-2 py-1 rounded-full capitalize" style={{
+                            backgroundColor: manager.role === 'hiring_manager' ? '#DBEAFE' : '#D1FAE5',
+                            color: manager.role === 'hiring_manager' ? '#1E40AF' : '#065F46'
+                          }}>
+                            {manager.role.replace('_', ' ')}
+                          </span>
+                        </td>
+                        <td className="py-4 px-6">
                           <span className="text-xs font-semibold px-2 py-1 rounded-full bg-emerald-100 text-emerald-800">
                             Active
                           </span>
@@ -698,12 +745,39 @@ export default function UserManagementPage() {
                     />
                     <p className="text-xs mt-1" style={{ color: '#9CA3AF' }}>Must include letters and numbers</p>
                   </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1" style={{ color: '#6B7280' }}>Role *</label>
+                    <div className="space-y-2">
+                      <label className="flex items-center cursor-pointer">
+                        <input
+                          type="radio"
+                          name="role"
+                          value="manager"
+                          checked={createFormData.role === 'manager'}
+                          onChange={(e) => setCreateFormData({ ...createFormData, role: e.target.value as 'manager' | 'hiring_manager' })}
+                          className="mr-2"
+                        />
+                        <span className="text-sm" style={{ color: '#232E40' }}>Manager</span>
+                      </label>
+                      <label className="flex items-center cursor-pointer">
+                        <input
+                          type="radio"
+                          name="role"
+                          value="hiring_manager"
+                          checked={createFormData.role === 'hiring_manager'}
+                          onChange={(e) => setCreateFormData({ ...createFormData, role: e.target.value as 'manager' | 'hiring_manager' })}
+                          className="mr-2"
+                        />
+                        <span className="text-sm" style={{ color: '#232E40' }}>Hiring Manager</span>
+                      </label>
+                    </div>
+                  </div>
                 </div>
                 <div className="flex gap-3 mt-6">
                   <button
                     onClick={() => {
                       setShowCreateModal(false);
-                      setCreateFormData({ email: '', password: '' });
+                      setCreateFormData({ email: '', password: '', role: 'manager' });
                     }}
                     className="cursor-pointer flex-1 px-4 py-2 rounded-lg font-semibold text-sm transition-colors"
                     style={{ backgroundColor: '#F3F4F6', color: '#6B7280' }}
@@ -753,21 +827,33 @@ export default function UserManagementPage() {
                           </tr>
                           {group.permissions.map((permissionKey) => {
                             const currentValue = selectedManager.permissions?.[permissionKey] ?? false;
+                            const isModify = permissionKey.startsWith('modify_');
+                            const isDisabled = isModify && shouldDisableModify(permissionKey, selectedManager.permissions);
                             return (
                               <tr key={permissionKey} style={{ borderTop: '1px solid #E5E7EB' }}>
                                 <td className="py-3 px-4">
-                                  <span className="text-sm" style={{ color: '#232E40' }}>{getPermissionLabel(permissionKey)}</span>
+                                  <span className="text-sm" style={{ color: isDisabled ? '#9CA3AF' : '#232E40' }}>{getPermissionLabel(permissionKey)}</span>
+                                  {isDisabled && (
+                                    <span className="text-xs ml-2" style={{ color: '#9CA3AF' }}>(requires view permission)</span>
+                                  )}
                                 </td>
                                 <td className="py-3 px-4 text-center">
                                   <button
                                     onClick={async () => {
-                                      await handleToggleManagerPermission(selectedManager.id, permissionKey, currentValue);
+                                      if (!isDisabled) {
+                                        await handleToggleManagerPermission(selectedManager.id, permissionKey, currentValue);
+                                      }
                                     }}
-                                    className={`cursor-pointer w-6 h-6 rounded border-2 flex items-center justify-center transition-colors ${
-                                      currentValue ? 'bg-[#0B2E65] border-[#0B2E65]' : 'bg-white border-gray-300'
+                                    disabled={isDisabled}
+                                    className={`w-6 h-6 rounded border-2 flex items-center justify-center transition-colors ${
+                                      isDisabled 
+                                        ? 'bg-gray-100 border-gray-300 cursor-not-allowed opacity-50'
+                                        : currentValue 
+                                          ? 'bg-[#0B2E65] border-[#0B2E65] cursor-pointer' 
+                                          : 'bg-white border-gray-300 cursor-pointer'
                                     }`}
                                   >
-                                    {currentValue && (
+                                    {currentValue && !isDisabled && (
                                       <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                                       </svg>
