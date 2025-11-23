@@ -224,6 +224,52 @@ export default function UserManagementPage() {
       const token = getToken();
       if (!token) return;
 
+      const newValue = !currentValue;
+      
+      // If disabling a view permission, also disable corresponding modify/manage permissions
+      if (permissionKey.startsWith('view_') && !newValue) {
+        const modifyKey = permissionKey.replace('view_', 'modify_');
+        const manageKey = permissionKey.replace('view_', 'manage_');
+        
+        // Disable modify permission if it exists
+        if (permissions[role]?.[modifyKey] !== undefined) {
+          const modifyValue = permissions[role]?.[modifyKey] ?? false;
+          if (modifyValue) {
+            await fetch(`${API_BASE}/admin/permissions`, {
+              method: 'POST',
+              headers: {
+                Authorization: `Bearer ${token}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                role,
+                permission_key: modifyKey,
+                allowed: false,
+              }),
+            });
+          }
+        }
+        
+        // Disable manage permission if it exists
+        if (permissions[role]?.[manageKey] !== undefined) {
+          const manageValue = permissions[role]?.[manageKey] ?? false;
+          if (manageValue) {
+            await fetch(`${API_BASE}/admin/permissions`, {
+              method: 'POST',
+              headers: {
+                Authorization: `Bearer ${token}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                role,
+                permission_key: manageKey,
+                allowed: false,
+              }),
+            });
+          }
+        }
+      }
+
       const res = await fetch(`${API_BASE}/admin/permissions`, {
         method: 'POST',
         headers: {
@@ -233,7 +279,7 @@ export default function UserManagementPage() {
         body: JSON.stringify({
           role,
           permission_key: permissionKey,
-          allowed: !currentValue,
+          allowed: newValue,
         }),
       });
 
@@ -284,13 +330,53 @@ export default function UserManagementPage() {
       const token = getToken();
       if (!token) return;
 
-      // Check if this is a view permission being disabled - need to disable corresponding modify
-      const isViewPermission = permissionKey.startsWith('view_');
       const newValue = !currentValue;
+      const manager = managers.find(m => m.id === managerId);
+      
+      // If disabling a view permission, also disable corresponding modify/manage permissions
+      if (permissionKey.startsWith('view_') && !newValue) {
+        const modifyKey = permissionKey.replace('view_', 'modify_');
+        const manageKey = permissionKey.replace('view_', 'manage_');
+        
+        // Disable modify permission if it exists
+        if (manager?.permissions?.[modifyKey] !== undefined) {
+          const modifyValue = manager.permissions[modifyKey];
+          if (modifyValue) {
+            await fetch(`${API_BASE}/admin/managers/${managerId}/permissions`, {
+              method: 'POST',
+              headers: {
+                Authorization: `Bearer ${token}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                permission_key: modifyKey,
+                allowed: false,
+              }),
+            });
+          }
+        }
+        
+        // Disable manage permission if it exists
+        if (manager?.permissions?.[manageKey] !== undefined) {
+          const manageValue = manager.permissions[manageKey];
+          if (manageValue) {
+            await fetch(`${API_BASE}/admin/managers/${managerId}/permissions`, {
+              method: 'POST',
+              headers: {
+                Authorization: `Bearer ${token}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                permission_key: manageKey,
+                allowed: false,
+              }),
+            });
+          }
+        }
+      }
 
       // If permission is currently set (not using role default), we need to toggle it
       // If it's using role default, we need to create a user-specific permission
-      const manager = managers.find(m => m.id === managerId);
       const hasUserSpecific = manager?.permissions && manager.permissions[permissionKey] !== undefined;
       
       if (hasUserSpecific) {
@@ -494,9 +580,9 @@ export default function UserManagementPage() {
                     <thead>
                       <tr style={{ borderBottom: '1px solid #E5E7EB' }}>
                         <th className="text-left py-4 px-6 text-sm font-semibold" style={{ color: '#6B7280' }}>Actions</th>
-                        {roles.filter(r => r !== 'admin').map(role => (
+                        {roles.filter(r => r !== 'admin' && r !== 'corporate').map(role => (
                           <th key={role} className="text-center py-4 px-6 text-sm font-semibold capitalize" style={{ color: '#6B7280' }}>
-                            {role}
+                            {role.replace('_', ' ')}
                           </th>
                         ))}
                       </tr>
@@ -505,7 +591,7 @@ export default function UserManagementPage() {
                       {groupPermissions(permissionKeys).map((group, groupIdx) => (
                         <React.Fragment key={groupIdx}>
                           <tr style={{ backgroundColor: '#F9FAFB' }}>
-                            <td colSpan={roles.filter(r => r !== 'admin').length + 1} className="py-3 px-6">
+                            <td colSpan={roles.filter(r => r !== 'admin' && r !== 'corporate').length + 1} className="py-3 px-6">
                               <span className="text-sm font-bold uppercase" style={{ color: '#6B7280' }}>{group.category}</span>
                             </td>
                           </tr>
@@ -514,36 +600,38 @@ export default function UserManagementPage() {
                               <td className="py-4 px-6">
                                 <span className="text-sm" style={{ color: '#232E40' }}>{getPermissionLabel(permissionKey)}</span>
                               </td>
-                              {roles.filter(r => r !== 'admin').map(role => {
+                              {roles.filter(r => r !== 'admin' && r !== 'corporate').map(role => {
                                 const isAllowed = permissions[role]?.[permissionKey] ?? false;
                                 const isModify = permissionKey.startsWith('modify_') || permissionKey.startsWith('manage_');
                                 const viewKey = permissionKey.replace('modify_', 'view_').replace('manage_', 'view_');
                                 const viewAllowed = permissions[role]?.[viewKey] ?? false;
                                 const isDisabled = isModify && !viewAllowed;
                                 return (
-                                  <td key={role} className="py-4 px-6 text-center">
-                                    <button
-                                      onClick={() => {
-                                        if (!isDisabled) {
-                                          handleTogglePermission(role, permissionKey, isAllowed);
-                                        }
-                                      }}
-                                      disabled={isDisabled}
-                                      className={`w-6 h-6 rounded border-2 flex items-center justify-center transition-colors ${
-                                        isDisabled 
-                                          ? 'bg-gray-100 border-gray-300 cursor-not-allowed opacity-50'
-                                          : isAllowed 
-                                            ? 'bg-[#0B2E65] border-[#0B2E65] cursor-pointer' 
-                                            : 'bg-white border-gray-300 cursor-pointer'
-                                      }`}
-                                      title={isDisabled ? 'Requires view permission' : ''}
-                                    >
-                                      {isAllowed && !isDisabled && (
-                                        <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                                        </svg>
-                                      )}
-                                    </button>
+                                  <td key={role} className="py-4 px-6">
+                                    <div className="flex items-center justify-center">
+                                      <button
+                                        onClick={() => {
+                                          if (!isDisabled) {
+                                            handleTogglePermission(role, permissionKey, isAllowed);
+                                          }
+                                        }}
+                                        disabled={isDisabled}
+                                        className={`w-6 h-6 rounded border-2 flex items-center justify-center transition-colors ${
+                                          isDisabled 
+                                            ? 'bg-gray-100 border-gray-300 cursor-not-allowed opacity-50'
+                                            : isAllowed 
+                                              ? 'bg-[#0B2E65] border-[#0B2E65] cursor-pointer' 
+                                              : 'bg-white border-gray-300 cursor-pointer'
+                                        }`}
+                                        title={isDisabled ? 'View permission must be enabled first' : ''}
+                                      >
+                                        {isAllowed && !isDisabled && (
+                                          <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                          </svg>
+                                        )}
+                                      </button>
+                                    </div>
                                   </td>
                                 );
                               })}
@@ -827,38 +915,47 @@ export default function UserManagementPage() {
                           </tr>
                           {group.permissions.map((permissionKey) => {
                             const currentValue = selectedManager.permissions?.[permissionKey] ?? false;
-                            const isModify = permissionKey.startsWith('modify_');
-                            const isDisabled = isModify && shouldDisableModify(permissionKey, selectedManager.permissions);
+                            const isModify = permissionKey.startsWith('modify_') || permissionKey.startsWith('manage_');
+                            const viewKey = permissionKey.replace('modify_', 'view_').replace('manage_', 'view_');
+                            // Check if view permission is enabled (either in user permissions or role permissions)
+                            const viewValue = selectedManager.permissions?.[viewKey];
+                            // Need to check role permissions if view is not explicitly set
+                            const roleViewValue = permissions[selectedManager.role]?.[viewKey] ?? false;
+                            const viewAllowed = viewValue !== undefined ? viewValue : roleViewValue;
+                            const isDisabled = isModify && !viewAllowed;
                             return (
                               <tr key={permissionKey} style={{ borderTop: '1px solid #E5E7EB' }}>
                                 <td className="py-3 px-4">
                                   <span className="text-sm" style={{ color: isDisabled ? '#9CA3AF' : '#232E40' }}>{getPermissionLabel(permissionKey)}</span>
                                   {isDisabled && (
-                                    <span className="text-xs ml-2" style={{ color: '#9CA3AF' }}>(requires view permission)</span>
+                                    <span className="text-xs ml-2" style={{ color: '#9CA3AF' }}>(view permission must be enabled first)</span>
                                   )}
                                 </td>
-                                <td className="py-3 px-4 text-center">
-                                  <button
-                                    onClick={async () => {
-                                      if (!isDisabled) {
-                                        await handleToggleManagerPermission(selectedManager.id, permissionKey, currentValue);
-                                      }
-                                    }}
-                                    disabled={isDisabled}
-                                    className={`w-6 h-6 rounded border-2 flex items-center justify-center transition-colors ${
-                                      isDisabled 
-                                        ? 'bg-gray-100 border-gray-300 cursor-not-allowed opacity-50'
-                                        : currentValue 
-                                          ? 'bg-[#0B2E65] border-[#0B2E65] cursor-pointer' 
-                                          : 'bg-white border-gray-300 cursor-pointer'
-                                    }`}
-                                  >
-                                    {currentValue && !isDisabled && (
-                                      <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                                      </svg>
-                                    )}
-                                  </button>
+                                <td className="py-3 px-4">
+                                  <div className="flex items-center justify-center">
+                                    <button
+                                      onClick={async () => {
+                                        if (!isDisabled) {
+                                          await handleToggleManagerPermission(selectedManager.id, permissionKey, currentValue);
+                                        }
+                                      }}
+                                      disabled={isDisabled}
+                                      className={`w-6 h-6 rounded border-2 flex items-center justify-center transition-colors ${
+                                        isDisabled 
+                                          ? 'bg-gray-100 border-gray-300 cursor-not-allowed opacity-50'
+                                          : currentValue 
+                                            ? 'bg-[#0B2E65] border-[#0B2E65] cursor-pointer' 
+                                            : 'bg-white border-gray-300 cursor-pointer'
+                                      }`}
+                                      title={isDisabled ? 'View permission must be enabled first' : ''}
+                                    >
+                                      {currentValue && !isDisabled && (
+                                        <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                        </svg>
+                                      )}
+                                    </button>
+                                  </div>
                                 </td>
                               </tr>
                             );
