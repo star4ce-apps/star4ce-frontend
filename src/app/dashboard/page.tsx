@@ -88,8 +88,8 @@ export default function Dashboard() {
           
           if (res.ok) {
             const data = await res.json();
-            setUserRole(data.role);
-            setIsApproved(data.is_approved !== false);
+            setUserRole(data.user?.role || data.role);
+            setIsApproved(data.user?.is_approved !== false && data.is_approved !== false);
           } else {
             const data = await res.json();
             if (data.error === 'manager_not_approved') {

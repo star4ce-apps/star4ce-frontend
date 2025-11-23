@@ -220,7 +220,8 @@ export default function HubSidebar() {
     { label: 'Dealership Standings', href: '/standings', icon: <StandingsIcon /> },
     ...(role === 'admin' ? [
       { label: 'User Management', href: '/users', icon: <DealershipIcon /> },
-      { label: 'Dealership Requests', href: '/admin/dealership-requests', icon: <DealershipIcon /> }
+      { label: 'Dealership Requests', href: '/admin/dealership-requests', icon: <DealershipIcon /> },
+      { label: 'Manager Requests', href: '/admin/manager-requests', icon: <DealershipIcon /> }
     ] : []),
     ...(role === 'corporate' ? [
       { label: 'Select Dealership', href: '/corporate/select-dealership', icon: <DealershipIcon /> },
