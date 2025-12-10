@@ -55,6 +55,7 @@ export default function EmployeesPage() {
     department: '',
     status: '',
   });
+  const [customDepartment, setCustomDepartment] = useState('');
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -128,6 +129,12 @@ export default function EmployeesPage() {
     const requiredFields = ['firstName', 'lastName', 'street', 'city', 'state', 'zipCode', 'dateOfBirth', 'gender', 'employeeId', 'phoneNumber', 'email', 'jobTitle', 'hiredDate', 'department', 'status'];
     const missingFields = requiredFields.filter(field => !formData[field as keyof typeof formData]);
     
+    // If "Others" is selected, validate custom department
+    if (formData.department === 'Others' && !customDepartment.trim()) {
+      setError('Please specify the department name');
+      return;
+    }
+    
     if (missingFields.length > 0) {
       setError('All fields must be filled');
       return;
@@ -144,7 +151,7 @@ export default function EmployeesPage() {
         name: `${formData.firstName} ${formData.lastName}`,
         email: formData.email,
         phone: formData.phoneNumber,
-        department: formData.department,
+        department: formData.department === 'Others' ? customDepartment.trim() : formData.department,
         position: formData.jobTitle,
         employee_id: formData.employeeId,
         hired_date: formData.hiredDate,
@@ -195,6 +202,7 @@ export default function EmployeesPage() {
       department: '',
       status: '',
     });
+    setCustomDepartment('');
     setShowModal(false);
     setError(null);
   }
@@ -277,6 +285,7 @@ export default function EmployeesPage() {
     'Technical Support',
     'Warranty Services',
     'Training and Development',
+    'Others',
   ];
 
   const states = [
@@ -917,28 +926,52 @@ export default function EmployeesPage() {
                     </div>
                     <div>
                       <label className="block text-xs font-semibold mb-1.5" style={{ color: '#374151' }}>Department *</label>
-                      <div className="relative">
-                        <select
-                          value={formData.department}
-                          onChange={(e) => setFormData({ ...formData, department: e.target.value })}
-                          required
-                          className="w-full px-3 py-2 text-sm rounded-lg appearance-none cursor-pointer transition-all focus:outline-none focus:ring-2"
-                          style={{ 
-                            border: '1px solid #D1D5DB', 
-                            color: '#374151', 
-                            backgroundColor: '#FFFFFF',
-                          }}
-                        >
-                          <option value="">Select Department</option>
-                          {departments.map(dept => (
-                            <option key={dept} value={dept}>{dept}</option>
-                          ))}
-                        </select>
-                        <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: '#6B7280' }}>
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                          </svg>
+                      <div className="flex gap-2">
+                        <div className="relative flex-1">
+                          <select
+                            value={formData.department}
+                            onChange={(e) => {
+                              setFormData({ ...formData, department: e.target.value });
+                              if (e.target.value !== 'Others') {
+                                setCustomDepartment('');
+                              }
+                            }}
+                            required
+                            className="w-full px-3 py-2 text-sm rounded-lg appearance-none cursor-pointer transition-all focus:outline-none focus:ring-2"
+                            style={{ 
+                              border: '1px solid #D1D5DB', 
+                              color: '#374151', 
+                              backgroundColor: '#FFFFFF',
+                            }}
+                          >
+                            <option value="">Select Department</option>
+                            {departments.map(dept => (
+                              <option key={dept} value={dept}>{dept}</option>
+                            ))}
+                          </select>
+                          <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: '#6B7280' }}>
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                            </svg>
+                          </div>
                         </div>
+                        {formData.department === 'Others' && (
+                          <div className="flex-1">
+                            <input
+                              type="text"
+                              placeholder="Enter department name"
+                              value={customDepartment}
+                              onChange={(e) => setCustomDepartment(e.target.value)}
+                              required
+                              className="w-full px-3 py-2 text-sm rounded-lg transition-all focus:outline-none focus:ring-2"
+                              style={{ 
+                                border: '1px solid #D1D5DB', 
+                                color: '#374151', 
+                                backgroundColor: '#FFFFFF',
+                              }}
+                            />
+                          </div>
+                        )}
                       </div>
                     </div>
                     <div>
