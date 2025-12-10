@@ -126,7 +126,7 @@ export default function EmployeesPage() {
     setError(null);
 
     // Validate required fields
-    const requiredFields = ['firstName', 'lastName', 'street', 'city', 'state', 'zipCode', 'dateOfBirth', 'gender', 'employeeId', 'phoneNumber', 'email', 'jobTitle', 'hiredDate', 'department', 'status'];
+    const requiredFields = ['firstName', 'lastName', 'dateOfBirth', 'gender', 'phoneNumber', 'email', 'jobTitle', 'hiredDate', 'department', 'status'];
     const missingFields = requiredFields.filter(field => !formData[field as keyof typeof formData]);
     
     // If "Others" is selected, validate custom department
@@ -736,14 +736,13 @@ export default function EmployeesPage() {
                       />
                     </div>
                     <div className="col-span-2">
-                      <label className="block text-xs font-semibold mb-1.5" style={{ color: '#374151' }}>Home Address *</label>
+                      <label className="block text-xs font-semibold mb-1.5" style={{ color: '#374151' }}>Home Address</label>
                       <div className="grid grid-cols-2 gap-2 mb-2">
                         <input
                           type="text"
                           placeholder="Street"
                           value={formData.street}
                           onChange={(e) => setFormData({ ...formData, street: e.target.value })}
-                          required
                           className="w-full px-3 py-2 text-sm rounded-lg transition-all focus:outline-none focus:ring-2"
                           style={{ 
                             border: '1px solid #D1D5DB', 
@@ -756,7 +755,6 @@ export default function EmployeesPage() {
                           placeholder="City"
                           value={formData.city}
                           onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                          required
                           className="w-full px-3 py-2 text-sm rounded-lg transition-all focus:outline-none focus:ring-2"
                           style={{ 
                             border: '1px solid #D1D5DB', 
@@ -770,7 +768,6 @@ export default function EmployeesPage() {
                           <select
                             value={formData.state}
                             onChange={(e) => setFormData({ ...formData, state: e.target.value })}
-                            required
                             className="w-full px-3 py-2 text-sm rounded-lg appearance-none cursor-pointer transition-all focus:outline-none focus:ring-2"
                             style={{ 
                               border: '1px solid #D1D5DB', 
@@ -794,7 +791,6 @@ export default function EmployeesPage() {
                           placeholder="Zip Code"
                           value={formData.zipCode}
                           onChange={(e) => setFormData({ ...formData, zipCode: e.target.value })}
-                          required
                           className="w-full px-3 py-2 text-sm rounded-lg transition-all focus:outline-none focus:ring-2"
                           style={{ 
                             border: '1px solid #D1D5DB', 
@@ -847,13 +843,12 @@ export default function EmployeesPage() {
                       </div>
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold mb-1.5" style={{ color: '#374151' }}>Employee ID *</label>
+                      <label className="block text-xs font-semibold mb-1.5" style={{ color: '#374151' }}>Employee ID</label>
                       <input
                         type="text"
                         placeholder="#00000"
                         value={formData.employeeId}
                         onChange={(e) => setFormData({ ...formData, employeeId: e.target.value })}
-                        required
                         className="w-full px-3 py-2 text-sm rounded-lg transition-all focus:outline-none focus:ring-2"
                         style={{ 
                           border: '1px solid #D1D5DB', 
