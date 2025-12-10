@@ -65,6 +65,12 @@ const AdminIcon = () => (
   </svg>
 );
 
+const AccessCodeIcon = () => (
+  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+  </svg>
+);
+
 interface MenuItem {
   label: string;
   href?: string;
@@ -249,6 +255,11 @@ export default function HubSidebar() {
 
   const paymentItems: MenuItem[] = [
     { label: 'Subscription', href: '/subscription', icon: <SubscriptionIcon /> },
+  ];
+
+  // NEW SECTION: Quick Actions / Additional Links (Preview)
+  const quickActionItems: MenuItem[] = [
+    { label: 'Access Codes', href: '/access-codes', icon: <AccessCodeIcon /> },
   ];
 
   const isActive = (href?: string) => href && pathname === href;
@@ -495,6 +506,48 @@ export default function HubSidebar() {
         <h3 className="text-xs font-semibold uppercase mb-3" style={{ color: '#394B67' }}>PAYMENT</h3>
         <nav className="space-y-1">
           {paymentItems.map((item, idx) => (
+            isManagerNotApproved ? (
+              <div
+                key={idx}
+                className="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium whitespace-nowrap cursor-not-allowed opacity-50"
+                style={{ color: '#9CA3AF' }}
+                title="Waiting for admin approval"
+              >
+                <span style={{ color: '#9CA3AF' }}>
+                  {item.icon}
+                </span>
+                <span className="text-left">{item.label}</span>
+              </div>
+            ) : (
+              <Link
+                key={idx}
+                href={item.href || '#'}
+                onClick={(e) => handleLinkClick(e, item.href)}
+                className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
+                  isActive(item.href)
+                    ? 'text-white'
+                    : ''
+                }`}
+                style={{
+                  backgroundColor: isActive(item.href) ? '#4D6DBE' : 'transparent',
+                  color: isActive(item.href) ? '#FFFFFF' : '#394B67',
+                }}
+              >
+                <span style={{ color: isActive(item.href) ? '#FFFFFF' : '#394B67' }}>
+                  {item.icon}
+                </span>
+                <span className="text-left">{item.label}</span>
+              </Link>
+            )
+          ))}
+        </nav>
+      </div>
+
+      {/* QUICK ACTIONS - Preview Section */}
+      <div className="px-4 pb-4 border-t pt-4" style={{ borderColor: '#D1D5DB' }}>
+        <h3 className="text-xs font-semibold uppercase mb-3" style={{ color: '#394B67' }}>QUICK ACTIONS</h3>
+        <nav className="space-y-1">
+          {quickActionItems.map((item, idx) => (
             isManagerNotApproved ? (
               <div
                 key={idx}

@@ -164,14 +164,6 @@ export default function TopNav()
                   >
                     Standings
                   </Link>
-                  <Link 
-                    href="/settings" 
-                    className={`cursor-pointer text-[#0B2E65] font-bold text-sm whitespace-nowrap hover:text-[#2c5aa0] transition-colors ${
-                      pathname === '/settings' ? 'text-[#2c5aa0] border-b-2 border-[#2c5aa0] pb-1' : ''
-                    }`}
-                  >
-                    Settings
-                  </Link>
                 </>
               ) : (
                 <>
@@ -288,15 +280,6 @@ export default function TopNav()
                         onClick={() => setMobileMenuOpen(false)}
                       >
                         Standings
-                      </Link>
-                      <Link 
-                        href="/settings" 
-                        className={`px-6 py-3 text-[#0B2E65] font-semibold hover:bg-gray-50 transition-colors ${
-                          pathname === '/settings' ? 'bg-blue-50 text-[#2c5aa0] border-l-4 border-[#2c5aa0]' : ''
-                        }`}
-                        onClick={() => setMobileMenuOpen(false)}
-                      >
-                        Settings
                       </Link>
                       <div className="border-t border-gray-200 my-2"></div>
                       <button

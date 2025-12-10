@@ -14,7 +14,6 @@ export default function AppShell({ children }: { children: ReactNode }) {
                           pathname?.startsWith('/candidates') ||
                           pathname?.startsWith('/standings') ||
                           pathname?.startsWith('/subscription') ||
-                          pathname?.startsWith('/settings') ||
                           pathname?.startsWith('/users') ||
                           pathname?.startsWith('/support') ||
                           pathname?.startsWith('/surveys');
