@@ -16,7 +16,8 @@ export default function AppShell({ children }: { children: ReactNode }) {
                           pathname?.startsWith('/subscription') ||
                           pathname?.startsWith('/users') ||
                           pathname?.startsWith('/support') ||
-                          pathname?.startsWith('/surveys');
+                          pathname?.startsWith('/surveys') ||
+                          pathname?.startsWith('/access-codes');
   
   if (isDashboardPage) {
     return <>{children}</>;

@@ -3,6 +3,7 @@
 
 import { useEffect, useState } from 'react';
 import RequireAuth from '@/components/layout/RequireAuth';
+import HubSidebar from '@/components/sidebar/HubSidebar';
 import { API_BASE, getToken } from '@/lib/auth';
 import { postJsonAuth } from '@/lib/http';
 
@@ -112,32 +113,46 @@ export default function AccessCodesPage() {
 
   return (
     <RequireAuth>
-      <div className="mx-auto max-w-3xl px-4 py-8 md:px-0">
-        <h1 className="text-2xl font-semibold text-slate-900 mb-4">
-          Survey Access Codes
-        </h1>
+      <div className="flex min-h-screen" style={{ width: '100%', overflow: 'hidden', backgroundColor: '#F5F7FA' }}>
+        <HubSidebar />
+        
+        <main className="ml-64 p-8 pl-10 flex-1" style={{ overflowX: 'hidden', minWidth: 0 }}>
+          <div className="mb-8">
+            <h1 className="text-4xl font-bold mb-2" style={{ color: '#232E40', letterSpacing: '-0.02em' }}>Access Codes</h1>
+            <p className="text-base" style={{ color: '#6B7280' }}>Generate and manage survey access codes for your dealership</p>
+          </div>
+
+          <div className="max-w-5xl">
 
         {!role && (
-          <p className="text-slate-600 mb-4">
-            Checking your permissions…
-          </p>
+          <div className="rounded-xl p-6 mb-4" style={{ backgroundColor: '#FFFFFF', border: '1px solid #E5E7EB' }}>
+            <p className="text-base" style={{ color: '#6B7280' }}>
+              Checking your permissions…
+            </p>
+          </div>
         )}
 
-        {role && !isAdmin && (
-          <p className="text-red-600 mb-4">
-            You do not have permission to create and manage survey access codes.
-          </p>
+        {role && role !== 'admin' && role !== 'manager' && role !== 'corporate' && (
+          <div className="rounded-xl p-6 mb-4" style={{ backgroundColor: '#FEF2F2', border: '1px solid #FECACA' }}>
+            <p className="text-base" style={{ color: '#DC2626' }}>
+              You do not have permission to create and manage survey access codes.
+            </p>
+          </div>
         )}
 
         {(isAdmin || role === 'manager' || role === 'corporate') && (
-          <div className="space-y-6 bg-white border rounded-lg p-6">
+          <div className="space-y-6 rounded-xl p-8 transition-all duration-200 hover:shadow-lg" style={{ 
+            backgroundColor: '#FFFFFF', 
+            border: '1px solid #E5E7EB',
+            boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05)'
+          }}>
             {error && (
               <div className="rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700">
                 {error}
               </div>
             )}
 
-            <p className="text-sm text-slate-700">
+            <p className="text-base" style={{ color: '#374151' }}>
               Generate a one-week survey access code for your dealership.
               You can send this code or the survey link to your employees.
             </p>
@@ -145,7 +160,16 @@ export default function AccessCodesPage() {
             <button
               onClick={handleGenerate}
               disabled={loadingCreate}
-              className="cursor-pointer inline-flex items-center rounded-md bg-[#0B2E65] px-4 py-2 text-sm font-semibold text-white hover:bg-[#2c5aa0] disabled:opacity-60 disabled:cursor-not-allowed"
+              className="cursor-pointer inline-flex items-center rounded-lg px-4 py-2.5 text-sm font-semibold text-white transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              style={{ 
+                backgroundColor: '#4D6DBE',
+              }}
+              onMouseEnter={(e) => {
+                if (!loadingCreate) e.currentTarget.style.backgroundColor = '#3d5a9e';
+              }}
+              onMouseLeave={(e) => {
+                if (!loadingCreate) e.currentTarget.style.backgroundColor = '#4D6DBE';
+              }}
             >
               {loadingCreate ? 'Creating code…' : 'Create 7-day access code'}
             </button>
@@ -167,40 +191,41 @@ export default function AccessCodesPage() {
               </div>
             )}
 
-            <div className="pt-4 border-t border-slate-200 mt-4">
-              <div className="flex items-center justify-between mb-2">
-                <h2 className="text-sm font-semibold text-slate-900">
+            <div className="pt-6 mt-6" style={{ borderTop: '1px solid #E5E7EB' }}>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-bold" style={{ color: '#232E40' }}>
                   Your access codes
                 </h2>
                 <button
                   onClick={loadCodes}
                   disabled={loadingList}
-                  className="cursor-pointer text-xs text-[#0B2E65] hover:underline disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="cursor-pointer text-sm font-medium transition-colors disabled:opacity-60 disabled:cursor-not-allowed hover:underline"
+                  style={{ color: '#4D6DBE' }}
                 >
                   {loadingList ? 'Refreshing…' : 'Refresh list'}
                 </button>
               </div>
 
               {loadingList && codes.length === 0 && (
-                <p className="text-sm text-slate-500">Loading access codes…</p>
+                <p className="text-sm" style={{ color: '#6B7280' }}>Loading access codes…</p>
               )}
 
               {!loadingList && codes.length === 0 && (
-                <p className="text-sm text-slate-500">
+                <p className="text-sm" style={{ color: '#6B7280' }}>
                   No access codes yet. Create your first code above.
                 </p>
               )}
 
               {codes.length > 0 && (
                 <div className="overflow-x-auto">
-                  <table className="min-w-full text-sm border border-slate-200 rounded-md overflow-hidden">
-                    <thead className="bg-slate-50">
+                  <table className="min-w-full text-sm rounded-lg overflow-hidden" style={{ border: '1px solid #E5E7EB' }}>
+                    <thead style={{ backgroundColor: '#F9FAFB' }}>
                       <tr>
-                        <th className="px-3 py-2 text-left font-medium text-slate-700">Code</th>
-                        <th className="px-3 py-2 text-left font-medium text-slate-700">Created</th>
-                        <th className="px-3 py-2 text-left font-medium text-slate-700">Expires</th>
-                        <th className="px-3 py-2 text-left font-medium text-slate-700">Status</th>
-                        <th className="px-3 py-2 text-left font-medium text-slate-700">Survey link</th>
+                        <th className="px-4 py-3 text-left font-semibold" style={{ color: '#374151' }}>Code</th>
+                        <th className="px-4 py-3 text-left font-semibold" style={{ color: '#374151' }}>Created</th>
+                        <th className="px-4 py-3 text-left font-semibold" style={{ color: '#374151' }}>Expires</th>
+                        <th className="px-4 py-3 text-left font-semibold" style={{ color: '#374151' }}>Status</th>
+                        <th className="px-4 py-3 text-left font-semibold" style={{ color: '#374151' }}>Survey link</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -221,25 +246,26 @@ export default function AccessCodesPage() {
                           : 'Active';
 
                         return (
-                          <tr key={c.id} className="border-t border-slate-200">
-                            <td className="px-3 py-2 font-mono">{c.code}</td>
-                            <td className="px-3 py-2">{created}</td>
-                            <td className="px-3 py-2">{expires}</td>
-                            <td className="px-3 py-2">
+                          <tr key={c.id} style={{ borderTop: '1px solid #E5E7EB' }}>
+                            <td className="px-4 py-3 font-mono" style={{ color: '#232E40' }}>{c.code}</td>
+                            <td className="px-4 py-3" style={{ color: '#374151' }}>{created}</td>
+                            <td className="px-4 py-3" style={{ color: '#374151' }}>{expires}</td>
+                            <td className="px-4 py-3">
                               <span
-                                className={
-                                  status === 'Active'
-                                    ? 'text-emerald-700'
+                                style={{
+                                  color: status === 'Active'
+                                    ? '#059669'
                                     : status === 'Expired'
-                                    ? 'text-amber-700'
-                                    : 'text-slate-500'
-                                }
+                                    ? '#D97706'
+                                    : '#6B7280'
+                                }}
+                                className="font-medium"
                               >
                                 {status}
                               </span>
                             </td>
-                            <td className="px-3 py-2">
-                              <code className="bg-slate-100 px-2 py-1 rounded break-all">
+                            <td className="px-4 py-3">
+                              <code className="px-2 py-1 rounded break-all" style={{ backgroundColor: '#F3F4F6', color: '#374151' }}>
                                 {`http://localhost:3000/survey?code=${encodeURIComponent(c.code)}`}
                               </code>
                             </td>
@@ -253,6 +279,8 @@ export default function AccessCodesPage() {
             </div>
           </div>
         )}
+          </div>
+        </main>
       </div>
     </RequireAuth>
   );

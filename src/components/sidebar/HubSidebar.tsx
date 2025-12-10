@@ -239,6 +239,7 @@ export default function HubSidebar() {
   const analyticsItems: MenuItem[] = [
     { label: 'Our Performance', href: '/analytics', icon: <PerformanceIcon /> },
     { label: 'Survey', href: '/surveys', icon: <SurveyIcon /> },
+    { label: 'Access Codes', href: '/access-codes', icon: <AccessCodeIcon /> },
     { label: 'Dealership Standings', href: '/standings', icon: <StandingsIcon /> },
     ...(role === 'corporate' ? [
       { label: 'Select Dealership', href: '/corporate/select-dealership', icon: <DealershipIcon /> },
@@ -255,11 +256,6 @@ export default function HubSidebar() {
 
   const paymentItems: MenuItem[] = [
     { label: 'Subscription', href: '/subscription', icon: <SubscriptionIcon /> },
-  ];
-
-  // NEW SECTION: Quick Actions / Additional Links (Preview)
-  const quickActionItems: MenuItem[] = [
-    { label: 'Access Codes', href: '/access-codes', icon: <AccessCodeIcon /> },
   ];
 
   const isActive = (href?: string) => href && pathname === href;
@@ -543,47 +539,6 @@ export default function HubSidebar() {
         </nav>
       </div>
 
-      {/* QUICK ACTIONS - Preview Section */}
-      <div className="px-4 pb-4 border-t pt-4" style={{ borderColor: '#D1D5DB' }}>
-        <h3 className="text-xs font-semibold uppercase mb-3" style={{ color: '#394B67' }}>QUICK ACTIONS</h3>
-        <nav className="space-y-1">
-          {quickActionItems.map((item, idx) => (
-            isManagerNotApproved ? (
-              <div
-                key={idx}
-                className="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium whitespace-nowrap cursor-not-allowed opacity-50"
-                style={{ color: '#9CA3AF' }}
-                title="Waiting for admin approval"
-              >
-                <span style={{ color: '#9CA3AF' }}>
-                  {item.icon}
-                </span>
-                <span className="text-left">{item.label}</span>
-              </div>
-            ) : (
-              <Link
-                key={idx}
-                href={item.href || '#'}
-                onClick={(e) => handleLinkClick(e, item.href)}
-                className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
-                  isActive(item.href)
-                    ? 'text-white'
-                    : ''
-                }`}
-                style={{
-                  backgroundColor: isActive(item.href) ? '#4D6DBE' : 'transparent',
-                  color: isActive(item.href) ? '#FFFFFF' : '#394B67',
-                }}
-              >
-                <span style={{ color: isActive(item.href) ? '#FFFFFF' : '#394B67' }}>
-                  {item.icon}
-                </span>
-                <span className="text-left">{item.label}</span>
-              </Link>
-            )
-          ))}
-        </nav>
-      </div>
       </div>
 
       {/* User Profile - Fixed at bottom */}
