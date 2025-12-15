@@ -432,6 +432,7 @@ export default function EmployeesPage() {
     'All Statuses',
     'Active',
     'Inactive',
+    ...statuses,
     ...Array.from(new Set(employees.map(emp => emp.status).filter(Boolean))) as string[]
   ].filter((value, index, self) => self.indexOf(value) === index);
 
