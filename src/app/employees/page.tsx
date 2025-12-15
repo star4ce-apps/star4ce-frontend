@@ -20,6 +20,13 @@ type Employee = {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+  // Optional fields that may not be stored in backend
+  street?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zip_code?: string | null;
+  date_of_birth?: string | null;
+  gender?: string | null;
 };
 
 export default function EmployeesPage() {
@@ -29,6 +36,10 @@ export default function EmployeesPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showViewModal, setShowViewModal] = useState(false);
+  const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
+  const [viewingEmployee, setViewingEmployee] = useState<Employee | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedJobTitle, setSelectedJobTitle] = useState('All Job Titles');
   const [selectedStatus, setSelectedStatus] = useState('All Statuses');
@@ -156,6 +167,12 @@ export default function EmployeesPage() {
         employee_id: formData.employeeId,
         hired_date: formData.hiredDate,
         status: formData.status,
+        street: formData.street || null,
+        city: formData.city || null,
+        state: formData.state || null,
+        zip_code: formData.zipCode || null,
+        date_of_birth: formData.dateOfBirth || null,
+        gender: formData.gender || null,
       };
 
       const res = await fetch(`${API_BASE}/employees`, {
@@ -204,7 +221,112 @@ export default function EmployeesPage() {
     });
     setCustomDepartment('');
     setShowModal(false);
+    setShowEditModal(false);
+    setShowViewModal(false);
+    setEditingEmployee(null);
+    setViewingEmployee(null);
     setError(null);
+  }
+
+  function openViewModal(employee: Employee) {
+    setViewingEmployee(employee);
+    setShowViewModal(true);
+  }
+
+  function openEditModal(employee: Employee) {
+    const nameParts = employee.name.split(' ');
+    setFormData({
+      firstName: nameParts[0] || '',
+      lastName: nameParts.slice(1).join(' ') || '',
+      street: employee.street || '',
+      city: employee.city || '',
+      state: employee.state || '',
+      zipCode: employee.zip_code || '',
+      dateOfBirth: employee.date_of_birth ? employee.date_of_birth.split('T')[0] : '',
+      gender: employee.gender || '',
+      employeeId: employee.employee_id || '',
+      phoneNumber: employee.phone || '',
+      email: employee.email || '',
+      jobTitle: employee.position || '',
+      hiredDate: employee.hired_date ? employee.hired_date.split('T')[0] : '',
+      department: employee.department || '',
+      status: employee.status || '',
+    });
+    setEditingEmployee(employee);
+    setShowEditModal(true);
+    setError(null);
+  }
+
+  async function handleUpdate(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editingEmployee) return;
+    
+    setError(null);
+
+    // Validate required fields
+    const requiredFields = ['firstName', 'lastName', 'phoneNumber', 'email', 'jobTitle', 'hiredDate', 'department', 'status'];
+    const missingFields = requiredFields.filter(field => !formData[field as keyof typeof formData]);
+    
+    // If "Others" is selected, validate custom department
+    if (formData.department === 'Others' && !customDepartment.trim()) {
+      setError('Please specify the department name');
+      return;
+    }
+    
+    if (missingFields.length > 0) {
+      setError('All required fields must be filled');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const token = getToken();
+      if (!token) {
+        throw new Error('Not logged in');
+      }
+
+      const employeeData = {
+        name: `${formData.firstName} ${formData.lastName}`,
+        email: formData.email,
+        phone: formData.phoneNumber,
+        department: formData.department === 'Others' ? customDepartment.trim() : formData.department,
+        position: formData.jobTitle,
+        employee_id: formData.employeeId,
+        hired_date: formData.hiredDate,
+        status: formData.status,
+        street: formData.street || null,
+        city: formData.city || null,
+        state: formData.state || null,
+        zip_code: formData.zipCode || null,
+        date_of_birth: formData.dateOfBirth || null,
+        gender: formData.gender || null,
+        is_active: formData.status !== 'Fired' && formData.status !== 'Terminated' && formData.status !== 'Resigned',
+      };
+
+      const res = await fetch(`${API_BASE}/employees/${editingEmployee.id}`, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(employeeData),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to update employee');
+      }
+
+      await loadEmployees();
+      resetForm();
+      toast.success('Employee updated successfully');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to update employee';
+      setError(msg);
+      toast.error(msg);
+    } finally {
+      setLoading(false);
+    }
   }
 
   const handleSort = (column: string) => {
@@ -223,14 +345,19 @@ export default function EmployeesPage() {
       (emp.employee_id && emp.employee_id.toLowerCase().includes(searchQuery.toLowerCase()));
     
     const matchesJobTitle = selectedJobTitle === 'All Job Titles' || emp.position === selectedJobTitle;
-    const matchesStatus = selectedStatus === 'All Statuses' || 
-      (selectedStatus === 'Full-Time' && emp.is_active && emp.status === 'Full-Time') ||
-      (selectedStatus === 'Part-time' && emp.is_active && emp.status === 'Part-time') ||
-      (selectedStatus === 'Intern' && emp.status === 'Intern') ||
-      (selectedStatus === 'Resigned' && !emp.is_active && emp.status === 'Resigned') ||
-      (selectedStatus === 'Terminated' && !emp.is_active && emp.status === 'Terminated') ||
-      (selectedStatus === 'On Leave' && emp.status === 'On Leave') ||
-      (selectedStatus === 'Onboarding' && emp.status === 'Onboarding');
+    
+    // Enhanced status filtering
+    let matchesStatus = true;
+    if (selectedStatus !== 'All Statuses') {
+      if (selectedStatus === 'Active') {
+        matchesStatus = emp.is_active === true;
+      } else if (selectedStatus === 'Inactive') {
+        matchesStatus = emp.is_active === false;
+      } else {
+        // Match by exact status string
+        matchesStatus = emp.status === selectedStatus;
+      }
+    }
 
     return matchesSearch && matchesJobTitle && matchesStatus;
   });
@@ -298,7 +425,15 @@ export default function EmployeesPage() {
     'Virginia', 'Washington', 'West Virginia', 'Wisconsin', 'Wyoming'
   ];
 
-  const statuses = ['Full-Time', 'Part-time', 'Intern'];
+  const statuses = ['Full-Time', 'Part-time', 'Intern', 'Resigned', 'Terminated', 'Fired', 'On Leave', 'Onboarding'];
+  
+  // Get unique statuses from employees, plus standard options
+  const allStatusOptions = [
+    'All Statuses',
+    'Active',
+    'Inactive',
+    ...Array.from(new Set(employees.map(emp => emp.status).filter(Boolean))) as string[]
+  ].filter((value, index, self) => self.indexOf(value) === index);
 
   const jobTitles = Array.from(new Set(employees.map(emp => emp.position).filter(Boolean))) as string[];
 
@@ -455,11 +590,10 @@ export default function EmployeesPage() {
                   backgroundColor: '#FFFFFF', 
                   paddingLeft: '1rem', 
                   paddingRight: '2.5rem',
-                  minWidth: '140px'
+                  minWidth: '160px'
                 }}
               >
-                <option>All Statuses</option>
-                {statuses.map(status => (
+                {allStatusOptions.map(status => (
                   <option key={status} value={status}>{status}</option>
                 ))}
               </select>
@@ -535,18 +669,21 @@ export default function EmployeesPage() {
                         <SortIcon column="status" />
                       </div>
                     </th>
+                    <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider text-white">
+                      Actions
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
                   {loading && paginatedEmployees.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="py-12 text-center text-sm" style={{ color: '#6B7280' }}>
+                      <td colSpan={7} className="py-12 text-center text-sm" style={{ color: '#6B7280' }}>
                         Loading employees...
                       </td>
                     </tr>
                   ) : paginatedEmployees.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="py-12 text-center text-sm" style={{ color: '#6B7280' }}>
+                      <td colSpan={7} className="py-12 text-center text-sm" style={{ color: '#6B7280' }}>
                         No employees found.
                       </td>
                     </tr>
@@ -561,10 +698,11 @@ export default function EmployeesPage() {
                       return (
                         <tr 
                           key={emp.id} 
-                          className="hover:bg-blue-50 transition-colors"
+                          className="hover:bg-blue-50 transition-colors cursor-pointer"
                           style={{ 
                             borderBottom: '1px solid #F3F4F6'
                           }}
+                          onClick={() => openViewModal(emp)}
                         >
                           <td className="py-3 px-4">
                             <div>
@@ -587,21 +725,36 @@ export default function EmployeesPage() {
                                                 emp.status === 'Intern' ? '#FEF3C7' :
                                                 emp.status === 'Resigned' ? '#FEE2E2' :
                                                 emp.status === 'Terminated' ? '#FEE2E2' :
+                                                emp.status === 'Fired' ? '#FEE2E2' :
                                                 emp.status === 'On Leave' ? '#E0E7FF' :
                                                 emp.status === 'Onboarding' ? '#F3E8FF' :
-                                                '#F3F4F6',
+                                                emp.is_active ? '#D1FAE5' : '#F3F4F6',
                                 color: emp.status === 'Full-Time' ? '#065F46' :
                                        emp.status === 'Part-time' ? '#1E40AF' :
                                        emp.status === 'Intern' ? '#92400E' :
                                        emp.status === 'Resigned' ? '#991B1B' :
                                        emp.status === 'Terminated' ? '#991B1B' :
+                                       emp.status === 'Fired' ? '#991B1B' :
                                        emp.status === 'On Leave' ? '#3730A3' :
                                        emp.status === 'Onboarding' ? '#6B21A8' :
-                                       '#374151'
+                                       emp.is_active ? '#065F46' : '#374151'
                               }}
                             >
-                              {emp.status || (emp.is_active ? 'Full-Time' : 'Inactive')}
+                              {emp.status || (emp.is_active ? 'Active' : 'Inactive')}
                             </span>
+                          </td>
+                          <td className="py-3 px-4" onClick={(e) => e.stopPropagation()}>
+                            <button
+                              onClick={() => openEditModal(emp)}
+                              className="cursor-pointer p-1.5 rounded-md transition-all hover:bg-gray-100"
+                              style={{ color: '#4D6DBE' }}
+                              title="Edit Employee"
+                            >
+                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                              </svg>
+                            </button>
                           </td>
                         </tr>
                       );
@@ -677,7 +830,521 @@ export default function EmployeesPage() {
             </div>
           </div>
 
-          {/* Modal */}
+          {/* View Employee Details Modal */}
+          {showViewModal && viewingEmployee && (
+            <div 
+              className="fixed inset-0 z-50 flex items-center justify-center p-4"
+              style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}
+              onClick={(e) => {
+                if (e.target === e.currentTarget) {
+                  setShowViewModal(false);
+                  setViewingEmployee(null);
+                }
+              }}
+            >
+              <div 
+                className="bg-white rounded-xl shadow-2xl"
+                style={{ 
+                  width: '90%', 
+                  maxWidth: '800px', 
+                  maxHeight: '95vh', 
+                  overflowY: 'auto',
+                  border: '1px solid #E5E7EB'
+                }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="p-4 border-b" style={{ borderColor: '#E5E7EB', backgroundColor: '#4D6DBE' }}>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h2 className="text-xl font-bold mb-0.5" style={{ color: '#FFFFFF' }}>Employee Details</h2>
+                      <p className="text-xs" style={{ color: '#E0E7FF' }}>View employee information</p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setShowViewModal(false);
+                        setViewingEmployee(null);
+                      }}
+                      className="cursor-pointer p-1 rounded-md transition-all hover:bg-blue-600"
+                      style={{ color: '#FFFFFF' }}
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+                <div className="p-6">
+                  <div className="grid grid-cols-2 gap-6">
+                    {/* Basic Information */}
+                    <div className="col-span-2">
+                      <h3 className="text-sm font-semibold mb-4" style={{ color: '#232E40' }}>Basic Information</h3>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-medium mb-1.5" style={{ color: '#6B7280' }}>Full Name</label>
+                          <div className="text-sm font-semibold" style={{ color: '#232E40' }}>
+                            {viewingEmployee.name}
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium mb-1.5" style={{ color: '#6B7280' }}>Employee ID</label>
+                          <div className="text-sm font-semibold" style={{ color: '#232E40' }}>
+                            {viewingEmployee.employee_id || `#${String(viewingEmployee.id).padStart(7, '0')}`}
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium mb-1.5" style={{ color: '#6B7280' }}>Email</label>
+                          <div className="text-sm" style={{ color: '#374151' }}>
+                            {viewingEmployee.email}
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium mb-1.5" style={{ color: '#6B7280' }}>Phone Number</label>
+                          <div className="text-sm" style={{ color: '#374151' }}>
+                            {viewingEmployee.phone || '—'}
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium mb-1.5" style={{ color: '#6B7280' }}>Date of Birth</label>
+                          <div className="text-sm" style={{ color: '#374151' }}>
+                            {viewingEmployee.date_of_birth 
+                              ? new Date(viewingEmployee.date_of_birth).toLocaleDateString('en-US', { day: '2-digit', month: 'long', year: 'numeric' })
+                              : '—'}
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium mb-1.5" style={{ color: '#6B7280' }}>Gender</label>
+                          <div className="text-sm" style={{ color: '#374151' }}>
+                            {viewingEmployee.gender || '—'}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Home Address */}
+                    <div className="col-span-2">
+                      <h3 className="text-sm font-semibold mb-4 mt-6" style={{ color: '#232E40' }}>Home Address</h3>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="col-span-2">
+                          <label className="block text-xs font-medium mb-1.5" style={{ color: '#6B7280' }}>Street Address</label>
+                          <div className="text-sm" style={{ color: '#374151' }}>
+                            {viewingEmployee.street || '—'}
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium mb-1.5" style={{ color: '#6B7280' }}>City</label>
+                          <div className="text-sm" style={{ color: '#374151' }}>
+                            {viewingEmployee.city || '—'}
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium mb-1.5" style={{ color: '#6B7280' }}>State</label>
+                          <div className="text-sm" style={{ color: '#374151' }}>
+                            {viewingEmployee.state || '—'}
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium mb-1.5" style={{ color: '#6B7280' }}>Zip Code</label>
+                          <div className="text-sm" style={{ color: '#374151' }}>
+                            {viewingEmployee.zip_code || '—'}
+                          </div>
+                        </div>
+                        {(viewingEmployee.street || viewingEmployee.city || viewingEmployee.state || viewingEmployee.zip_code) ? (
+                          <div className="col-span-2 mt-2">
+                            <div className="text-sm p-3 rounded-lg" style={{ backgroundColor: '#F9FAFB', color: '#374151' }}>
+                              {[
+                                viewingEmployee.street,
+                                viewingEmployee.city,
+                                viewingEmployee.state,
+                                viewingEmployee.zip_code
+                              ].filter(Boolean).join(', ') || '—'}
+                            </div>
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
+
+                    {/* Employment Information */}
+                    <div className="col-span-2">
+                      <h3 className="text-sm font-semibold mb-4 mt-6" style={{ color: '#232E40' }}>Employment Information</h3>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-medium mb-1.5" style={{ color: '#6B7280' }}>Job Title</label>
+                          <div className="text-sm" style={{ color: '#374151' }}>
+                            {viewingEmployee.position || '—'}
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium mb-1.5" style={{ color: '#6B7280' }}>Department</label>
+                          <div className="text-sm" style={{ color: '#374151' }}>
+                            {viewingEmployee.department}
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium mb-1.5" style={{ color: '#6B7280' }}>Hired Date</label>
+                          <div className="text-sm" style={{ color: '#374151' }}>
+                            {viewingEmployee.hired_date 
+                              ? new Date(viewingEmployee.hired_date).toLocaleDateString('en-US', { day: '2-digit', month: 'long', year: 'numeric' })
+                              : viewingEmployee.created_at 
+                              ? new Date(viewingEmployee.created_at).toLocaleDateString('en-US', { day: '2-digit', month: 'long', year: 'numeric' })
+                              : '—'}
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium mb-1.5" style={{ color: '#6B7280' }}>Status</label>
+                          <div className="mt-1">
+                            <span 
+                              className="text-xs font-semibold px-2.5 py-1 rounded-full inline-block"
+                              style={{ 
+                                backgroundColor: viewingEmployee.status === 'Full-Time' ? '#D1FAE5' : 
+                                                viewingEmployee.status === 'Part-time' ? '#DBEAFE' :
+                                                viewingEmployee.status === 'Intern' ? '#FEF3C7' :
+                                                viewingEmployee.status === 'Resigned' ? '#FEE2E2' :
+                                                viewingEmployee.status === 'Terminated' ? '#FEE2E2' :
+                                                viewingEmployee.status === 'Fired' ? '#FEE2E2' :
+                                                viewingEmployee.status === 'On Leave' ? '#E0E7FF' :
+                                                viewingEmployee.status === 'Onboarding' ? '#F3E8FF' :
+                                                viewingEmployee.is_active ? '#D1FAE5' : '#F3F4F6',
+                                color: viewingEmployee.status === 'Full-Time' ? '#065F46' :
+                                       viewingEmployee.status === 'Part-time' ? '#1E40AF' :
+                                       viewingEmployee.status === 'Intern' ? '#92400E' :
+                                       viewingEmployee.status === 'Resigned' ? '#991B1B' :
+                                       viewingEmployee.status === 'Terminated' ? '#991B1B' :
+                                       viewingEmployee.status === 'Fired' ? '#991B1B' :
+                                       viewingEmployee.status === 'On Leave' ? '#3730A3' :
+                                       viewingEmployee.status === 'Onboarding' ? '#6B21A8' :
+                                       viewingEmployee.is_active ? '#065F46' : '#374151'
+                              }}
+                            >
+                              {viewingEmployee.status || (viewingEmployee.is_active ? 'Active' : 'Inactive')}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Additional Information */}
+                    <div className="col-span-2">
+                      <h3 className="text-sm font-semibold mb-4 mt-6" style={{ color: '#232E40' }}>Additional Information</h3>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-medium mb-1.5" style={{ color: '#6B7280' }}>Employee ID (System)</label>
+                          <div className="text-sm" style={{ color: '#374151' }}>
+                            #{String(viewingEmployee.id).padStart(7, '0')}
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium mb-1.5" style={{ color: '#6B7280' }}>Account Status</label>
+                          <div className="mt-1">
+                            <span 
+                              className="text-xs font-semibold px-2.5 py-1 rounded-full inline-block"
+                              style={{ 
+                                backgroundColor: viewingEmployee.is_active ? '#D1FAE5' : '#FEE2E2',
+                                color: viewingEmployee.is_active ? '#065F46' : '#991B1B'
+                              }}
+                            >
+                              {viewingEmployee.is_active ? 'Active' : 'Inactive'}
+                            </span>
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium mb-1.5" style={{ color: '#6B7280' }}>Created At</label>
+                          <div className="text-sm" style={{ color: '#374151' }}>
+                            {viewingEmployee.created_at 
+                              ? new Date(viewingEmployee.created_at).toLocaleDateString('en-US', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+                              : '—'}
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium mb-1.5" style={{ color: '#6B7280' }}>Last Updated</label>
+                          <div className="text-sm" style={{ color: '#374151' }}>
+                            {viewingEmployee.updated_at 
+                              ? new Date(viewingEmployee.updated_at).toLocaleDateString('en-US', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+                              : '—'}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex justify-end gap-3 mt-6 pt-6 border-t" style={{ borderColor: '#E5E7EB' }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowViewModal(false);
+                        setViewingEmployee(null);
+                      }}
+                      className="cursor-pointer px-5 py-2 text-sm font-semibold rounded-lg transition-all hover:bg-gray-50"
+                      style={{ 
+                        border: '1px solid #E5E7EB',
+                        color: '#374151',
+                        backgroundColor: '#FFFFFF'
+                      }}
+                    >
+                      Close
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowViewModal(false);
+                        openEditModal(viewingEmployee);
+                      }}
+                      className="cursor-pointer px-5 py-2 text-sm font-semibold text-white rounded-lg transition-all hover:opacity-90"
+                      style={{ backgroundColor: '#4D6DBE' }}
+                    >
+                      Edit Employee
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Edit Modal */}
+          {showEditModal && editingEmployee && (
+            <div 
+              className="fixed inset-0 z-50 flex items-center justify-center p-4"
+              style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}
+              onClick={(e) => {
+                if (e.target === e.currentTarget) {
+                  resetForm();
+                }
+              }}
+            >
+              <div 
+                className="bg-white rounded-xl shadow-2xl"
+                style={{ 
+                  width: '90%', 
+                  maxWidth: '950px', 
+                  maxHeight: '95vh', 
+                  overflowY: 'auto',
+                  border: '1px solid #E5E7EB'
+                }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="p-4 border-b" style={{ borderColor: '#E5E7EB', backgroundColor: '#4D6DBE' }}>
+                  <h2 className="text-xl font-bold mb-0.5" style={{ color: '#FFFFFF' }}>Edit Employee</h2>
+                  <p className="text-xs" style={{ color: '#E0E7FF' }}>Update employee information *</p>
+                </div>
+                <form onSubmit={handleUpdate} className="p-5">
+                  <div className="grid grid-cols-2 gap-3 mb-3">
+                    <div>
+                      <label className="block text-xs font-semibold mb-1.5" style={{ color: '#374151' }}>First Name *</label>
+                      <input
+                        type="text"
+                        value={formData.firstName}
+                        onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+                        required
+                        className="w-full px-3 py-2 text-sm rounded-lg transition-all focus:outline-none focus:ring-2"
+                        style={{ 
+                          border: '1px solid #D1D5DB', 
+                          color: '#374151', 
+                          backgroundColor: '#FFFFFF',
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold mb-1.5" style={{ color: '#374151' }}>Last Name *</label>
+                      <input
+                        type="text"
+                        value={formData.lastName}
+                        onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+                        required
+                        className="w-full px-3 py-2 text-sm rounded-lg transition-all focus:outline-none focus:ring-2"
+                        style={{ 
+                          border: '1px solid #D1D5DB', 
+                          color: '#374151', 
+                          backgroundColor: '#FFFFFF',
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold mb-1.5" style={{ color: '#374151' }}>Employee ID</label>
+                      <input
+                        type="text"
+                        placeholder="#00000"
+                        value={formData.employeeId}
+                        onChange={(e) => setFormData({ ...formData, employeeId: e.target.value })}
+                        className="w-full px-3 py-2 text-sm rounded-lg transition-all focus:outline-none focus:ring-2"
+                        style={{ 
+                          border: '1px solid #D1D5DB', 
+                          color: '#374151', 
+                          backgroundColor: '#FFFFFF',
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold mb-1.5" style={{ color: '#374151' }}>Phone Number *</label>
+                      <input
+                        type="tel"
+                        placeholder="(000) 000-0000"
+                        value={formData.phoneNumber}
+                        onChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value })}
+                        required
+                        className="w-full px-3 py-2 text-sm rounded-lg transition-all focus:outline-none focus:ring-2"
+                        style={{ 
+                          border: '1px solid #D1D5DB', 
+                          color: '#374151', 
+                          backgroundColor: '#FFFFFF',
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold mb-1.5" style={{ color: '#374151' }}>Email *</label>
+                      <input
+                        type="email"
+                        value={formData.email}
+                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                        required
+                        className="w-full px-3 py-2 text-sm rounded-lg transition-all focus:outline-none focus:ring-2"
+                        style={{ 
+                          border: '1px solid #D1D5DB', 
+                          color: '#374151', 
+                          backgroundColor: '#FFFFFF',
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold mb-1.5" style={{ color: '#374151' }}>Job Title *</label>
+                      <input
+                        type="text"
+                        placeholder="e.g., Sales Consultant"
+                        value={formData.jobTitle}
+                        onChange={(e) => setFormData({ ...formData, jobTitle: e.target.value })}
+                        required
+                        className="w-full px-3 py-2 text-sm rounded-lg transition-all focus:outline-none focus:ring-2"
+                        style={{ 
+                          border: '1px solid #D1D5DB', 
+                          color: '#374151', 
+                          backgroundColor: '#FFFFFF',
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold mb-1.5" style={{ color: '#374151' }}>Hired Date *</label>
+                      <input
+                        type="date"
+                        value={formData.hiredDate}
+                        onChange={(e) => setFormData({ ...formData, hiredDate: e.target.value })}
+                        required
+                        className="w-full px-3 py-2 text-sm rounded-lg transition-all focus:outline-none focus:ring-2"
+                        style={{ 
+                          border: '1px solid #D1D5DB', 
+                          color: '#374151', 
+                          backgroundColor: '#FFFFFF',
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold mb-1.5" style={{ color: '#374151' }}>Department *</label>
+                      <div className="flex gap-2">
+                        <div className="relative flex-1">
+                          <select
+                            value={formData.department}
+                            onChange={(e) => {
+                              setFormData({ ...formData, department: e.target.value });
+                              if (e.target.value !== 'Others') {
+                                setCustomDepartment('');
+                              }
+                            }}
+                            required
+                            className="w-full px-3 py-2 text-sm rounded-lg appearance-none cursor-pointer transition-all focus:outline-none focus:ring-2"
+                            style={{ 
+                              border: '1px solid #D1D5DB', 
+                              color: '#374151', 
+                              backgroundColor: '#FFFFFF',
+                            }}
+                          >
+                            <option value="">Select Department</option>
+                            {departments.map(dept => (
+                              <option key={dept} value={dept}>{dept}</option>
+                            ))}
+                          </select>
+                          <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: '#6B7280' }}>
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                            </svg>
+                          </div>
+                        </div>
+                        {formData.department === 'Others' && (
+                          <div className="flex-1">
+                            <input
+                              type="text"
+                              placeholder="Enter department name"
+                              value={customDepartment}
+                              onChange={(e) => setCustomDepartment(e.target.value)}
+                              required
+                              className="w-full px-3 py-2 text-sm rounded-lg transition-all focus:outline-none focus:ring-2"
+                              style={{ 
+                                border: '1px solid #D1D5DB', 
+                                color: '#374151', 
+                                backgroundColor: '#FFFFFF',
+                              }}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold mb-1.5" style={{ color: '#374151' }}>Status *</label>
+                      <div className="relative">
+                        <select
+                          value={formData.status}
+                          onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                          required
+                          className="w-full px-3 py-2 text-sm rounded-lg appearance-none cursor-pointer transition-all focus:outline-none focus:ring-2"
+                          style={{ 
+                            border: '1px solid #D1D5DB', 
+                            color: '#374151', 
+                            backgroundColor: '#FFFFFF',
+                          }}
+                        >
+                          <option value="">Select Status</option>
+                          {statuses.map(status => (
+                            <option key={status} value={status}>{status}</option>
+                          ))}
+                        </select>
+                        <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: '#6B7280' }}>
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                          </svg>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  {error && (
+                    <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-xs">
+                      {error}
+                    </div>
+                  )}
+                  <div className="flex justify-end gap-3 mt-4 pt-4 border-t" style={{ borderColor: '#E5E7EB' }}>
+                    <button
+                      type="button"
+                      onClick={resetForm}
+                      className="cursor-pointer px-5 py-2 text-sm font-semibold rounded-lg transition-all hover:bg-gray-50"
+                      style={{ 
+                        border: '1px solid #E5E7EB',
+                        color: '#374151',
+                        backgroundColor: '#FFFFFF'
+                      }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      className="cursor-pointer px-5 py-2 text-sm font-semibold text-white rounded-lg transition-all hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed"
+                      style={{ backgroundColor: '#4D6DBE' }}
+                    >
+                      {loading ? 'Updating...' : 'Update'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* Add Modal */}
           {showModal && (
             <div 
               className="fixed inset-0 z-50 flex items-center justify-center p-4"
