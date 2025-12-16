@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import HubSidebar from '@/components/sidebar/HubSidebar';
 import RequireAuth from '@/components/layout/RequireAuth';
+import { API_BASE, getToken } from '@/lib/auth';
 
 type InterviewHistory = {
   id: string;
@@ -178,24 +179,110 @@ export default function CandidateProfilePage() {
   const [hiringDecision, setHiringDecision] = useState<'continue' | 'stop' | null>(null);
   const [currentCandidateIndex, setCurrentCandidateIndex] = useState(0);
   const [candidate, setCandidate] = useState<CandidateProfile | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [allCandidates, setAllCandidates] = useState<CandidateProfile[]>([]);
+
+  useEffect(() => {
+    loadCandidates();
+  }, []);
 
   useEffect(() => {
     if (isNaN(candidateId) || !candidateId) {
       setCandidate(null);
+      setLoading(false);
       return;
     }
-    const candidateData = mockCandidates[candidateId];
-    if (candidateData) {
-      setCandidate(candidateData);
-      setNotes(candidateData.notes);
-      const allIds = Object.keys(mockCandidates).map(Number).sort((a, b) => a - b);
-      setCurrentCandidateIndex(allIds.indexOf(candidateId));
-    } else {
-      setCandidate(null);
+    if (allCandidates.length > 0) {
+      loadCandidate();
     }
-  }, [candidateId]);
+  }, [candidateId, allCandidates]);
 
-  const allCandidateIds = Object.keys(mockCandidates).map(Number);
+  async function loadCandidates() {
+    try {
+      const token = getToken();
+      if (!token) return;
+
+      const res = await fetch(`${API_BASE}/candidates`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (res.ok) {
+        const candidates = (data.items || []).map((c: any) => ({
+          id: c.id,
+          name: c.name,
+          email: c.email,
+          phone: c.phone || '',
+          gender: 'Not Provided',
+          birthday: 'Not Provided',
+          address: 'Not Provided',
+          overallScore: c.score ? c.score / 10 : 0,
+          stage: c.status || 'Pending',
+          origin: 'Career Site',
+          appliedDate: new Date(c.applied_at).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' }),
+          jobPosition: c.position,
+          university: 'Not Provided',
+          degree: 'Not Provided',
+          referral: 'Not Provided',
+          interviewHistory: [],
+          notes: c.notes || '',
+        }));
+        setAllCandidates(candidates);
+      }
+    } catch (err) {
+      console.error('Failed to load candidates:', err);
+    }
+  }
+
+  async function loadCandidate() {
+    setLoading(true);
+    try {
+      const token = getToken();
+      if (!token) {
+        setLoading(false);
+        return;
+      }
+
+      const res = await fetch(`${API_BASE}/candidates/${candidateId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (res.ok && data.candidate) {
+        const c = data.candidate;
+        const candidateData: CandidateProfile = {
+          id: c.id,
+          name: c.name,
+          email: c.email,
+          phone: c.phone || '',
+          gender: 'Not Provided',
+          birthday: 'Not Provided',
+          address: 'Not Provided',
+          overallScore: c.score ? c.score / 10 : 0,
+          stage: c.status || 'Pending',
+          origin: 'Career Site',
+          appliedDate: new Date(c.applied_at).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' }),
+          jobPosition: c.position,
+          university: 'Not Provided',
+          degree: 'Not Provided',
+          referral: 'Not Provided',
+          interviewHistory: [],
+          notes: c.notes || '',
+        };
+        setCandidate(candidateData);
+        setNotes(candidateData.notes);
+        const sortedIds = allCandidates.map(c => c.id).sort((a, b) => a - b);
+        setCurrentCandidateIndex(sortedIds.indexOf(candidateId));
+      } else {
+        setCandidate(null);
+      }
+    } catch (err) {
+      console.error('Failed to load candidate:', err);
+      setCandidate(null);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const allCandidateIds = allCandidates.map(c => c.id).sort((a, b) => a - b);
   const totalCandidates = allCandidateIds.length;
 
   const navigateCandidate = (direction: 'prev' | 'next') => {
@@ -214,6 +301,21 @@ export default function CandidateProfilePage() {
     return '#EF4444'; // Poor - red
   };
 
+  if (loading) {
+    return (
+      <RequireAuth>
+        <div className="flex min-h-screen" style={{ width: '100%', overflow: 'hidden', backgroundColor: '#F5F7FA' }}>
+          <HubSidebar />
+          <main className="ml-64 p-8 pl-10 flex-1" style={{ overflowX: 'hidden', minWidth: 0 }}>
+            <div className="text-center py-12">
+              <p style={{ color: '#6B7280' }}>Loading candidate...</p>
+            </div>
+          </main>
+        </div>
+      </RequireAuth>
+    );
+  }
+
   if (!candidate) {
     return (
       <RequireAuth>
@@ -222,6 +324,13 @@ export default function CandidateProfilePage() {
           <main className="ml-64 p-8 pl-10 flex-1" style={{ overflowX: 'hidden', minWidth: 0 }}>
             <div className="text-center py-12">
               <p style={{ color: '#6B7280' }}>Candidate not found</p>
+              <button
+                onClick={() => router.push('/candidates')}
+                className="mt-4 px-4 py-2 rounded-lg text-sm font-semibold transition-all"
+                style={{ backgroundColor: '#4D6DBE', color: '#FFFFFF' }}
+              >
+                Back to Candidates
+              </button>
             </div>
           </main>
         </div>

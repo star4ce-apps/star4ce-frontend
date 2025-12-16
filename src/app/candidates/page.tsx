@@ -6,6 +6,7 @@ import RequireAuth from '@/components/layout/RequireAuth';
 import { API_BASE, getToken } from '@/lib/auth';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import toast from 'react-hot-toast';
 
 type Candidate = {
   id: number;
@@ -29,7 +30,18 @@ export default function CandidatesPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('All Statuses');
   const [currentPage, setCurrentPage] = useState(1);
+  const [showModal, setShowModal] = useState(false);
   const itemsPerPage = 20;
+
+  // Form state
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    position: '',
+    status: 'Pending',
+    notes: '',
+  });
 
   useEffect(() => {
     // Check user approval status
@@ -73,25 +85,77 @@ export default function CandidatesPage() {
         return;
       }
 
-      // TODO: Replace with actual API endpoint when backend is ready
-      // const res = await fetch(`${API_BASE}/candidates`, {
-      //   headers: { Authorization: `Bearer ${token}` },
-      // });
-      // const data = await res.json();
-      // if (res.ok) {
-      //   setCandidates(data.candidates || []);
-      // } else {
-      //   setError(data.error || 'Failed to load candidates');
-      // }
-      
-      // Temporary: Empty array until API is ready
-      setCandidates([]);
+      const res = await fetch(`${API_BASE}/candidates`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setCandidates(data.items || []);
+      } else {
+        setError(data.error || 'Failed to load candidates');
+      }
     } catch (err) {
       setError('Failed to load candidates');
       console.error(err);
     } finally {
       setLoading(false);
     }
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+
+    // Validate required fields
+    if (!formData.name || !formData.email || !formData.position) {
+      setError('Name, email, and position are required');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const token = getToken();
+      if (!token) {
+        throw new Error('Not logged in');
+      }
+
+      const res = await fetch(`${API_BASE}/candidates`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to save candidate');
+      }
+
+      await loadCandidates();
+      resetForm();
+      toast.success('Candidate added successfully');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to save candidate';
+      setError(msg);
+      toast.error(msg);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function resetForm() {
+    setFormData({
+      name: '',
+      email: '',
+      phone: '',
+      position: '',
+      status: 'Pending',
+      notes: '',
+    });
+    setShowModal(false);
+    setError(null);
   }
 
   const filteredCandidates = candidates.filter(candidate => {
@@ -166,18 +230,32 @@ export default function CandidatesPage() {
                 <h1 className="text-4xl font-bold mb-2" style={{ color: '#232E40', letterSpacing: '-0.02em' }}>Candidates</h1>
                 <p className="text-base" style={{ color: '#6B7280' }}>Manage and review candidate applications</p>
               </div>
-              <Link
-                href="/candidates/score"
-                className="cursor-pointer px-6 py-3 rounded-lg font-semibold text-sm transition-colors"
-                style={{ 
-                  backgroundColor: '#0B2E65', 
-                  color: '#FFFFFF'
-                }}
-                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#2c5aa0'}
-                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#0B2E65'}
-              >
-                Score a Candidate
-              </Link>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowModal(true)}
+                  className="cursor-pointer px-6 py-3 rounded-lg font-semibold text-sm transition-colors"
+                  style={{ 
+                    backgroundColor: '#4D6DBE', 
+                    color: '#FFFFFF'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#3d5a9e'}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#4D6DBE'}
+                >
+                  + Add a Candidate
+                </button>
+                <Link
+                  href="/candidates/score"
+                  className="cursor-pointer px-6 py-3 rounded-lg font-semibold text-sm transition-colors"
+                  style={{ 
+                    backgroundColor: '#0B2E65', 
+                    color: '#FFFFFF'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#2c5aa0'}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#0B2E65'}
+                >
+                  Score a Candidate
+                </Link>
+              </div>
             </div>
           </div>
 
@@ -331,6 +409,169 @@ export default function CandidatesPage() {
               </>
             )}
           </div>
+
+          {/* Add Candidate Modal */}
+          {showModal && (
+            <div 
+              className="fixed inset-0 z-50 flex items-center justify-center p-4"
+              style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}
+              onClick={(e) => {
+                if (e.target === e.currentTarget) {
+                  resetForm();
+                }
+              }}
+            >
+              <div 
+                className="bg-white rounded-xl shadow-2xl"
+                style={{ 
+                  width: '90%', 
+                  maxWidth: '600px', 
+                  maxHeight: '95vh', 
+                  overflowY: 'auto',
+                  border: '1px solid #E5E7EB'
+                }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="p-4 border-b" style={{ borderColor: '#E5E7EB', backgroundColor: '#4D6DBE' }}>
+                  <h2 className="text-xl font-bold mb-0.5" style={{ color: '#FFFFFF' }}>Add a Candidate</h2>
+                  <p className="text-xs" style={{ color: '#E0E7FF' }}>Enter candidate information</p>
+                </div>
+                <form onSubmit={handleSubmit} className="p-6">
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-semibold mb-1.5" style={{ color: '#374151' }}>Full Name *</label>
+                      <input
+                        type="text"
+                        value={formData.name}
+                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                        required
+                        className="w-full px-3 py-2 text-sm rounded-lg transition-all focus:outline-none focus:ring-2"
+                        style={{ 
+                          border: '1px solid #D1D5DB', 
+                          color: '#374151', 
+                          backgroundColor: '#FFFFFF',
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold mb-1.5" style={{ color: '#374151' }}>Email *</label>
+                      <input
+                        type="email"
+                        value={formData.email}
+                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                        required
+                        className="w-full px-3 py-2 text-sm rounded-lg transition-all focus:outline-none focus:ring-2"
+                        style={{ 
+                          border: '1px solid #D1D5DB', 
+                          color: '#374151', 
+                          backgroundColor: '#FFFFFF',
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold mb-1.5" style={{ color: '#374151' }}>Phone Number</label>
+                      <input
+                        type="tel"
+                        value={formData.phone}
+                        onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                        placeholder="(000) 000-0000"
+                        className="w-full px-3 py-2 text-sm rounded-lg transition-all focus:outline-none focus:ring-2"
+                        style={{ 
+                          border: '1px solid #D1D5DB', 
+                          color: '#374151', 
+                          backgroundColor: '#FFFFFF',
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold mb-1.5" style={{ color: '#374151' }}>Position *</label>
+                      <input
+                        type="text"
+                        value={formData.position}
+                        onChange={(e) => setFormData({ ...formData, position: e.target.value })}
+                        required
+                        placeholder="e.g., Sales Consultant"
+                        className="w-full px-3 py-2 text-sm rounded-lg transition-all focus:outline-none focus:ring-2"
+                        style={{ 
+                          border: '1px solid #D1D5DB', 
+                          color: '#374151', 
+                          backgroundColor: '#FFFFFF',
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold mb-1.5" style={{ color: '#374151' }}>Status</label>
+                      <div className="relative">
+                        <select
+                          value={formData.status}
+                          onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                          className="w-full px-3 py-2 text-sm rounded-lg appearance-none cursor-pointer transition-all focus:outline-none focus:ring-2"
+                          style={{ 
+                            border: '1px solid #D1D5DB', 
+                            color: '#374151', 
+                            backgroundColor: '#FFFFFF',
+                          }}
+                        >
+                          <option value="Pending">Pending</option>
+                          <option value="Interview Scheduled">Interview Scheduled</option>
+                          <option value="Hired">Hired</option>
+                          <option value="Rejected">Rejected</option>
+                          <option value="Withdrawn">Withdrawn</option>
+                        </select>
+                        <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: '#6B7280' }}>
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                          </svg>
+                        </div>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold mb-1.5" style={{ color: '#374151' }}>Notes</label>
+                      <textarea
+                        value={formData.notes}
+                        onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                        rows={4}
+                        placeholder="Additional notes about the candidate..."
+                        className="w-full px-3 py-2 text-sm rounded-lg transition-all focus:outline-none focus:ring-2"
+                        style={{ 
+                          border: '1px solid #D1D5DB', 
+                          color: '#374151', 
+                          backgroundColor: '#FFFFFF',
+                        }}
+                      />
+                    </div>
+                  </div>
+                  {error && (
+                    <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+                      {error}
+                    </div>
+                  )}
+                  <div className="flex justify-end gap-3 mt-6 pt-4 border-t" style={{ borderColor: '#E5E7EB' }}>
+                    <button
+                      type="button"
+                      onClick={resetForm}
+                      className="cursor-pointer px-5 py-2 text-sm font-semibold rounded-lg transition-all hover:bg-gray-50"
+                      style={{ 
+                        border: '1px solid #E5E7EB',
+                        color: '#374151',
+                        backgroundColor: '#FFFFFF'
+                      }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      className="cursor-pointer px-5 py-2 text-sm font-semibold text-white rounded-lg transition-all hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed"
+                      style={{ backgroundColor: '#4D6DBE' }}
+                    >
+                      {loading ? 'Adding...' : 'Add Candidate'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
         </main>
       </div>
     </RequireAuth>
