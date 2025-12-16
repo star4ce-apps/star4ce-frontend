@@ -461,21 +461,6 @@ export default function EmployeesPage() {
     );
   }
 
-  if (role !== 'admin') {
-    return (
-      <RequireAuth>
-        <div className="flex min-h-screen" style={{ width: '100%', overflow: 'hidden', backgroundColor: '#F5F7FA' }}>
-          <HubSidebar />
-          <main className="ml-64 p-8 pl-10 flex-1" style={{ overflowX: 'hidden', minWidth: 0 }}>
-            <div className="text-center py-12 text-red-600">
-              <div className="text-sm font-medium">Only Admin users can manage employees.</div>
-            </div>
-          </main>
-        </div>
-      </RequireAuth>
-    );
-  }
-
   // Block unapproved managers
   if (role === 'manager' && isApproved === false) {
     return (
@@ -496,6 +481,21 @@ export default function EmployeesPage() {
               <p className="text-base" style={{ color: '#6B7280' }}>
                 Please wait for an admin to approve your request to join the dealership. You'll be able to access this page once approved.
               </p>
+            </div>
+          </main>
+        </div>
+      </RequireAuth>
+    );
+  }
+
+  if (role !== 'admin') {
+    return (
+      <RequireAuth>
+        <div className="flex min-h-screen" style={{ width: '100%', overflow: 'hidden', backgroundColor: '#F5F7FA' }}>
+          <HubSidebar />
+          <main className="ml-64 p-8 pl-10 flex-1" style={{ overflowX: 'hidden', minWidth: 0 }}>
+            <div className="text-center py-12 text-red-600">
+              <div className="text-sm font-medium">Only Admin users can manage employees.</div>
             </div>
           </main>
         </div>
@@ -787,7 +787,7 @@ export default function EmployeesPage() {
                 </button>
                 <div className="flex items-center gap-1">
                   {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                    let pageNum;
+                    let pageNum: number;
                     if (totalPages <= 5) {
                       pageNum = i + 1;
                     } else if (currentPage <= 3) {
