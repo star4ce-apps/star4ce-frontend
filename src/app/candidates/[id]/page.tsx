@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import HubSidebar from '@/components/sidebar/HubSidebar';
 import RequireAuth from '@/components/layout/RequireAuth';
 import { API_BASE, getToken } from '@/lib/auth';
+import toast from 'react-hot-toast';
 
 type InterviewHistory = {
   id: string;
@@ -180,10 +181,19 @@ export default function CandidateProfilePage() {
   const [currentCandidateIndex, setCurrentCandidateIndex] = useState(0);
   const [candidate, setCandidate] = useState<CandidateProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [allCandidates, setAllCandidates] = useState<CandidateProfile[]>([]);
+  const notesTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     loadCandidates();
+    
+    // Cleanup timeout on unmount
+    return () => {
+      if (notesTimeoutRef.current) {
+        clearTimeout(notesTimeoutRef.current);
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -256,7 +266,7 @@ export default function CandidateProfilePage() {
           gender: 'Not Provided',
           birthday: 'Not Provided',
           address: 'Not Provided',
-          overallScore: c.score ? c.score / 10 : 0,
+          overallScore: c.score !== null && c.score !== undefined ? c.score / 10 : 0,
           stage: c.status || 'Pending',
           origin: 'Career Site',
           appliedDate: new Date(c.applied_at).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' }),
@@ -279,6 +289,73 @@ export default function CandidateProfilePage() {
       setCandidate(null);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function updateCandidate(data: Partial<any>) {
+    if (!candidate) return;
+    
+    setSaving(true);
+    try {
+      const token = getToken();
+      if (!token) {
+        throw new Error('Not logged in');
+      }
+
+      const res = await fetch(`${API_BASE}/candidates/${candidateId}`, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      });
+
+      const response = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(response.error || 'Failed to update candidate');
+      }
+
+      // Reload candidate data
+      await loadCandidate();
+      toast.success('Candidate updated successfully');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to update candidate';
+      toast.error(msg);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function handleStatusChange(newStatus: string) {
+    if (!candidate) return;
+    updateCandidate({ status: newStatus });
+    setCandidate({ ...candidate, stage: newStatus });
+  }
+
+  function handleNotesChange(newNotes: string) {
+    setNotes(newNotes);
+    // Debounce notes saving
+    if (notesTimeoutRef.current) {
+      clearTimeout(notesTimeoutRef.current);
+    }
+    notesTimeoutRef.current = setTimeout(() => {
+      updateCandidate({ notes: newNotes });
+    }, 1000);
+  }
+
+  function handleHiringDecision(decision: 'continue' | 'stop') {
+    setHiringDecision(decision);
+    if (decision === 'continue') {
+      // Advance to next stage
+      const stages = ['Applied', 'Interviewing', 'Review', 'Offer', 'Ready'];
+      const currentIndex = stages.indexOf(candidate?.stage || 'Applied');
+      if (currentIndex < stages.length - 1) {
+        handleStatusChange(stages[currentIndex + 1]);
+      }
+    } else {
+      // Stop process - set to Rejected
+      handleStatusChange('Reject');
     }
   }
 
@@ -379,30 +456,50 @@ export default function CandidateProfilePage() {
                 <div className="px-4 py-2 rounded-lg" style={{ backgroundColor: '#FFFFFF', border: '1px solid #E5E7EB' }}>
                   <select
                     value={candidate.stage}
-                    onChange={(e) => {
-                      // TODO: Update stage via API
-                      setCandidate({ ...candidate, stage: e.target.value });
-                    }}
-                    className="text-sm font-semibold appearance-none cursor-pointer focus:outline-none"
+                    onChange={(e) => handleStatusChange(e.target.value)}
+                    disabled={saving}
+                    className="text-sm font-semibold appearance-none cursor-pointer focus:outline-none disabled:opacity-50"
                     style={{ color: '#232E40' }}
                   >
-                    <option value="Applied">Applied</option>
+                    <option value="Pending">Pending</option>
+                    <option value="Interview Scheduled">Interview Scheduled</option>
                     <option value="Interviewing">Interviewing</option>
                     <option value="Review">Review</option>
                     <option value="Offer">Offer</option>
-                    <option value="Reject">Reject</option>
-                    <option value="Ready">Ready</option>
+                    <option value="Hired">Hired</option>
+                    <option value="Rejected">Rejected</option>
+                    <option value="Withdrawn">Withdrawn</option>
                   </select>
                 </div>
                 <div className="px-4 py-2 rounded-lg" style={{ backgroundColor: '#4D6DBE', color: '#FFFFFF' }}>
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-semibold">Overall Score:</span>
                     <span className="text-sm font-bold">⭐ {candidate.overallScore.toFixed(2)} / 10.00</span>
+                    <button
+                      onClick={() => {
+                        const currentScore = candidate.overallScore * 10; // Convert to 0-100 scale
+                        const newScore = prompt(`Enter score (0-100):`, currentScore.toString());
+                        if (newScore !== null) {
+                          const score = parseInt(newScore);
+                          if (!isNaN(score) && score >= 0 && score <= 100) {
+                            updateCandidate({ score: score });
+                          } else {
+                            toast.error('Please enter a valid score between 0 and 100');
+                          }
+                        }
+                      }}
+                      disabled={saving}
+                      className="ml-2 px-2 py-1 text-xs rounded hover:bg-blue-600 transition-all disabled:opacity-50"
+                      title="Update Score"
+                    >
+                      Edit
+                    </button>
                   </div>
                 </div>
-                <button
+                <a
+                  href={`mailto:${candidate.email}?subject=Candidate Application - ${candidate.name}`}
                   className="cursor-pointer px-4 py-2 rounded-lg text-sm font-semibold transition-all hover:opacity-90"
-                  style={{ backgroundColor: '#4D6DBE', color: '#FFFFFF' }}
+                  style={{ backgroundColor: '#4D6DBE', color: '#FFFFFF', textDecoration: 'none' }}
                 >
                   <div className="flex items-center gap-2">
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -410,7 +507,7 @@ export default function CandidateProfilePage() {
                     </svg>
                     Email
                   </div>
-                </button>
+                </a>
               </div>
             </div>
 
@@ -510,6 +607,9 @@ export default function CandidateProfilePage() {
 
                   {/* Add New Score Card */}
                   <button
+                    onClick={() => {
+                      router.push(`/candidates/score?candidateId=${candidateId}`);
+                    }}
                     className="cursor-pointer w-full rounded-xl p-5 border-2 border-dashed transition-all hover:border-solid hover:bg-gray-50"
                     style={{ borderColor: '#E5E7EB', color: '#6B7280' }}
                   >
@@ -542,8 +642,9 @@ export default function CandidateProfilePage() {
                     </p>
                     <div className="flex items-center gap-3">
                       <button
-                        onClick={() => setHiringDecision('continue')}
-                        className={`cursor-pointer px-4 py-2 rounded-lg text-sm font-semibold transition-all flex items-center gap-2 ${
+                        onClick={() => handleHiringDecision('continue')}
+                        disabled={saving}
+                        className={`cursor-pointer px-4 py-2 rounded-lg text-sm font-semibold transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed ${
                           hiringDecision === 'continue' ? 'opacity-100' : 'opacity-60 hover:opacity-80'
                         }`}
                         style={{ backgroundColor: '#4D6DBE', color: '#FFFFFF' }}
@@ -554,8 +655,9 @@ export default function CandidateProfilePage() {
                         Continue Process
                       </button>
                       <button
-                        onClick={() => setHiringDecision('stop')}
-                        className={`cursor-pointer px-4 py-2 rounded-lg text-sm font-semibold transition-all flex items-center gap-2 ${
+                        onClick={() => handleHiringDecision('stop')}
+                        disabled={saving}
+                        className={`cursor-pointer px-4 py-2 rounded-lg text-sm font-semibold transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed ${
                           hiringDecision === 'stop' ? 'opacity-100' : 'opacity-60 hover:opacity-80'
                         }`}
                         style={{ backgroundColor: '#FFFFFF', color: '#374151', border: '1px solid #E5E7EB' }}
@@ -659,9 +761,10 @@ export default function CandidateProfilePage() {
                 <h3 className="text-sm font-bold mb-4" style={{ color: '#232E40' }}>Notes</h3>
                 <textarea
                   value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
+                  onChange={(e) => handleNotesChange(e.target.value)}
                   placeholder="Write note..."
-                  className="w-full px-3 py-2 text-sm rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                  disabled={saving}
+                  className="w-full px-3 py-2 text-sm rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none disabled:opacity-50"
                   style={{
                     border: '1px solid #D1D5DB',
                     color: '#374151',
@@ -669,6 +772,9 @@ export default function CandidateProfilePage() {
                     minHeight: '100px',
                   }}
                 />
+                {saving && (
+                  <p className="text-xs mt-2" style={{ color: '#6B7280' }}>Saving...</p>
+                )}
                 <div className="flex items-center gap-2 mt-3">
                   <button className="cursor-pointer p-2 hover:bg-gray-100 rounded-lg transition-all" style={{ color: '#6B7280' }}>
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
