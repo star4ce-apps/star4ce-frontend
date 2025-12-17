@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { API_BASE } from '@/lib/auth';
 import toast from 'react-hot-toast';
@@ -14,21 +14,64 @@ type Dealership = {
   address: string | null;
 };
 
+type InviteInfo = {
+  email: string;
+  dealership_name: string | null;
+  role: string;
+  expires_at: string;
+};
+
 export default function ManagerRegisterPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const inviteToken = searchParams.get('token');
+  
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [fullName, setFullName] = useState('');
   const [dealershipId, setDealershipId] = useState<number | null>(null);
   const [dealerships, setDealerships] = useState<Dealership[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [loadingDealerships, setLoadingDealerships] = useState(true);
+  const [loadingInvite, setLoadingInvite] = useState(false);
   const [error, setError] = useState('');
+  const [inviteInfo, setInviteInfo] = useState<InviteInfo | null>(null);
+  const [isInviteMode, setIsInviteMode] = useState(false);
 
   useEffect(() => {
-    loadDealerships();
-  }, []);
+    if (inviteToken) {
+      validateInviteToken();
+    } else {
+      loadDealerships();
+    }
+  }, [inviteToken]);
+
+  async function validateInviteToken() {
+    if (!inviteToken) return;
+    
+    setLoadingInvite(true);
+    try {
+      const res = await fetch(`${API_BASE}/auth/validate-invite-token?token=${encodeURIComponent(inviteToken)}`);
+      const data = await res.json();
+      
+      if (res.ok && data.ok) {
+        setIsInviteMode(true);
+        setInviteInfo(data.invite);
+        setEmail(data.invite.email);
+      } else {
+        setError(data.error || 'Invalid or expired invitation link');
+        toast.error(data.error || 'Invalid or expired invitation link');
+      }
+    } catch (err) {
+      setError('Failed to validate invitation');
+      toast.error('Failed to validate invitation');
+      console.error(err);
+    } finally {
+      setLoadingInvite(false);
+    }
+  }
 
   async function loadDealerships() {
     setLoadingDealerships(true);
@@ -74,30 +117,54 @@ export default function ManagerRegisterPage() {
       return;
     }
 
-    if (!dealershipId) {
-      setError('Please select a dealership');
-      return;
-    }
-
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/auth/register`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: email.trim().toLowerCase(),
-          password,
-          dealership_id: dealershipId,
-        }),
-      });
+      if (isInviteMode && inviteToken) {
+        // Register via invite token
+        const res = await fetch(`${API_BASE}/auth/register-manager-invite`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            token: inviteToken,
+            password,
+            full_name: fullName.trim() || null,
+          }),
+        });
 
-      const data = await res.json();
-      if (res.ok) {
-        toast.success('Registration successful! Please check your email for verification code.');
-        router.push(`/verify?email=${encodeURIComponent(email)}`);
+        const data = await res.json();
+        if (res.ok) {
+          toast.success('Account created successfully! You can now sign in.');
+          router.push('/login');
+        } else {
+          setError(data.error || 'Registration failed');
+          toast.error(data.error || 'Registration failed');
+        }
       } else {
-        setError(data.error || 'Registration failed');
-        toast.error(data.error || 'Registration failed');
+        // Regular registration (requires dealership selection)
+        if (!dealershipId) {
+          setError('Please select a dealership');
+          setLoading(false);
+          return;
+        }
+
+        const res = await fetch(`${API_BASE}/auth/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: email.trim().toLowerCase(),
+            password,
+            dealership_id: dealershipId,
+          }),
+        });
+
+        const data = await res.json();
+        if (res.ok) {
+          toast.success('Registration successful! Please check your email for verification code.');
+          router.push(`/verify?email=${encodeURIComponent(email)}`);
+        } else {
+          setError(data.error || 'Registration failed');
+          toast.error(data.error || 'Registration failed');
+        }
       }
     } catch (err) {
       setError('Failed to register. Please try again.');
@@ -167,6 +234,13 @@ export default function ManagerRegisterPage() {
 
             {/* Registration Form */}
             <form onSubmit={handleSubmit} className="space-y-5">
+              {/* Loading Invite */}
+              {loadingInvite && (
+                <div className="text-center py-4">
+                  <p className="text-sm text-gray-600">Validating invitation...</p>
+                </div>
+              )}
+
               {/* Email Field */}
               <div>
                 <input
@@ -177,8 +251,23 @@ export default function ManagerRegisterPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
+                  disabled={isInviteMode}
                 />
               </div>
+
+              {/* Full Name Field (for invite mode) */}
+              {isInviteMode && (
+                <div>
+                  <input
+                    type="text"
+                    placeholder="Full Name (Optional)"
+                    autoComplete="name"
+                    className="w-full px-4 py-3 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                  />
+                </div>
+              )}
 
               {/* Password Field */}
               <div>
@@ -208,7 +297,8 @@ export default function ManagerRegisterPage() {
                 />
               </div>
 
-              {/* Dealership Selection */}
+              {/* Dealership Selection (only for non-invite mode) */}
+              {!isInviteMode && (
               <div>
                 <label className="block text-sm font-medium mb-2 text-gray-700">
                   Select Dealership *
@@ -292,22 +382,31 @@ export default function ManagerRegisterPage() {
                   </>
                 )}
               </div>
+              )}
 
               {/* Info Box */}
-              <div className="rounded-lg bg-blue-50 border border-blue-200 p-3">
-                <p className="text-xs text-blue-800">
-                  <strong>Note:</strong> After registration, verify your email. Your account will be pending admin approval. 
-                  Once approved, you can request admin status or subscribe to become an admin.
-                </p>
-              </div>
+              {isInviteMode ? (
+                <div className="rounded-lg bg-green-50 border border-green-200 p-3">
+                  <p className="text-xs text-green-800">
+                    <strong>Invited Account:</strong> Your account will be automatically approved and you'll have immediate access once you complete registration.
+                  </p>
+                </div>
+              ) : (
+                <div className="rounded-lg bg-blue-50 border border-blue-200 p-3">
+                  <p className="text-xs text-blue-800">
+                    <strong>Note:</strong> After registration, verify your email. Your account will be pending admin approval. 
+                    Once approved, you can request admin status or subscribe to become an admin.
+                  </p>
+                </div>
+              )}
 
               {/* Register Button */}
               <button
                 type="submit"
-                disabled={loading || !dealershipId}
+                disabled={loading || loadingInvite || (!isInviteMode && !dealershipId)}
                 className="cursor-pointer w-full bg-[#0B2E65] text-white py-3 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                {loading ? 'Registering...' : 'Register as Manager'}
+                {loading ? 'Registering...' : isInviteMode ? 'Create Account' : 'Register as Manager'}
               </button>
 
               {/* Login Link */}

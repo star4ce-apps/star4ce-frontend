@@ -41,7 +41,6 @@ export default function UserManagementPage() {
   const [showManagerPermissionsModal, setShowManagerPermissionsModal] = useState(false);
   const [createFormData, setCreateFormData] = useState({
     email: '',
-    password: '',
     role: 'manager' as 'manager' | 'hiring_manager',
   });
 
@@ -105,8 +104,8 @@ export default function UserManagementPage() {
   }
 
   async function handleCreateManager() {
-    if (!createFormData.email.trim() || !createFormData.password.trim()) {
-      toast.error('Email and password are required');
+    if (!createFormData.email.trim()) {
+      toast.error('Email is required');
       return;
     }
 
@@ -125,15 +124,15 @@ export default function UserManagementPage() {
 
       const data = await res.json();
       if (res.ok) {
-        toast.success(data.message || 'Manager account created successfully');
+        toast.success(data.message || 'Invitation sent successfully');
         setShowCreateModal(false);
-        setCreateFormData({ email: '', password: '', role: 'manager' });
+        setCreateFormData({ email: '', role: 'manager' });
         await loadManagers();
       } else {
-        toast.error(data.error || 'Failed to create manager account');
+        toast.error(data.error || 'Failed to send invitation');
       }
     } catch (err) {
-      toast.error('Failed to create manager account');
+      toast.error('Failed to send invitation');
       console.error(err);
     }
   }
@@ -808,7 +807,7 @@ export default function UserManagementPage() {
           {showCreateModal && (
             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
               <div className="rounded-xl p-6 max-w-md w-full mx-4" style={{ backgroundColor: '#FFFFFF' }}>
-                <h2 className="text-2xl font-bold mb-4" style={{ color: '#232E40' }}>Create Manager Account</h2>
+                <h2 className="text-2xl font-bold mb-4" style={{ color: '#232E40' }}>Invite Manager</h2>
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium mb-1" style={{ color: '#6B7280' }}>Email *</label>
@@ -821,18 +820,9 @@ export default function UserManagementPage() {
                       placeholder="manager@example.com"
                     />
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-1" style={{ color: '#6B7280' }}>Password *</label>
-                    <input
-                      type="password"
-                      value={createFormData.password}
-                      onChange={(e) => setCreateFormData({ ...createFormData, password: e.target.value })}
-                      className="w-full px-4 py-2 rounded-lg border"
-                      style={{ backgroundColor: '#FFFFFF', borderColor: '#E5E7EB', color: '#232E40' }}
-                      placeholder="Minimum 8 characters"
-                    />
-                    <p className="text-xs mt-1" style={{ color: '#9CA3AF' }}>Must include letters and numbers</p>
-                  </div>
+                  <p className="text-xs" style={{ color: '#6B7280', marginTop: '0.5rem' }}>
+                    An invitation email will be sent to this address with a registration link.
+                  </p>
                   <div>
                     <label className="block text-sm font-medium mb-1" style={{ color: '#6B7280' }}>Role *</label>
                     <div className="space-y-2">
@@ -865,7 +855,7 @@ export default function UserManagementPage() {
                   <button
                     onClick={() => {
                       setShowCreateModal(false);
-                      setCreateFormData({ email: '', password: '', role: 'manager' });
+                      setCreateFormData({ email: '', role: 'manager' });
                     }}
                     className="cursor-pointer flex-1 px-4 py-2 rounded-lg font-semibold text-sm transition-colors"
                     style={{ backgroundColor: '#F3F4F6', color: '#6B7280' }}
@@ -877,7 +867,7 @@ export default function UserManagementPage() {
                     className="cursor-pointer flex-1 px-4 py-2 rounded-lg font-semibold text-sm transition-colors"
                     style={{ backgroundColor: '#0B2E65', color: '#FFFFFF' }}
                   >
-                    Create Manager
+                    Send Invitation
                   </button>
                 </div>
               </div>
