@@ -183,9 +183,30 @@ export default function CandidateProfilePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [allCandidates, setAllCandidates] = useState<CandidateProfile[]>([]);
+  const [role, setRole] = useState<string | null>(null);
   const notesTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
+    // Load user role
+    async function loadUserRole() {
+      try {
+        const token = getToken();
+        if (!token) return;
+        
+        const res = await fetch(`${API_BASE}/auth/me`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        
+        if (res.ok) {
+          const data = await res.json();
+          setRole(data.user?.role || data.role || null);
+        }
+      } catch (err) {
+        console.error('Failed to load user role:', err);
+      }
+    }
+    
+    loadUserRole();
     loadCandidates();
     
     // Cleanup timeout on unmount
@@ -294,6 +315,12 @@ export default function CandidateProfilePage() {
 
   async function updateCandidate(data: Partial<any>) {
     if (!candidate) return;
+    
+    // Block corporate users from updating
+    if (role === 'corporate') {
+      toast.error('Corporate users have view-only access. Cannot modify candidates.');
+      return;
+    }
     
     setSaving(true);
     try {

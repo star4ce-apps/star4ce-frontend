@@ -50,10 +50,35 @@ export default function CorporateRegisterPage() {
           password,
           role: 'corporate',
         }),
+      }).catch((fetchError) => {
+        // Handle network errors (backend not running, CORS, etc.)
+        console.error('Network error:', fetchError);
+        throw new Error('Unable to connect to server. Please check if the backend is running.');
       });
 
-      const data = await res.json();
-      if (res.ok) {
+      // Check if response is ok before parsing JSON
+      if (!res.ok) {
+        // Try to parse error message
+        let errorMessage = 'Registration failed';
+        try {
+          const errorData = await res.json();
+          errorMessage = errorData.error || `Registration failed (${res.status})`;
+        } catch {
+          // If JSON parsing fails, use status text
+          errorMessage = `Registration failed: ${res.statusText || res.status}`;
+        }
+        setError(errorMessage);
+        toast.error(errorMessage);
+        return;
+      }
+
+      // Parse successful response
+      const data = await res.json().catch((parseError) => {
+        console.error('JSON parse error:', parseError);
+        throw new Error('Invalid response from server');
+      });
+
+      if (data.ok) {
         toast.success('Registration successful! Please check your email for verification code.');
         router.push(`/verify?email=${encodeURIComponent(email)}`);
       } else {
@@ -61,9 +86,10 @@ export default function CorporateRegisterPage() {
         toast.error(data.error || 'Registration failed');
       }
     } catch (err) {
-      setError('Failed to register. Please try again.');
-      toast.error('Failed to register');
-      console.error(err);
+      const errorMessage = err instanceof Error ? err.message : 'Failed to register. Please try again.';
+      setError(errorMessage);
+      toast.error(errorMessage);
+      console.error('Registration error:', err);
     } finally {
       setLoading(false);
     }
@@ -122,7 +148,13 @@ export default function CorporateRegisterPage() {
             {/* Error Messages */}
             {error && (
               <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
-                {error}
+                <p className="font-medium mb-1">Error:</p>
+                <p>{error}</p>
+                {error.includes('connect to server') && (
+                  <p className="mt-2 text-xs text-red-600">
+                    Make sure the backend server is running on {process.env.NEXT_PUBLIC_STAR4CE_API_BASE || 'http://127.0.0.1:5000'}
+                  </p>
+                )}
               </div>
             )}
 

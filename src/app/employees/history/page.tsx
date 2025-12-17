@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import HubSidebar from '@/components/sidebar/HubSidebar';
 import RequireAuth from '@/components/layout/RequireAuth';
+import { API_BASE, getToken } from '@/lib/auth';
 
 // Modern color palette - matching surveys page
 const COLORS = {
@@ -38,11 +39,63 @@ export default function EmployeeRoleHistoryPage() {
   const [selectedAction, setSelectedAction] = useState('All Actions');
   const [currentPage, setCurrentPage] = useState(1);
   const [openMenuId, setOpenMenuId] = useState<number | null>(null);
+  const [historyEntries, setHistoryEntries] = useState<HistoryEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const itemsPerPage = 20;
 
-  // TODO: Replace with real audit log data from /audit-logs API endpoint
-  // This is mock data - remove once connected to real API
-  const [historyEntries] = useState<HistoryEntry[]>([
+  // Load role history from API
+  useEffect(() => {
+    setCurrentPage(1); // Reset to first page when filters change
+    loadRoleHistory();
+  }, [selectedType, selectedAction]);
+
+  async function loadRoleHistory() {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const token = getToken();
+      const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
+      
+      // Build query params
+      const params = new URLSearchParams();
+      params.append('limit', '500'); // Get enough entries
+      if (selectedType !== 'All Types') {
+        // Map "Employee" -> "employee", "Candidate" -> "candidate"
+        const typeMap: { [key: string]: string } = {
+          'Employee': 'employee',
+          'Candidate': 'candidate'
+        };
+        params.append('type', typeMap[selectedType] || selectedType.toLowerCase());
+      }
+      // Note: Action filter is handled on frontend after receiving all entries
+      // because backend action names don't match frontend display names
+      
+      const response = await fetch(`${API_BASE}/role-history?${params.toString()}`, { headers });
+      
+      if (!response.ok) {
+        throw new Error('Failed to load role history');
+      }
+      
+      const data = await response.json();
+      
+      if (data.ok && data.entries) {
+        setHistoryEntries(data.entries);
+      } else {
+        setHistoryEntries([]);
+      }
+    } catch (err) {
+      console.error('Failed to load role history:', err);
+      setError('Failed to load role history. Please try again.');
+      setHistoryEntries([]);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // Mock data for fallback (can be removed once API is fully tested)
+  const mockHistoryEntries: HistoryEntry[] = [
     {
       id: 1,
       type: 'employee',
@@ -203,9 +256,12 @@ export default function EmployeeRoleHistoryPage() {
       timestamp: '2025-09-08 11:22:55',
       department: 'Administration',
     },
-  ]);
+  ];
 
-  const filteredEntries = historyEntries.filter(entry => {
+  // Use API data if available, otherwise use empty array (or mock data for testing)
+  const entriesToFilter = historyEntries.length > 0 ? historyEntries : [];
+
+  const filteredEntries = entriesToFilter.filter(entry => {
     const matchesSearch = 
       entry.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       entry.action.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -241,7 +297,7 @@ export default function EmployeeRoleHistoryPage() {
   };
 
 
-  const actions = Array.from(new Set(historyEntries.map(entry => entry.action)));
+  const actions = Array.from(new Set(entriesToFilter.map(entry => entry.action)));
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -361,6 +417,13 @@ export default function EmployeeRoleHistoryPage() {
             </div>
           </div>
 
+          {/* Error Message */}
+          {error && (
+            <div className="mb-6 rounded-lg p-4" style={{ backgroundColor: '#FEE2E2', border: '1px solid #FECACA' }}>
+              <p className="text-sm" style={{ color: '#DC2626' }}>{error}</p>
+            </div>
+          )}
+
           {/* History Log Table */}
           <div className="rounded-lg p-6 transition-all duration-200" style={{ 
             backgroundColor: '#FFFFFF', 
@@ -369,29 +432,37 @@ export default function EmployeeRoleHistoryPage() {
           }}>
             <h2 className="text-xl font-bold mb-4" style={{ color: '#232E40' }}>Change History</h2>
             
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr style={{ backgroundColor: '#4D6DBE' }}>
-                    <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider cursor-pointer hover:opacity-90 transition-opacity text-white">Type</th>
-                    <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider cursor-pointer hover:opacity-90 transition-opacity text-white">Name</th>
-                    <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider cursor-pointer hover:opacity-90 transition-opacity text-white">Action</th>
-                    <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider cursor-pointer hover:opacity-90 transition-opacity text-white">Previous Value</th>
-                    <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider cursor-pointer hover:opacity-90 transition-opacity text-white">New Value</th>
-                    <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider cursor-pointer hover:opacity-90 transition-opacity text-white">Department</th>
-                    <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider cursor-pointer hover:opacity-90 transition-opacity text-white">Changed By</th>
-                    <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider cursor-pointer hover:opacity-90 transition-opacity text-white">Timestamp</th>
-                    <th className="text-right py-3 px-4"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {paginatedEntries.length === 0 ? (
-                    <tr>
-                      <td colSpan={9} className="py-12 text-center text-sm" style={{ color: '#6B7280' }}>
-                        No history entries found.
-                      </td>
+            {loading ? (
+              <div className="py-12 text-center">
+                <div className="inline-flex items-center gap-3">
+                  <div className="w-5 h-5 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: '#3B5998', borderTopColor: 'transparent' }}></div>
+                  <p className="text-sm" style={{ color: '#6B7280' }}>Loading role history...</p>
+                </div>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr style={{ backgroundColor: '#4D6DBE' }}>
+                      <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider cursor-pointer hover:opacity-90 transition-opacity text-white">Type</th>
+                      <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider cursor-pointer hover:opacity-90 transition-opacity text-white">Name</th>
+                      <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider cursor-pointer hover:opacity-90 transition-opacity text-white">Action</th>
+                      <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider cursor-pointer hover:opacity-90 transition-opacity text-white">Previous Value</th>
+                      <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider cursor-pointer hover:opacity-90 transition-opacity text-white">New Value</th>
+                      <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider cursor-pointer hover:opacity-90 transition-opacity text-white">Department</th>
+                      <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider cursor-pointer hover:opacity-90 transition-opacity text-white">Changed By</th>
+                      <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider cursor-pointer hover:opacity-90 transition-opacity text-white">Timestamp</th>
+                      <th className="text-right py-3 px-4"></th>
                     </tr>
-                  ) : (
+                  </thead>
+                  <tbody>
+                    {paginatedEntries.length === 0 ? (
+                      <tr>
+                        <td colSpan={9} className="py-12 text-center text-sm" style={{ color: '#6B7280' }}>
+                          {error ? 'Error loading history entries.' : 'No history entries found.'}
+                        </td>
+                      </tr>
+                    ) : (
                     paginatedEntries.map((entry) => {
                       return (
                         <tr 
@@ -456,10 +527,11 @@ export default function EmployeeRoleHistoryPage() {
                         </tr>
                       );
                     })
-                  )}
-                </tbody>
-              </table>
-            </div>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
 
             {/* Pagination */}
             <div className="flex items-center justify-between mt-4 pt-4" style={{ borderTop: '1px solid #E5E7EB' }}>

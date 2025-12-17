@@ -249,28 +249,35 @@ export default function CandidatesPage() {
                   Manage and review candidate applications
                 </p>
               </div>
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setShowModal(true)}
-                  className="cursor-pointer px-4 py-2 rounded-lg font-medium text-sm transition-colors"
-                  style={{ 
-                    backgroundColor: COLORS.primary, 
-                    color: '#FFFFFF'
-                  }}
-                >
-                  + Add a Candidate
-                </button>
-                <Link
-                  href="/candidates/score"
-                  className="cursor-pointer px-4 py-2 rounded-lg font-medium text-sm transition-colors"
-                  style={{ 
-                    backgroundColor: COLORS.gray[700], 
-                    color: '#FFFFFF'
-                  }}
-                >
-                  Score a Candidate
-                </Link>
-              </div>
+              {role !== 'corporate' && (
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setShowModal(true)}
+                    className="cursor-pointer px-4 py-2 rounded-lg font-medium text-sm transition-colors"
+                    style={{ 
+                      backgroundColor: COLORS.primary, 
+                      color: '#FFFFFF'
+                    }}
+                  >
+                    + Add a Candidate
+                  </button>
+                  <Link
+                    href="/candidates/score"
+                    className="cursor-pointer px-4 py-2 rounded-lg font-medium text-sm transition-colors"
+                    style={{ 
+                      backgroundColor: COLORS.gray[700], 
+                      color: '#FFFFFF'
+                    }}
+                  >
+                    Score a Candidate
+                  </Link>
+                </div>
+              )}
+              {role === 'corporate' && (
+                <div className="px-3 py-2 rounded-lg text-xs font-medium" style={{ backgroundColor: '#F3F4F6', color: '#6B7280' }}>
+                  View-Only Mode
+                </div>
+              )}
             </div>
           </div>
 

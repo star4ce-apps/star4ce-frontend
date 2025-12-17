@@ -251,7 +251,8 @@ export default function HubSidebar() {
   const administratorItems: MenuItem[] = role === 'admin' ? [
     { label: 'User Management', href: '/users', icon: <AdminIcon /> },
     { label: 'Dealership Requests', href: '/admin/dealership-requests', icon: <AdminIcon /> },
-    { label: 'Manager Requests', href: '/admin/manager-requests', icon: <AdminIcon /> }
+    { label: 'Manager Requests', href: '/admin/manager-requests', icon: <AdminIcon /> },
+    { label: 'Corporate Requests', href: '/admin/corporate-requests', icon: <AdminIcon /> }
   ] : [];
 
   const paymentItems: MenuItem[] = [

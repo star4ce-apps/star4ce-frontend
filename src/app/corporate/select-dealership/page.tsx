@@ -79,10 +79,35 @@ export default function SelectDealershipPage() {
       // Load ALL dealerships with assignment status
       const res = await fetch(`${API_BASE}/corporate/all-dealerships`, {
         headers: { Authorization: `Bearer ${token}` },
+      }).catch((fetchError) => {
+        // Handle network errors (backend not running, CORS, etc.)
+        console.error('Network error:', fetchError);
+        throw new Error('Unable to connect to server. Please check if the backend is running.');
       });
 
-      const data = await res.json();
-      if (res.ok) {
+      // Check if response is ok before parsing JSON
+      if (!res.ok) {
+        // Try to parse error message
+        let errorMessage = 'Failed to load dealerships';
+        try {
+          const errorData = await res.json();
+          errorMessage = errorData.error || `Failed to load dealerships (${res.status})`;
+        } catch {
+          // If JSON parsing fails, use status text
+          errorMessage = `Failed to load dealerships: ${res.statusText || res.status}`;
+        }
+        setError(errorMessage);
+        setLoading(false);
+        return;
+      }
+
+      // Parse successful response
+      const data = await res.json().catch((parseError) => {
+        console.error('JSON parse error:', parseError);
+        throw new Error('Invalid response from server');
+      });
+
+      if (data.ok !== false) {
         setDealerships(data.dealerships || []);
         // If only one assigned dealership, auto-select it
         const assignedDealerships = (data.dealerships || []).filter((d: Dealership) => d.is_assigned);
@@ -96,8 +121,9 @@ export default function SelectDealershipPage() {
         setError(data.error || 'Failed to load dealerships');
       }
     } catch (err) {
-      setError('Failed to load dealerships');
-      console.error(err);
+      const errorMessage = err instanceof Error ? err.message : 'Failed to load dealerships. Please try again.';
+      setError(errorMessage);
+      console.error('Failed to load dealerships:', err);
     } finally {
       setLoading(false);
     }
@@ -237,6 +263,16 @@ export default function SelectDealershipPage() {
                   <div className="flex items-start justify-between mb-4">
                     <h3 className="text-xl font-bold" style={{ color: '#232E40' }}>{dealership.name}</h3>
                     <div className="flex flex-col gap-1 items-end">
+                      {dealership.is_assigned && (
+                        <span className="px-2 py-1 rounded-full text-xs font-medium" style={{ backgroundColor: '#D1FAE5', color: '#065F46' }}>
+                          Access Granted
+                        </span>
+                      )}
+                      {dealership.has_pending_request && !dealership.is_assigned && (
+                        <span className="px-2 py-1 rounded-full text-xs font-medium" style={{ backgroundColor: '#FEF3C7', color: '#92400E' }}>
+                          Pending Approval
+                        </span>
+                      )}
                       {selectedDealershipId === dealership.id && dealership.is_assigned && (
                         <span className="text-xs font-semibold px-2 py-1 rounded-full bg-[#0B2E65] text-white">
                           Viewing
