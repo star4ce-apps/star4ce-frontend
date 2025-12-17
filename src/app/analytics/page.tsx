@@ -214,7 +214,9 @@ export default function AnalyticsPage() {
       }
       if (employeesRes?.ok) {
         const data = await employeesRes.json();
-        setEmployees(data.employees || data || []);
+        // Ensure employees is always an array
+        const employeesData = data.employees || data || [];
+        setEmployees(Array.isArray(employeesData) ? employeesData : []);
       }
     } catch (err) {
       console.error('Failed to load analytics:', err);
@@ -225,7 +227,7 @@ export default function AnalyticsPage() {
   }
 
   // Calculate statistics
-  const totalEmployees = employees.length || summary?.total_responses || 0;
+  const totalEmployees = (Array.isArray(employees) ? employees.length : 0) || summary?.total_responses || 0;
   const totalTerminations = summary?.by_status?.termination || 0;
   const totalNewHires = summary?.by_status?.['newly-hired'] || 0;
   const totalOnLeave = summary?.by_status?.leave || 0;
@@ -248,7 +250,8 @@ export default function AnalyticsPage() {
   const departmentCounts: { [key: string]: { headcount: number; terminations: number } } = {};
   const genderCounts: { [key: string]: number } = { Male: 0, Female: 0, Other: 0 };
   
-  employees.forEach(emp => {
+  // Ensure employees is an array before iterating
+  (Array.isArray(employees) ? employees : []).forEach(emp => {
     const dept = emp.department || emp.role || 'Other';
     if (!departmentCounts[dept]) departmentCounts[dept] = { headcount: 0, terminations: 0 };
     departmentCounts[dept].headcount++;
@@ -276,7 +279,8 @@ export default function AnalyticsPage() {
   // Tenure calculation
   const now = new Date();
   const tenureBuckets = { '< 1 year': 0, '1-3 years': 0, '3-5 years': 0, '5+ years': 0 };
-  employees.forEach(emp => {
+  // Ensure employees is an array before iterating
+  (Array.isArray(employees) ? employees : []).forEach(emp => {
     if (emp.hire_date) {
       const years = (now.getTime() - new Date(emp.hire_date).getTime()) / (1000 * 60 * 60 * 24 * 365);
       if (years < 1) tenureBuckets['< 1 year']++;
