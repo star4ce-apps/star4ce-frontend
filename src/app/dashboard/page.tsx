@@ -37,16 +37,41 @@ type AnalyticsSummary = {
   };
 };
 
-// Color mappings
-const feedbackColors: Record<string, string> = {
-  'Extremely Negative': '#ef4444',
-  'Semi Negative': '#f97316',
-  'Neutral': '#eab308',
-  'Semi Positive': '#22c55e',
-  'Extremely Positive': '#3b82f6',
+// Modern color palette - matching surveys page
+const COLORS = {
+  primary: '#3B5998',
+  primaryLight: '#5B7BB8',
+  secondary: '#6366F1',
+  tertiary: '#8B5CF6',
+  negative: '#e74c3c',
+  success: '#22C55E',
+  warning: '#F59E0B',
+  gray: {
+    50: '#F8FAFC',
+    100: '#F1F5F9',
+    200: '#E2E8F0',
+    300: '#CBD5E1',
+    400: '#94A3B8',
+    500: '#64748B',
+    600: '#475569',
+    700: '#334155',
+    800: '#1E293B',
+    900: '#0F172A',
+  }
 };
 
-const roleColors = ['#f97316', '#ef4444', '#84cc16', '#eab308', '#22c55e', '#3b82f6', '#a855f7', '#ec4899'];
+const CHART_COLORS = ['#3B5998', '#6366F1', '#8B5CF6', '#A78BFA', '#C4B5FD', '#e74c3c', '#94A3B8'];
+
+// Color mappings
+const feedbackColors: Record<string, string> = {
+  'Extremely Negative': COLORS.negative,
+  'Semi Negative': '#f97316',
+  'Neutral': COLORS.gray[400],
+  'Semi Positive': COLORS.secondary,
+  'Extremely Positive': COLORS.primary,
+};
+
+const roleColors = CHART_COLORS;
 
 function DashboardContent() {
   const searchParams = useSearchParams();
@@ -59,6 +84,46 @@ function DashboardContent() {
   const [currentChart, setCurrentChart] = useState<'quit' | 'terminated'>('quit');
   const [userRole, setUserRole] = useState<string | null>(null);
   const [isApproved, setIsApproved] = useState<boolean | null>(null);
+  
+  // Date range state - matching surveys page
+  const [startDate, setStartDate] = useState<string>(() => {
+    const date = new Date();
+    date.setFullYear(date.getFullYear(), 0, 1); // Start of year
+    return date.toISOString().split('T')[0];
+  });
+  const [endDate, setEndDate] = useState<string>(() => {
+    return new Date().toISOString().split('T')[0]; // Today
+  });
+  const [dateRangePreset, setDateRangePreset] = useState<string>('Year');
+
+  const handleDatePresetChange = (preset: string) => {
+    setDateRangePreset(preset);
+    const today = new Date();
+    let start = new Date();
+    let end = new Date();
+
+    switch (preset) {
+      case 'Month':
+        start = new Date(today.getFullYear(), today.getMonth(), 1);
+        end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+        break;
+      case '3-Month':
+        start = new Date(today.getFullYear(), today.getMonth() - 2, 1);
+        end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+        break;
+      case '6-Month':
+        start = new Date(today.getFullYear(), today.getMonth() - 5, 1);
+        end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+        break;
+      case 'Year':
+        start = new Date(today.getFullYear(), 0, 1);
+        end = new Date(today.getFullYear(), 11, 31);
+        break;
+    }
+
+    setStartDate(start.toISOString().split('T')[0]);
+    setEndDate(end.toISOString().split('T')[0]);
+  };
   
   // Real data states
   const [terminatedQuitData, setTerminatedQuitData] = useState<{ name: string; value: number; percentage: number; color: string }[]>([]);
@@ -153,13 +218,16 @@ function DashboardContent() {
           'Content-Type': 'application/json',
         };
 
+        // Build date range query params
+        const rangeParam = `?start_date=${startDate}&end_date=${endDate}`;
+
         // Fetch all data in parallel
         const [summaryRes, terminatedQuitRes, roleBreakdownRes, surveyFeedbackRes, turnoverRes] = await Promise.all([
-          fetch(`${API_BASE}/analytics/summary`, { headers }),
-          fetch(`${API_BASE}/analytics/terminated-quit`, { headers }),
-          fetch(`${API_BASE}/analytics/role-breakdown`, { headers }),
-          fetch(`${API_BASE}/analytics/survey-feedback`, { headers }),
-          fetch(`${API_BASE}/analytics/turnover-time-series`, { headers }),
+          fetch(`${API_BASE}/analytics/summary${rangeParam}`, { headers }),
+          fetch(`${API_BASE}/analytics/terminated-quit${rangeParam}`, { headers }),
+          fetch(`${API_BASE}/analytics/role-breakdown${rangeParam}`, { headers }),
+          fetch(`${API_BASE}/analytics/survey-feedback${rangeParam}`, { headers }),
+          fetch(`${API_BASE}/analytics/turnover-time-series${rangeParam}`, { headers }),
         ]);
 
         const [summaryData, terminatedQuitData, roleBreakdownData, surveyFeedbackData, turnoverData] = await Promise.all([
@@ -219,7 +287,7 @@ function DashboardContent() {
         setDataLoading(false);
       }
     })();
-  }, []);
+  }, [startDate, endDate]);
 
   // Calculate metrics from API data
   const totalEmployees = analytics?.total_responses || 0;
@@ -262,21 +330,21 @@ function DashboardContent() {
   if (userRole === 'manager' && isApproved === false) {
     return (
       <RequireAuth>
-        <div className="flex min-h-screen" style={{ width: '100%', overflow: 'hidden', backgroundColor: '#F5F7FA' }}>
+        <div className="flex min-h-screen" style={{ backgroundColor: COLORS.gray[50] }}>
           <HubSidebar />
-          <main className="ml-64 p-8 pl-10 flex-1" style={{ overflowX: 'hidden', minWidth: 0 }}>
-            <div className="rounded-xl p-12 text-center" style={{ backgroundColor: '#FFFFFF', border: '1px solid #E5E7EB', boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05)' }}>
+          <main className="ml-64 p-8 flex-1" style={{ maxWidth: 'calc(100vw - 256px)' }}>
+            <div className="rounded-xl p-12 text-center" style={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}` }}>
               <div className="mb-6">
-                <svg className="mx-auto h-16 w-16 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="mx-auto h-16 w-16" fill="none" viewBox="0 0 24 24" stroke="currentColor" style={{ color: COLORS.warning }}>
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </div>
-              <h2 className="text-2xl font-bold mb-4" style={{ color: '#232E40' }}>Waiting for Admin Approval</h2>
-              <p className="text-base mb-2" style={{ color: '#6B7280' }}>
+              <h2 className="text-xl font-semibold mb-3" style={{ color: COLORS.gray[900] }}>Waiting for Admin Approval</h2>
+              <p className="text-sm mb-1" style={{ color: COLORS.gray[500] }}>
                 Your account is pending admin approval.
               </p>
-              <p className="text-base" style={{ color: '#6B7280' }}>
-                Please wait for an admin to approve your request to join the dealership. You'll be able to access the dashboard once approved.
+              <p className="text-sm" style={{ color: COLORS.gray[500] }}>
+                Please wait for an admin to approve your request to join the dealership.
               </p>
             </div>
           </main>
@@ -287,367 +355,300 @@ function DashboardContent() {
 
   return (
     <RequireAuth>
-      <div className="flex min-h-screen" style={{ width: '100%', overflow: 'hidden', backgroundColor: '#F5F7FA' }}>
+      <div className="flex min-h-screen" style={{ backgroundColor: COLORS.gray[50] }}>
         <HubSidebar />
         
-        <main className="ml-64 p-8 pl-10 flex-1" style={{ overflowX: 'hidden', minWidth: 0 }}>
+        <main className="ml-64 p-8 flex-1" style={{ maxWidth: 'calc(100vw - 256px)' }}>
           {/* Header */}
           <div className="mb-8">
-            <div className="flex items-start justify-between mb-6">
+            <div className="flex items-start justify-between">
               <div>
-                <h1 className="text-4xl font-bold mb-2" style={{ color: '#232E40', letterSpacing: '-0.02em' }}>Dashboard</h1>
-                <p className="text-base" style={{ color: '#6B7280' }}>Overview of your performance and analytics</p>
+                <h1 className="text-2xl font-semibold mb-1" style={{ color: COLORS.gray[900] }}>Dashboard</h1>
+                <p className="text-sm" style={{ color: COLORS.gray[500] }}>
+                  Overview of your dealership's performance and analytics
+                </p>
               </div>
               <div className="flex items-center gap-3">
-                <div className="text-right">
-                  <p className="text-sm font-medium" style={{ color: '#374151' }}>{getGreeting()}, {name?.split(' ')[0] || 'User'}</p>
+                <div className="flex items-center gap-2 px-3 py-2 rounded-lg" style={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}` }}>
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="text-sm border-none outline-none bg-transparent"
+                    style={{ color: COLORS.gray[700], width: '120px' }}
+                  />
+                  <span className="text-sm" style={{ color: COLORS.gray[300] }}>—</span>
+                  <input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className="text-sm border-none outline-none bg-transparent"
+                    style={{ color: COLORS.gray[700], width: '120px' }}
+                  />
                 </div>
-                <span className="px-3 py-1.5 text-white text-xs font-semibold rounded-full shadow-sm" style={{ backgroundColor: '#4D6DBE' }}>Administrator</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Key Metrics Cards */}
-          <div className="grid grid-cols-3 gap-6 mb-8" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
-            <div className="rounded-xl p-6 transition-all duration-200 hover:shadow-lg" style={{ 
-              backgroundColor: '#FFFFFF', 
-              border: '1px solid #E5E7EB',
-              boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05)'
-            }}>
-              <div className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: '#9CA3AF' }}>Total Employees</div>
-              <div className="text-5xl font-bold mb-3" style={{ color: '#232E40', lineHeight: '1' }}>
-                {analyticsLoading ? (
-                  <span className="text-2xl" style={{ color: '#9CA3AF' }}>...</span>
-                ) : (
-                  totalEmployees.toLocaleString()
-                )}
-              </div>
-              <div className="flex items-center gap-2 text-sm">
-                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: '#10B981' }}></div>
-                <span className="font-medium" style={{ color: '#059669' }}>
-                  {analytics?.last_30_days || 0} in last 30 days
-                </span>
-              </div>
-            </div>
-            
-            <div className="rounded-xl p-6 transition-all duration-200 hover:shadow-lg" style={{ 
-              backgroundColor: '#FFFFFF', 
-              border: '1px solid #E5E7EB',
-              boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05)'
-            }}>
-              <div className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: '#9CA3AF' }}>Total Terminated/Quit</div>
-              <div className="text-5xl font-bold mb-3" style={{ color: '#232E40', lineHeight: '1' }}>
-                {dataLoading ? (
-                  <span className="text-2xl" style={{ color: '#9CA3AF' }}>...</span>
-                ) : (
-                  terminatedQuit.toLocaleString()
-                )}
-              </div>
-              <div className="flex items-center gap-2 text-sm">
-                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: '#EF4444' }}></div>
-                <span className="font-medium" style={{ color: '#DC2626' }}>
-                  {analytics?.by_status?.termination || 0} terminated • {analytics?.by_status?.leave || 0} quit
-                </span>
-              </div>
-            </div>
-            
-            <div className="rounded-xl p-6 transition-all duration-200 hover:shadow-lg" style={{ 
-              backgroundColor: '#FFFFFF', 
-              border: '1px solid #E5E7EB',
-              boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05)'
-            }}>
-              <div className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: '#9CA3AF' }}>Total Turnover Rate</div>
-              <div className="text-5xl font-bold mb-3" style={{ color: '#232E40', lineHeight: '1' }}>
-                {dataLoading ? (
-                  <span className="text-2xl" style={{ color: '#9CA3AF' }}>...</span>
-                ) : (
-                  `${turnoverRate}%`
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Interview Process, Survey Feedback, and Role Distribution */}
-          <div className="grid grid-cols-2 gap-6 mb-8" style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
-            {/* Left Column: Interview Process and Survey Feedback */}
-            <div className="flex flex-col gap-6">
-              {/* Interviewing Process */}
-              <div className="rounded-xl p-8 transition-all duration-200 hover:shadow-lg flex-1" style={{ 
-                backgroundColor: '#FFFFFF', 
-                border: '1px solid #E5E7EB',
-                boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05)'
-              }}>
-                <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-xl font-bold" style={{ color: '#232E40' }}>Interviewing Process</h2>
-                </div>
-                <div className="text-center py-12" style={{ color: '#9CA3AF' }}>
-                  <div className="text-sm font-medium">No data available</div>
-                </div>
-              </div>
-
-              {/* Survey Feedback */}
-              <div className="rounded-xl p-8 transition-all duration-200 hover:shadow-lg flex-1" style={{ 
-                backgroundColor: '#FFFFFF', 
-                border: '1px solid #E5E7EB',
-                boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05)'
-              }}>
-                <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-xl font-bold" style={{ color: '#232E40' }}>Survey Feedback</h2>
-                </div>
-                {surveyFeedback.length > 0 ? (
-                  <ResponsiveContainer width="100%" height={320}>
-                    <BarChart data={surveyFeedback} margin={{ top: 20, right: 20, left: 0, bottom: 60 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" />
-                      <XAxis 
-                        dataKey="name" 
-                        angle={-45} 
-                        textAnchor="end" 
-                        height={80}
-                        tick={{ fill: '#6B7280', fontSize: 12 }}
-                      />
-                      <YAxis tick={{ fill: '#6B7280', fontSize: 12 }} />
-                      <Tooltip 
-                        contentStyle={{ 
-                          backgroundColor: '#FFFFFF', 
-                          border: '1px solid #E5E7EB',
-                          borderRadius: '8px',
-                          padding: '8px 12px',
-                          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
-                        }}
-                      />
-                      <Bar dataKey="value" radius={[8, 8, 0, 0]}>
-                        {surveyFeedback.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.color} />
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <div className="text-center py-12" style={{ color: '#9CA3AF' }}>
-                    <div className="text-sm font-medium">{dataLoading ? 'Loading data...' : 'No survey feedback data available'}</div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Right Column: Role Distribution */}
-            <div className="mb-8">
-            <div className="rounded-xl p-8 transition-all duration-200 hover:shadow-lg" style={{ 
-              backgroundColor: '#FFFFFF', 
-              border: '1px solid #E5E7EB',
-              boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05)'
-            }}>
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-bold" style={{ color: '#232E40' }}>Role Distribution</h2>
                 <div className="relative">
-                  <select className="cursor-pointer text-sm py-2.5 appearance-none transition-colors rounded-lg" style={{ 
-                    border: '1px solid #E5E7EB', 
-                    color: '#374151',
-                    backgroundColor: '#FFFFFF',
-                    paddingLeft: '1rem',
-                    paddingRight: '2.5rem',
-                    minWidth: '120px'
-                  }}>
-                    <option>All</option>
-                    <option>Active</option>
-                    <option>Inactive</option>
+                  <select
+                    value={dateRangePreset}
+                    onChange={(e) => handleDatePresetChange(e.target.value)}
+                    className="text-sm py-2 px-4 pr-8 appearance-none cursor-pointer rounded-lg"
+                    style={{ 
+                      border: `1px solid ${COLORS.gray[200]}`, 
+                      color: COLORS.gray[700], 
+                      backgroundColor: '#fff',
+                    }}
+                  >
+                    <option>Month</option>
+                    <option>3-Month</option>
+                    <option>6-Month</option>
+                    <option>Year</option>
                   </select>
                   <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: '#6B7280' }}>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: COLORS.gray[400] }}>
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                     </svg>
                   </div>
                 </div>
               </div>
-              
-              <div className="mb-8">
-                <h3 className="text-base font-semibold mb-6" style={{ color: '#374151' }}>Terminated vs. Quit</h3>
-                {terminatedQuitData.length > 0 ? (
-                  <div className="flex flex-col items-center">
-                    <ResponsiveContainer width="100%" height={240}>
-                      <PieChart>
-                        <Pie
-                          data={terminatedQuitData}
-                          cx="50%"
-                          cy="50%"
-                          innerRadius={70}
-                          outerRadius={100}
-                          dataKey="value"
-                          paddingAngle={2}
-                        >
-                          {terminatedQuitData.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={entry.color} />
-                          ))}
-                        </Pie>
-                        <Tooltip 
-                          contentStyle={{ 
-                            backgroundColor: '#FFFFFF', 
-                            border: '1px solid #E5E7EB',
-                            borderRadius: '8px',
-                            padding: '8px 12px'
-                          }}
-                        />
-                      </PieChart>
-                    </ResponsiveContainer>
-                    <div className="flex flex-col gap-3 mt-6 w-full max-w-md">
-                      {terminatedQuitData.map((item, idx) => (
-                        <div key={idx} className="flex items-center justify-between p-3 rounded-lg" style={{ backgroundColor: '#F9FAFB' }}>
-                          <div className="flex items-center gap-3">
-                            <div className="w-4 h-4 rounded-full" style={{ backgroundColor: item.color }}></div>
-                            <span className="text-sm font-semibold" style={{ color: '#232E40' }}>{item.name}</span>
-                          </div>
-                          <div className="text-right">
-                            <div className="text-base font-bold" style={{ color: '#374151' }}>{item.value}</div>
-                            <div className="text-xs font-medium" style={{ color: '#9CA3AF' }}>{item.percentage}%</div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="text-center py-12" style={{ color: '#9CA3AF' }}>
-                    <div className="text-sm font-medium">{dataLoading ? 'Loading data...' : 'No data available'}</div>
-                  </div>
-                )}
-              </div>
-
-              <div className="pt-8 mt-8" style={{ borderTop: '1px solid #E5E7EB' }}>
-                <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-base font-semibold" style={{ color: '#374151' }}>
-                    {currentChart === 'terminated' ? 'Terminated by Role' : 'Quit by Role'}
-                  </h3>
-                  <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
-                    <button
-                      onClick={() => setCurrentChart('quit')}
-                      className={`cursor-pointer px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
-                        currentChart === 'quit' 
-                          ? 'bg-white shadow-sm' 
-                          : 'hover:bg-gray-50'
-                      }`}
-                      style={{ 
-                        color: currentChart === 'quit' ? '#232E40' : '#6B7280'
-                      }}
-                    >
-                      Quit
-                    </button>
-                    <button
-                      onClick={() => setCurrentChart('terminated')}
-                      className={`cursor-pointer px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
-                        currentChart === 'terminated' 
-                          ? 'bg-white shadow-sm' 
-                          : 'hover:bg-gray-50'
-                      }`}
-                      style={{ 
-                        color: currentChart === 'terminated' ? '#232E40' : '#6B7280'
-                      }}
-                    >
-                      Terminated
-                    </button>
-                  </div>
-                </div>
-                {terminatedBreakdownData.length > 0 ? (
-                  <div className="flex flex-col items-center">
-                    <ResponsiveContainer width="100%" height={240}>
-                      <PieChart>
-                        <Pie
-                          data={terminatedBreakdownData}
-                          cx="50%"
-                          cy="50%"
-                          innerRadius={60}
-                          outerRadius={100}
-                          dataKey="value"
-                          paddingAngle={2}
-                        >
-                          {terminatedBreakdownData.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={entry.color} />
-                          ))}
-                        </Pie>
-                        <Tooltip 
-                          contentStyle={{ 
-                            backgroundColor: '#FFFFFF', 
-                            border: '1px solid #E5E7EB',
-                            borderRadius: '8px',
-                            padding: '8px 12px'
-                          }}
-                        />
-                      </PieChart>
-                    </ResponsiveContainer>
-                    <div className="flex flex-col gap-2 mt-6 w-full max-w-md">
-                      {terminatedBreakdownData.map((item, idx) => (
-                        <div key={idx} className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 transition-colors">
-                          <div className="flex items-center gap-3">
-                            <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: item.color }}></div>
-                            <span className="text-sm font-medium" style={{ color: '#232E40' }}>{item.name}</span>
-                          </div>
-                          <div className="text-right">
-                            <span className="text-sm font-semibold" style={{ color: '#374151' }}>{item.value}</span>
-                            <span className="text-xs ml-2" style={{ color: '#6B7280' }}>({item.percentage}%)</span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="text-center py-12" style={{ color: '#9CA3AF' }}>
-                    <div className="text-sm font-medium">{dataLoading ? 'Loading data...' : 'No data available'}</div>
-                  </div>
-                )}
-              </div>
-            </div>
             </div>
           </div>
 
-          {/* Turnover Report */}
-          <div>
-            <div className="rounded-xl p-8 transition-all duration-200 hover:shadow-lg" style={{ 
-              backgroundColor: '#FFFFFF', 
-              border: '1px solid #E5E7EB',
-              boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05)'
-            }}>
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-bold" style={{ color: '#232E40' }}>Turnover Report</h2>
-                <button className="cursor-pointer px-3 py-1.5 text-xs font-medium rounded-lg transition-colors hover:bg-gray-50" style={{ 
-                  border: '1px solid #E5E7EB', 
-                  color: '#374151', 
-                  backgroundColor: '#FFFFFF' 
-                }}>
-                  This year
-                </button>
+          {/* Key Metrics Cards */}
+          <div className="grid grid-cols-5 gap-4 mb-6">
+            {[
+              { label: 'Total Employees', value: analyticsLoading ? '...' : totalEmployees.toLocaleString(), sub: `+${analytics?.last_30_days || 0} new`, color: COLORS.gray[900] },
+              { label: 'Terminated', value: dataLoading ? '...' : (analytics?.by_status?.termination || 0), sub: 'employees', color: COLORS.gray[900] },
+              { label: 'Quit', value: dataLoading ? '...' : (analytics?.by_status?.leave || 0), sub: 'employees', color: COLORS.gray[900] },
+              { label: 'Turnover Rate', value: dataLoading ? '...' : `${turnoverRate}%`, sub: 'annual', color: COLORS.negative },
+              { label: 'Retention', value: dataLoading ? '...' : `${(100 - turnoverRate).toFixed(1)}%`, sub: 'annual', color: COLORS.success },
+            ].map((kpi, idx) => (
+              <div key={idx} className="rounded-xl p-4" style={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}` }}>
+                <p className="text-xs font-medium uppercase tracking-wide mb-2" style={{ color: COLORS.gray[400] }}>{kpi.label}</p>
+                <p className="text-2xl font-semibold" style={{ color: kpi.color }}>{kpi.value}</p>
+                <p className="text-xs mt-1" style={{ color: COLORS.gray[400] }}>{kpi.sub}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Interview Process, Survey Feedback, and Role Distribution */}
+          <div className="grid grid-cols-3 gap-6 mb-6">
+            {/* Interviewing Process */}
+            <div className="rounded-xl p-6" style={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}` }}>
+              <h2 className="text-sm font-medium mb-4" style={{ color: COLORS.gray[900] }}>Interviewing Process</h2>
+              <div className="text-center py-12" style={{ color: COLORS.gray[400] }}>
+                <div className="text-sm">No data available</div>
+              </div>
+            </div>
+
+            {/* Survey Feedback */}
+            <div className="rounded-xl p-6" style={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}` }}>
+              <h2 className="text-sm font-medium mb-4" style={{ color: COLORS.gray[900] }}>Survey Feedback</h2>
+              {surveyFeedback.length > 0 ? (
+                <ResponsiveContainer width="100%" height={180}>
+                  <BarChart data={surveyFeedback} margin={{ top: 5, right: 5, left: -15, bottom: 40 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke={COLORS.gray[200]} />
+                    <XAxis 
+                      dataKey="name" 
+                      angle={-45} 
+                      textAnchor="end" 
+                      height={50}
+                      tick={{ fill: COLORS.gray[500], fontSize: 9 }}
+                    />
+                    <YAxis tick={{ fill: COLORS.gray[500], fontSize: 9 }} />
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: '#fff', 
+                        border: `1px solid ${COLORS.gray[200]}`,
+                        borderRadius: '6px',
+                        padding: '6px 10px',
+                        fontSize: '11px'
+                      }}
+                    />
+                    <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                      {surveyFeedback.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="text-center py-12" style={{ color: COLORS.gray[400] }}>
+                  <div className="text-sm">{dataLoading ? 'Loading...' : 'No data'}</div>
+                </div>
+              )}
+            </div>
+
+            {/* Terminated vs Quit */}
+            <div className="rounded-xl p-6" style={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}` }}>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-sm font-medium" style={{ color: COLORS.gray[900] }}>Terminated vs Quit</h2>
+              </div>
+              {terminatedQuitData.length > 0 ? (
+                <div className="flex items-center gap-6">
+                  <ResponsiveContainer width="50%" height={180}>
+                    <PieChart>
+                      <Pie
+                        data={terminatedQuitData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={45}
+                        outerRadius={70}
+                        dataKey="value"
+                        paddingAngle={2}
+                      >
+                        {terminatedQuitData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={CHART_COLORS[index]} />
+                        ))}
+                      </Pie>
+                      <Tooltip 
+                        contentStyle={{ 
+                          backgroundColor: '#fff', 
+                          border: `1px solid ${COLORS.gray[200]}`,
+                          borderRadius: '8px',
+                          padding: '8px 12px',
+                          fontSize: '12px'
+                        }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div className="flex flex-col gap-3 flex-1">
+                    {terminatedQuitData.map((item, idx) => (
+                      <div key={idx} className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: CHART_COLORS[idx] }}></div>
+                          <span className="text-sm" style={{ color: COLORS.gray[600] }}>{item.name}</span>
+                        </div>
+                        <span className="text-sm font-medium" style={{ color: COLORS.gray[900] }}>{item.value} ({item.percentage}%)</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-12" style={{ color: COLORS.gray[400] }}>
+                  <div className="text-sm">{dataLoading ? 'Loading...' : 'No data'}</div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Role Breakdown Row */}
+          <div className="grid grid-cols-2 gap-6 mb-6">
+            {/* Quit by Role */}
+            <div className="rounded-xl p-6" style={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}` }}>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-sm font-medium" style={{ color: COLORS.gray[900] }}>
+                  {currentChart === 'terminated' ? 'Terminated by Role' : 'Quit by Role'}
+                </h2>
+                <div className="flex items-center gap-1 rounded-lg p-1" style={{ backgroundColor: COLORS.gray[100] }}>
+                  <button
+                    onClick={() => setCurrentChart('quit')}
+                    className="cursor-pointer px-3 py-1.5 text-xs rounded-md transition-all"
+                    style={{ 
+                      backgroundColor: currentChart === 'quit' ? '#fff' : 'transparent',
+                      color: currentChart === 'quit' ? COLORS.gray[900] : COLORS.gray[500],
+                      boxShadow: currentChart === 'quit' ? '0 1px 2px rgba(0,0,0,0.05)' : 'none'
+                    }}
+                  >
+                    Quit
+                  </button>
+                  <button
+                    onClick={() => setCurrentChart('terminated')}
+                    className="cursor-pointer px-3 py-1.5 text-xs rounded-md transition-all"
+                    style={{ 
+                      backgroundColor: currentChart === 'terminated' ? '#fff' : 'transparent',
+                      color: currentChart === 'terminated' ? COLORS.gray[700] : COLORS.gray[500],
+                      boxShadow: currentChart === 'terminated' ? '0 1px 2px rgba(0,0,0,0.05)' : 'none'
+                    }}
+                  >
+                    Terminated
+                  </button>
+                </div>
+              </div>
+              {terminatedBreakdownData.length > 0 ? (
+                <div className="flex items-center gap-6">
+                  <ResponsiveContainer width="45%" height={180}>
+                    <PieChart>
+                      <Pie
+                        data={terminatedBreakdownData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={40}
+                        outerRadius={65}
+                        dataKey="value"
+                        paddingAngle={2}
+                      >
+                        {terminatedBreakdownData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip 
+                        contentStyle={{ 
+                          backgroundColor: '#fff', 
+                          border: `1px solid ${COLORS.gray[200]}`,
+                          borderRadius: '8px',
+                          padding: '8px 12px',
+                          fontSize: '12px'
+                        }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div className="flex flex-col gap-2 flex-1 max-h-[180px] overflow-y-auto">
+                    {terminatedBreakdownData.map((item, idx) => (
+                      <div key={idx} className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: CHART_COLORS[idx % CHART_COLORS.length] }}></div>
+                          <span className="text-sm truncate" style={{ color: COLORS.gray[600] }}>{item.name}</span>
+                        </div>
+                        <span className="text-sm font-medium flex-shrink-0" style={{ color: COLORS.gray[900] }}>{item.value}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-12" style={{ color: COLORS.gray[400] }}>
+                  <div className="text-sm">{dataLoading ? 'Loading...' : 'No data'}</div>
+                </div>
+              )}
+            </div>
+
+            {/* Turnover Trend */}
+            <div className="rounded-xl p-6" style={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}` }}>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-sm font-medium" style={{ color: COLORS.gray[900] }}>Turnover Trend</h2>
               </div>
               {turnoverTimeSeries.length > 0 ? (
-                <ResponsiveContainer width="100%" height={320}>
-                  <LineChart data={turnoverTimeSeries} margin={{ top: 20, right: 20, left: 0, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" />
+                <ResponsiveContainer width="100%" height={180}>
+                  <LineChart data={turnoverTimeSeries} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke={COLORS.gray[200]} />
                     <XAxis 
                       dataKey="month" 
-                      tick={{ fill: '#6B7280', fontSize: 12 }}
+                      tick={{ fill: COLORS.gray[500], fontSize: 11 }}
                     />
                     <YAxis 
                       domain={[0, 'auto']} 
-                      tick={{ fill: '#6B7280', fontSize: 12 }}
+                      tick={{ fill: COLORS.gray[500], fontSize: 11 }}
                     />
                     <Tooltip 
                       contentStyle={{ 
-                        backgroundColor: '#FFFFFF', 
-                        border: '1px solid #E5E7EB',
+                        backgroundColor: '#fff', 
+                        border: `1px solid ${COLORS.gray[200]}`,
                         borderRadius: '8px',
                         padding: '8px 12px',
-                        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                        fontSize: '12px'
                       }}
                     />
                     <Line 
                       type="monotone" 
                       dataKey="value" 
-                      stroke="#4D6DBE" 
-                      strokeWidth={3} 
-                      dot={{ fill: '#4D6DBE', r: 4 }} 
-                      activeDot={{ r: 6 }}
+                      stroke={COLORS.primary} 
+                      strokeWidth={2} 
+                      dot={{ fill: COLORS.primary, r: 3 }} 
+                      activeDot={{ r: 5 }}
                     />
                   </LineChart>
                 </ResponsiveContainer>
               ) : (
-                <div className="text-center py-12" style={{ color: '#9CA3AF' }}>
-                  <div className="text-sm font-medium">{dataLoading ? 'Loading data...' : 'No turnover data available'}</div>
+                <div className="text-center py-12" style={{ color: COLORS.gray[400] }}>
+                  <div className="text-sm">{dataLoading ? 'Loading...' : 'No data'}</div>
                 </div>
               )}
             </div>
@@ -662,11 +663,12 @@ export default function Dashboard() {
   return (
     <Suspense fallback={
       <RequireAuth>
-        <div className="flex min-h-screen" style={{ width: '100%', overflow: 'hidden', backgroundColor: '#F5F7FA' }}>
+        <div className="flex min-h-screen" style={{ backgroundColor: COLORS.gray[50] }}>
           <HubSidebar />
-          <main className="ml-64 p-8 pl-10 flex-1" style={{ overflowX: 'hidden', minWidth: 0 }}>
-            <div className="flex items-center justify-center h-full">
-              <p className="text-base" style={{ color: '#6B7280' }}>Loading...</p>
+          <main className="ml-64 p-8 flex-1 flex items-center justify-center">
+            <div className="flex items-center gap-3">
+              <div className="w-5 h-5 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: COLORS.primary, borderTopColor: 'transparent' }}></div>
+              <p style={{ color: COLORS.gray[500] }}>Loading dashboard...</p>
             </div>
           </main>
         </div>

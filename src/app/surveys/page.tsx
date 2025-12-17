@@ -12,11 +12,33 @@ import {
   Tooltip,
 } from 'recharts';
 
+// Modern color palette - cohesive and muted
+const COLORS = {
+  primary: '#3B5998',
+  primaryLight: '#5B7BB8',
+  secondary: '#6366F1',
+  tertiary: '#8B5CF6',
+  negative: '#e74c3c', // Star4ce brand red
+  gray: {
+    50: '#F8FAFC',
+    100: '#F1F5F9',
+    200: '#E2E8F0',
+    300: '#CBD5E1',
+    400: '#94A3B8',
+    500: '#64748B',
+    600: '#475569',
+    700: '#334155',
+    800: '#1E293B',
+    900: '#0F172A',
+  }
+};
+
+const CHART_COLORS = ['#3B5998', '#94A3B8', '#e74c3c']; // Blue (positive), Gray (neutral), Red (negative)
+
 type SatisfactionData = {
   name: string;
   value: number;
   percentage: number;
-  color: string;
 };
 
 type DepartmentData = {
@@ -40,7 +62,6 @@ export default function SurveysPage() {
   const [departments, setDepartments] = useState<DepartmentData[]>([]);
   const [feedback, setFeedback] = useState<FeedbackItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedSentiment, setSelectedSentiment] = useState<string>('All');
   const [selectedDepartment, setSelectedDepartment] = useState<string>('All Departments');
   const [sortBy, setSortBy] = useState<string>('Recent');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -77,19 +98,12 @@ export default function SurveysPage() {
     setEndDate(end.toISOString().split('T')[0]);
   };
 
-  const formatDateForDisplay = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-  };
-
-  // Mock data for now - will be replaced with API calls
   useEffect(() => {
-    // Simulate loading
     setTimeout(() => {
       setOverallSatisfaction([
-        { name: 'Positive', value: 45, percentage: 50.0, color: '#3b82f6' },
-        { name: 'Neutral', value: 30, percentage: 33.3, color: '#eab308' },
-        { name: 'Negative', value: 15, percentage: 16.7, color: '#ef4444' },
+        { name: 'Positive', value: 45, percentage: 50.0 },
+        { name: 'Neutral', value: 30, percentage: 33.3 },
+        { name: 'Negative', value: 15, percentage: 16.7 },
       ]);
 
       setDepartments([
@@ -150,62 +164,69 @@ export default function SurveysPage() {
     }, 500);
   }, []);
 
-  const getSentimentColor = (sentiment: string) => {
-    if (sentiment.includes('Positive')) return '#22c55e';
-    if (sentiment.includes('Negative')) return '#ef4444';
-    return '#eab308';
+  const getSentimentStyle = (sentiment: string) => {
+    if (sentiment.includes('Positive')) return { bg: COLORS.gray[100], text: COLORS.gray[700] };
+    if (sentiment.includes('Negative')) return { bg: '#fdf2f2', text: COLORS.negative }; // Brand red for negative
+    return { bg: COLORS.gray[100], text: COLORS.gray[500] };
   };
 
-  const departmentColors = {
-    positive: '#3b82f6',
-    neutral: '#eab308',
-    negative: '#ef4444',
-  };
+  if (loading) {
+    return (
+      <RequireAuth>
+        <div className="flex min-h-screen" style={{ backgroundColor: COLORS.gray[50] }}>
+          <HubSidebar />
+          <main className="ml-64 p-8 flex-1 flex items-center justify-center">
+            <div className="flex items-center gap-3">
+              <div className="w-5 h-5 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: COLORS.primary, borderTopColor: 'transparent' }}></div>
+              <p style={{ color: COLORS.gray[500] }}>Loading surveys...</p>
+            </div>
+          </main>
+        </div>
+      </RequireAuth>
+    );
+  }
 
   return (
     <RequireAuth>
-      <div className="flex min-h-screen" style={{ width: '100%', overflow: 'hidden', backgroundColor: '#F5F7FA' }}>
+      <div className="flex min-h-screen" style={{ backgroundColor: COLORS.gray[50] }}>
         <HubSidebar />
-        <main className="ml-64 p-8 pl-10 flex-1" style={{ overflowX: 'hidden', minWidth: 0 }}>
+        <main className="ml-64 p-8 flex-1" style={{ maxWidth: 'calc(100vw - 256px)' }}>
           {/* Header */}
           <div className="mb-8">
-            <div className="mb-6">
-              <h1 className="text-4xl font-bold mb-2" style={{ color: '#232E40', letterSpacing: '-0.02em' }}>Surveys</h1>
-              <p className="text-base" style={{ color: '#6B7280' }}>
-                Access detailed insights and analytics to evaluate and improve your dealership's performance.
-              </p>
-            </div>
-            <div className="flex justify-end">
+            <div className="flex items-start justify-between">
+              <div>
+                <h1 className="text-2xl font-semibold mb-1" style={{ color: COLORS.gray[900] }}>Surveys</h1>
+                <p className="text-sm" style={{ color: COLORS.gray[500] }}>
+                  Access detailed insights and analytics to evaluate and improve your dealership's performance.
+                </p>
+              </div>
               <div className="flex items-center gap-3">
-                <div className="flex items-center gap-2 px-3 py-2 rounded-lg" style={{ backgroundColor: '#F8F9FA', border: '1px solid #E0E4E8' }}>
+                <div className="flex items-center gap-2 px-3 py-2 rounded-lg" style={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}` }}>
                   <input
                     type="date"
                     value={startDate}
                     onChange={(e) => setStartDate(e.target.value)}
                     className="text-sm border-none outline-none bg-transparent"
-                    style={{ color: '#374151', width: '120px' }}
+                    style={{ color: COLORS.gray[700], width: '120px' }}
                   />
-                  <span className="text-sm" style={{ color: '#6B7280' }}>|</span>
+                  <span className="text-sm" style={{ color: COLORS.gray[300] }}>—</span>
                   <input
                     type="date"
                     value={endDate}
                     onChange={(e) => setEndDate(e.target.value)}
                     className="text-sm border-none outline-none bg-transparent"
-                    style={{ color: '#374151', width: '120px' }}
+                    style={{ color: COLORS.gray[700], width: '120px' }}
                   />
                 </div>
                 <div className="relative">
                   <select
                     value={dateRangePreset}
                     onChange={(e) => handleDatePresetChange(e.target.value)}
-                    className="text-sm py-2.5 appearance-none cursor-pointer rounded-lg"
+                    className="text-sm py-2 px-4 pr-8 appearance-none cursor-pointer rounded-lg"
                     style={{ 
-                      border: '1px solid #E5E7EB', 
-                      color: '#374151', 
-                      backgroundColor: '#FFFFFF', 
-                      paddingLeft: '1rem', 
-                      paddingRight: '2.5rem',
-                      minWidth: '140px'
+                      border: `1px solid ${COLORS.gray[200]}`, 
+                      color: COLORS.gray[700], 
+                      backgroundColor: '#fff',
                     }}
                   >
                     <option>This month</option>
@@ -215,7 +236,7 @@ export default function SurveysPage() {
                     <option>Year</option>
                   </select>
                   <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: '#6B7280' }}>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: COLORS.gray[400] }}>
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                     </svg>
                   </div>
@@ -225,280 +246,221 @@ export default function SurveysPage() {
           </div>
 
           {/* Overall Satisfaction and Departments */}
-          <div className="grid grid-cols-2 gap-6 mb-8" style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
+          <div className="grid grid-cols-2 gap-6 mb-6">
             {/* Overall Satisfaction */}
-            <div className="rounded-xl p-8 transition-all duration-200 hover:shadow-lg" style={{ 
-              backgroundColor: '#FFFFFF', 
-              border: '1px solid #E5E7EB',
-              boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05)'
-            }}>
+            <div className="rounded-xl p-6" style={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}` }}>
               <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-bold" style={{ color: '#232E40' }}>Overall Satisfaction</h2>
-                <a href="#" className="text-sm hover:underline" style={{ color: '#4D6DBE' }}>View more &gt;</a>
+                <h2 className="text-sm font-medium" style={{ color: COLORS.gray[900] }}>Overall Satisfaction</h2>
+                <a href="#" className="text-xs hover:underline" style={{ color: COLORS.primary }}>View more →</a>
               </div>
-              {loading ? (
-                <div className="text-center py-12" style={{ color: '#9CA3AF' }}>
-                  <div className="text-sm font-medium">Loading...</div>
-                </div>
-              ) : (
-                <div className="flex items-center justify-center">
-                  <div className="w-full max-w-md">
-                    <ResponsiveContainer width="100%" height={300}>
-                      <PieChart>
-                        <Pie
-                          data={overallSatisfaction}
-                          cx="50%"
-                          cy="50%"
-                          innerRadius={80}
-                          outerRadius={120}
-                          dataKey="value"
-                          paddingAngle={2}
-                        >
-                          {overallSatisfaction.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={entry.color} />
-                          ))}
-                        </Pie>
-                        <Tooltip 
-                          contentStyle={{ 
-                            backgroundColor: '#FFFFFF', 
-                            border: '1px solid #E5E7EB',
-                            borderRadius: '8px',
-                            padding: '8px 12px'
-                          }}
-                        />
-                      </PieChart>
-                    </ResponsiveContainer>
-                    <div className="flex justify-center gap-6 mt-6">
-                      {overallSatisfaction.map((item, idx) => (
-                        <div key={idx} className="text-center">
-                          <div className="flex items-center gap-2 mb-1.5">
-                            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }}></div>
-                            <span className="text-sm font-semibold" style={{ color: '#232E40' }}>{item.name}</span>
-                          </div>
-                          <div className="text-lg font-bold" style={{ color: '#374151' }}>{item.value}</div>
-                          <div className="text-xs font-medium" style={{ color: '#9CA3AF' }}>{item.percentage}%</div>
+              <div className="flex items-center justify-center">
+                <div className="w-full">
+                  <ResponsiveContainer width="100%" height={220}>
+                    <PieChart>
+                      <Pie
+                        data={overallSatisfaction}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={60}
+                        outerRadius={90}
+                        dataKey="value"
+                        paddingAngle={2}
+                        stroke="none"
+                      >
+                        {overallSatisfaction.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip 
+                        contentStyle={{ 
+                          backgroundColor: '#fff', 
+                          border: `1px solid ${COLORS.gray[200]}`,
+                          borderRadius: '8px',
+                          boxShadow: 'none'
+                        }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div className="flex justify-center gap-8 mt-4">
+                    {overallSatisfaction.map((item, idx) => (
+                      <div key={idx} className="text-center">
+                        <div className="flex items-center gap-2 mb-1">
+                          <div className="w-2 h-2 rounded-full" style={{ backgroundColor: CHART_COLORS[idx] }}></div>
+                          <span className="text-xs font-medium" style={{ color: COLORS.gray[600] }}>{item.name}</span>
                         </div>
-                      ))}
-                    </div>
+                        <div className="text-lg font-semibold" style={{ color: '#394B67' }}>{item.value}</div>
+                        <div className="text-xs" style={{ color: COLORS.gray[400] }}>{item.percentage}%</div>
+                      </div>
+                    ))}
                   </div>
                 </div>
-              )}
+              </div>
             </div>
 
             {/* Departments */}
-            <div className="rounded-xl p-8 transition-all duration-200 hover:shadow-lg" style={{ 
-              backgroundColor: '#FFFFFF', 
-              border: '1px solid #E5E7EB',
-              boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05)'
-            }}>
-              <div className="mb-6">
-                <h2 className="text-xl font-bold mb-2" style={{ color: '#232E40' }}>Departments</h2>
-                <p className="text-sm" style={{ color: '#6B7280' }}>
-                  View survey insights for each department to understand team sentiment and performance. Compare results across Sales, Parts & Service, Office, Administration, and other areas to identify strengths, challenges, and opportunities for improvement.
+            <div className="rounded-xl p-6" style={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}` }}>
+              <div className="mb-4">
+                <h2 className="text-sm font-medium mb-1" style={{ color: COLORS.gray[900] }}>Departments</h2>
+                <p className="text-xs" style={{ color: COLORS.gray[500] }}>
+                  Survey insights for each department to understand team sentiment.
                 </p>
               </div>
-              <div className="flex items-center gap-4 mb-6">
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: departmentColors.positive }}></div>
-                  <span className="text-sm" style={{ color: '#374151' }}>Positive</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: departmentColors.neutral }}></div>
-                  <span className="text-sm" style={{ color: '#374151' }}>Neutral</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: departmentColors.negative }}></div>
-                  <span className="text-sm" style={{ color: '#374151' }}>Negative</span>
-                </div>
+              <div className="flex items-center gap-4 mb-4">
+                {['Positive', 'Neutral', 'Negative'].map((label, idx) => (
+                  <div key={label} className="flex items-center gap-1.5">
+                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: CHART_COLORS[idx] }}></div>
+                    <span className="text-xs" style={{ color: COLORS.gray[500] }}>{label}</span>
+                  </div>
+                ))}
               </div>
-              {loading ? (
-                <div className="text-center py-12" style={{ color: '#9CA3AF' }}>
-                  <div className="text-sm font-medium">Loading...</div>
-                </div>
-              ) : (
-                <div className="grid grid-cols-3 gap-4">
-                  {departments.map((dept, idx) => {
-                    const deptData = [
-                      { name: 'Positive', value: dept.positive, color: departmentColors.positive },
-                      { name: 'Neutral', value: dept.neutral, color: departmentColors.neutral },
-                      { name: 'Negative', value: dept.negative, color: departmentColors.negative },
-                    ];
-                    return (
-                      <div key={idx} className="text-center">
-                        <h3 className="text-sm font-semibold mb-3" style={{ color: '#374151' }}>{dept.name}</h3>
-                        <ResponsiveContainer width="100%" height={120}>
-                          <PieChart>
-                            <Pie
-                              data={deptData}
-                              cx="50%"
-                              cy="50%"
-                              innerRadius={30}
-                              outerRadius={50}
-                              dataKey="value"
-                              paddingAngle={2}
-                            >
-                              {deptData.map((entry, index) => (
-                                <Cell key={`cell-${index}`} fill={entry.color} />
-                              ))}
-                            </Pie>
-                            <Tooltip />
-                          </PieChart>
-                        </ResponsiveContainer>
-                        <div className="mt-2 text-xs font-medium" style={{ color: '#6B7280' }}>
-                          {dept.positive.toFixed(1)}% Positive
-                        </div>
+              <div className="grid grid-cols-3 gap-3">
+                {departments.map((dept, idx) => {
+                  const deptData = [
+                    { name: 'Positive', value: dept.positive },
+                    { name: 'Neutral', value: dept.neutral },
+                    { name: 'Negative', value: dept.negative },
+                  ];
+                  return (
+                    <div key={idx} className="text-center p-3 rounded-lg" style={{ backgroundColor: COLORS.gray[50] }}>
+                      <h3 className="text-xs font-medium mb-2 truncate" style={{ color: COLORS.gray[700] }}>{dept.name}</h3>
+                      <ResponsiveContainer width="100%" height={80}>
+                        <PieChart>
+                          <Pie
+                            data={deptData}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={20}
+                            outerRadius={35}
+                            dataKey="value"
+                            paddingAngle={2}
+                            stroke="none"
+                          >
+                            {deptData.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={CHART_COLORS[index]} />
+                            ))}
+                          </Pie>
+                          <Tooltip contentStyle={{ borderRadius: '8px', border: `1px solid ${COLORS.gray[200]}`, boxShadow: 'none' }} />
+                        </PieChart>
+                      </ResponsiveContainer>
+                      <div className="text-xs font-medium" style={{ color: COLORS.gray[500] }}>
+                        {dept.positive.toFixed(0)}% positive
                       </div>
-                    );
-                  })}
-                </div>
-              )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
 
           {/* View Written Feedback */}
-          <div className="rounded-xl p-8 transition-all duration-200 hover:shadow-lg" style={{ 
-            backgroundColor: '#FFFFFF', 
-            border: '1px solid #E5E7EB',
-            boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05)'
-          }}>
-            <div className="mb-6">
-              <h2 className="text-xl font-bold mb-2" style={{ color: '#232E40' }}>View Written Feedback</h2>
-              <p className="text-sm" style={{ color: '#6B7280' }}>
-                Browse all recent survey comments to understand employee sentiment. Quickly spot trends, identify areas of concern, and highlight experiences shared by your team.
+          <div className="rounded-xl p-6" style={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}` }}>
+            <div className="mb-4">
+              <h2 className="text-sm font-medium mb-1" style={{ color: COLORS.gray[900] }}>Written Feedback</h2>
+              <p className="text-xs" style={{ color: COLORS.gray[500] }}>
+                Browse recent survey comments to understand employee sentiment.
               </p>
             </div>
-            <div className="flex items-center gap-4 mb-6">
-              <div className="relative" style={{ width: '300px' }}>
+            <div className="flex items-center gap-3 mb-6">
+              <div className="relative flex-1" style={{ maxWidth: '280px' }}>
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search feedback..."
-                  className="w-full text-sm rounded-lg px-4 py-2 pl-10" 
-                  style={{ border: '1px solid #D1D5DB', color: '#374151', backgroundColor: '#FFFFFF' }}
+                  className="w-full text-sm rounded-lg px-4 py-2 pl-9" 
+                  style={{ border: `1px solid ${COLORS.gray[200]}`, color: COLORS.gray[700], backgroundColor: '#fff' }}
                 />
                 <svg 
                   className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4" 
                   fill="none" 
                   stroke="currentColor" 
                   viewBox="0 0 24 24"
-                  style={{ color: '#9CA3AF' }}
+                  style={{ color: COLORS.gray[400] }}
                 >
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
               </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm" style={{ color: '#6B7280' }}>All Departments</span>
-                  <div className="relative">
-                    <select 
-                      value={selectedDepartment}
-                      onChange={(e) => setSelectedDepartment(e.target.value)}
-                      className="text-sm py-2.5 appearance-none cursor-pointer rounded-lg" 
-                      style={{ 
-                        border: '1px solid #E5E7EB', 
-                        color: '#374151', 
-                        backgroundColor: '#FFFFFF', 
-                        paddingLeft: '1rem', 
-                        paddingRight: '2.5rem',
-                        minWidth: '160px'
-                      }}
-                    >
-                      <option>Sales</option>
-                      <option>Parts and Service</option>
-                      <option>Office</option>
-                      <option>Administration</option>
-                      <option>Onboarding</option>
-                      <option>Exit</option>
-                    </select>
-                    <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: '#6B7280' }}>
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                      </svg>
-                    </div>
-                  </div>
+              <div className="relative">
+                <select 
+                  value={selectedDepartment}
+                  onChange={(e) => setSelectedDepartment(e.target.value)}
+                  className="text-sm py-2 px-4 pr-8 appearance-none cursor-pointer rounded-lg" 
+                  style={{ border: `1px solid ${COLORS.gray[200]}`, color: COLORS.gray[700], backgroundColor: '#fff' }}
+                >
+                  <option>All Departments</option>
+                  <option>Sales</option>
+                  <option>Parts and Service</option>
+                  <option>Office</option>
+                  <option>Administration</option>
+                  <option>Onboarding</option>
+                  <option>Exit</option>
+                </select>
+                <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: COLORS.gray[400] }}>
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm" style={{ color: '#6B7280' }}>Sort by</span>
-                  <div className="relative">
-                    <select 
-                      value={sortBy}
-                      onChange={(e) => setSortBy(e.target.value)}
-                      className="text-sm py-2.5 appearance-none cursor-pointer rounded-lg" 
-                      style={{ 
-                        border: '1px solid #E5E7EB', 
-                        color: '#374151', 
-                        backgroundColor: '#FFFFFF', 
-                        paddingLeft: '1rem', 
-                        paddingRight: '2.5rem',
-                        minWidth: '140px'
-                      }}
-                    >
-                      <option>Recent</option>
-                      <option>Oldest</option>
-                      <option>Most Positive</option>
-                      <option>Most Negative</option>
-                    </select>
-                    <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: '#6B7280' }}>
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                      </svg>
-                    </div>
-                  </div>
-                </div>
-            </div>
-            {loading ? (
-              <div className="text-center py-12" style={{ color: '#9CA3AF' }}>
-                <div className="text-sm font-medium">Loading...</div>
               </div>
-            ) : (
-              <>
-                <div className="grid grid-cols-3 gap-4 mb-6">
-                  {feedback
-                    .filter(item => {
-                      if (searchQuery && !item.comment.toLowerCase().includes(searchQuery.toLowerCase()) && 
-                          !item.department.toLowerCase().includes(searchQuery.toLowerCase())) {
-                        return false;
-                      }
-                      return true;
-                    })
-                    .map((item) => (
+              <div className="relative">
+                <select 
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                  className="text-sm py-2 px-4 pr-8 appearance-none cursor-pointer rounded-lg" 
+                  style={{ border: `1px solid ${COLORS.gray[200]}`, color: COLORS.gray[700], backgroundColor: '#fff' }}
+                >
+                  <option>Recent</option>
+                  <option>Oldest</option>
+                  <option>Most Positive</option>
+                  <option>Most Negative</option>
+                </select>
+                <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: COLORS.gray[400] }}>
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </div>
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-4 mb-4">
+              {feedback
+                .filter(item => {
+                  if (searchQuery && !item.comment.toLowerCase().includes(searchQuery.toLowerCase()) && 
+                      !item.department.toLowerCase().includes(searchQuery.toLowerCase())) {
+                    return false;
+                  }
+                  return true;
+                })
+                .map((item) => {
+                  const style = getSentimentStyle(item.sentiment);
+                  return (
                     <div 
                       key={item.id} 
-                      className="rounded-lg p-3 border" 
-                      style={{ 
-                        backgroundColor: '#FFFFFF', 
-                        borderColor: '#E5E7EB'
-                      }}
+                      className="rounded-lg p-4" 
+                      style={{ backgroundColor: COLORS.gray[50], border: `1px solid ${COLORS.gray[100]}` }}
                     >
-                      <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center justify-between mb-3">
                         <div>
-                          <span className="text-sm font-semibold" style={{ color: '#374151' }}>{item.department}</span>
-                          <span className="text-xs ml-2" style={{ color: '#9CA3AF' }}>{item.date}</span>
+                          <span className="text-sm font-medium" style={{ color: COLORS.gray[800] }}>{item.department}</span>
+                          <span className="text-xs ml-2" style={{ color: COLORS.gray[400] }}>{item.date}</span>
                         </div>
                         <span 
-                          className="text-xs font-semibold px-2 py-1 rounded"
-                          style={{ 
-                            color: getSentimentColor(item.sentiment),
-                            backgroundColor: getSentimentColor(item.sentiment) + '20'
-                          }}
+                          className="text-xs font-medium px-2 py-1 rounded"
+                          style={{ color: style.text, backgroundColor: style.bg }}
                         >
                           {item.sentiment}
                         </span>
                       </div>
-                      <p className="text-sm mb-2 line-clamp-3" style={{ color: '#6B7280' }}>{item.comment}</p>
-                      <a href="#" className="text-xs hover:underline" style={{ color: '#4D6DBE' }}>View more &gt;</a>
+                      <p className="text-sm mb-3 line-clamp-3" style={{ color: COLORS.gray[600] }}>{item.comment}</p>
+                      <a href="#" className="text-xs font-medium hover:underline" style={{ color: COLORS.primary }}>View more →</a>
                     </div>
-                  ))}
-                </div>
-                <div className="text-right">
-                  <a href="#" className="text-sm hover:underline" style={{ color: '#4D6DBE' }}>View All &gt;</a>
-                </div>
-              </>
-            )}
+                  );
+                })}
+            </div>
+            <div className="text-right">
+              <a href="#" className="text-xs font-medium hover:underline" style={{ color: COLORS.primary }}>View All →</a>
+            </div>
           </div>
         </main>
       </div>
     </RequireAuth>
   );
 }
-

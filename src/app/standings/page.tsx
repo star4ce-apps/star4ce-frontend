@@ -4,6 +4,24 @@ import { useEffect, useState } from 'react';
 import HubSidebar from '@/components/sidebar/HubSidebar';
 import RequireAuth from '@/components/layout/RequireAuth';
 
+// Modern color palette - matching surveys page
+const COLORS = {
+  primary: '#3B5998',
+  negative: '#e74c3c',
+  success: '#22C55E',
+  gray: {
+    50: '#F8FAFC',
+    100: '#F1F5F9',
+    200: '#E2E8F0',
+    300: '#CBD5E1',
+    400: '#94A3B8',
+    500: '#64748B',
+    600: '#475569',
+    700: '#334155',
+    900: '#0F172A',
+  }
+};
+
 type Dealership = {
   standing: number;
   dealership: string;
@@ -102,70 +120,54 @@ export default function StandingsPage() {
 
   return (
     <RequireAuth>
-      <div className="flex min-h-screen" style={{ width: '100%', overflow: 'hidden', backgroundColor: '#F5F7FA' }}>
+      <div className="flex min-h-screen" style={{ backgroundColor: COLORS.gray[50] }}>
         <HubSidebar />
-        <main className="ml-64 p-8 pl-10 flex-1" style={{ overflowX: 'hidden', minWidth: 0 }}>
+        <main className="ml-64 p-8 flex-1" style={{ maxWidth: 'calc(100vw - 256px)' }}>
           {/* Header */}
-          <div className="mb-6">
-            <h1 className="text-3xl font-bold mb-2" style={{ color: '#232E40', letterSpacing: '-0.02em' }}>Dealership Standings</h1>
-            <p className="text-sm" style={{ color: '#6B7280' }}>
-              A comparative view of dealership workforce stability, showing retention, turnover, and performance metrics to identify strengths and opportunities for improvement.
-            </p>
+          <div className="mb-8">
+            <div className="flex items-start justify-between">
+              <div>
+                <h1 className="text-2xl font-semibold mb-1" style={{ color: COLORS.gray[900] }}>Dealership Standings</h1>
+                <p className="text-sm" style={{ color: COLORS.gray[500] }}>
+                  Compare workforce stability, retention, and turnover metrics across dealerships.
+                </p>
+              </div>
+            </div>
           </div>
 
           {/* Summary Cards - Condensed */}
-          <div className="grid grid-cols-5 gap-4 mb-6" style={{ gridTemplateColumns: 'repeat(5, 1fr)' }}>
-            <div className="rounded-lg p-4 transition-all duration-200 hover:shadow-md" style={{ 
-              backgroundColor: '#FFFFFF', 
-              border: '1px solid #E5E7EB',
-              boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.03)'
-            }}>
-              <div className="text-[10px] font-semibold uppercase tracking-wider mb-2" style={{ color: '#9CA3AF' }}>Your Standing</div>
-              <div className="text-3xl font-bold" style={{ color: '#232E40', lineHeight: '1' }}>
+          <div className="grid grid-cols-5 gap-4 mb-6">
+            <div className="rounded-xl p-4" style={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}` }}>
+              <div className="text-xs font-medium uppercase tracking-wide mb-2" style={{ color: COLORS.gray[400] }}>Your Standing</div>
+              <div className="text-2xl font-semibold" style={{ color: COLORS.gray[900] }}>
                 {currentDealership?.standing || 4}th
               </div>
             </div>
 
-            <div className="rounded-lg p-4 transition-all duration-200 hover:shadow-md" style={{ 
-              backgroundColor: '#FFFFFF', 
-              border: '1px solid #E5E7EB',
-              boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.03)'
-            }}>
-              <div className="text-[10px] font-semibold uppercase tracking-wider mb-2" style={{ color: '#9CA3AF' }}>Your Retention Rate (%)</div>
-              <div className="text-3xl font-bold" style={{ color: '#22c55e', lineHeight: '1' }}>
+            <div className="rounded-xl p-4" style={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}` }}>
+              <div className="text-xs font-medium uppercase tracking-wide mb-2" style={{ color: COLORS.gray[400] }}>Your Retention Rate</div>
+              <div className="text-2xl font-semibold" style={{ color: COLORS.success }}>
                 {currentDealership?.retentionRate || 88.5}%
               </div>
             </div>
 
-            <div className="rounded-lg p-4 transition-all duration-200 hover:shadow-md" style={{ 
-              backgroundColor: '#FFFFFF', 
-              border: '1px solid #E5E7EB',
-              boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.03)'
-            }}>
-              <div className="text-[10px] font-semibold uppercase tracking-wider mb-2" style={{ color: '#9CA3AF' }}>Your Turnover Rate (%)</div>
-              <div className="text-3xl font-bold" style={{ color: '#22c55e', lineHeight: '1' }}>
+            <div className="rounded-xl p-4" style={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}` }}>
+              <div className="text-xs font-medium uppercase tracking-wide mb-2" style={{ color: COLORS.gray[400] }}>Your Turnover Rate</div>
+              <div className="text-2xl font-semibold" style={{ color: COLORS.negative }}>
                 {currentDealership?.turnoverRate || 11.5}%
               </div>
             </div>
 
-            <div className="rounded-lg p-4 transition-all duration-200 hover:shadow-md" style={{ 
-              backgroundColor: '#FFFFFF', 
-              border: '1px solid #E5E7EB',
-              boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.03)'
-            }}>
-              <div className="text-[10px] font-semibold uppercase tracking-wider mb-2" style={{ color: '#9CA3AF' }}>All Dealership Retention</div>
-              <div className="text-3xl font-bold" style={{ color: '#232E40', lineHeight: '1' }}>
+            <div className="rounded-xl p-4" style={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}` }}>
+              <div className="text-xs font-medium uppercase tracking-wide mb-2" style={{ color: COLORS.gray[400] }}>All Retention Avg</div>
+              <div className="text-2xl font-semibold" style={{ color: COLORS.gray[900] }}>
                 {allDealershipRetention}%
               </div>
             </div>
 
-            <div className="rounded-lg p-4 transition-all duration-200 hover:shadow-md" style={{ 
-              backgroundColor: '#FFFFFF', 
-              border: '1px solid #E5E7EB',
-              boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.03)'
-            }}>
-              <div className="text-[10px] font-semibold uppercase tracking-wider mb-2" style={{ color: '#9CA3AF' }}>All Dealership Turnover</div>
-              <div className="text-3xl font-bold" style={{ color: '#232E40', lineHeight: '1' }}>
+            <div className="rounded-xl p-4" style={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}` }}>
+              <div className="text-xs font-medium uppercase tracking-wide mb-2" style={{ color: COLORS.gray[400] }}>All Turnover Avg</div>
+              <div className="text-2xl font-semibold" style={{ color: COLORS.gray[900] }}>
                 {allDealershipTurnover}%
               </div>
             </div>
@@ -179,8 +181,8 @@ export default function StandingsPage() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search dealerships..."
-                className="w-full text-sm rounded-full px-4 py-2 pl-10" 
-                style={{ border: '1px solid #E5E7EB', color: '#374151', backgroundColor: '#FFFFFF' }}
+                className="w-full text-sm rounded-lg px-4 py-2 pl-10" 
+                style={{ border: `1px solid ${COLORS.gray[200]}`, color: COLORS.gray[700], backgroundColor: '#fff' }}
               />
               <svg 
                 className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4" 

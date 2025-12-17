@@ -8,6 +8,22 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 
+// Modern color palette - matching surveys page
+const COLORS = {
+  primary: '#3B5998',
+  gray: {
+    50: '#F8FAFC',
+    100: '#F1F5F9',
+    200: '#E2E8F0',
+    300: '#CBD5E1',
+    400: '#94A3B8',
+    500: '#64748B',
+    600: '#475569',
+    700: '#334155',
+    900: '#0F172A',
+  }
+};
+
 type Candidate = {
   id: number;
   name: string;
@@ -179,21 +195,21 @@ export default function CandidatesPage() {
   if (role === 'manager' && isApproved === false) {
     return (
       <RequireAuth>
-        <div className="flex min-h-screen" style={{ width: '100%', overflow: 'hidden', backgroundColor: '#F5F7FA' }}>
+        <div className="flex min-h-screen" style={{ backgroundColor: COLORS.gray[50] }}>
           <HubSidebar />
-          <main className="ml-64 p-8 pl-10 flex-1" style={{ overflowX: 'hidden', minWidth: 0 }}>
-            <div className="rounded-xl p-12 text-center" style={{ backgroundColor: '#FFFFFF', border: '1px solid #E5E7EB', boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05)' }}>
+          <main className="ml-64 p-8 flex-1" style={{ maxWidth: 'calc(100vw - 256px)' }}>
+            <div className="rounded-xl p-12 text-center" style={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}` }}>
               <div className="mb-6">
-                <svg className="mx-auto h-16 w-16 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="mx-auto h-16 w-16" fill="none" viewBox="0 0 24 24" stroke="currentColor" style={{ color: '#F59E0B' }}>
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </div>
-              <h2 className="text-2xl font-bold mb-4" style={{ color: '#232E40' }}>Waiting for Admin Approval</h2>
-              <p className="text-base mb-2" style={{ color: '#6B7280' }}>
+              <h2 className="text-xl font-semibold mb-3" style={{ color: COLORS.gray[900] }}>Waiting for Admin Approval</h2>
+              <p className="text-sm mb-1" style={{ color: COLORS.gray[500] }}>
                 Your account is pending admin approval.
               </p>
-              <p className="text-base" style={{ color: '#6B7280' }}>
-                Please wait for an admin to approve your request to join the dealership. You'll be able to access this page once approved.
+              <p className="text-sm" style={{ color: COLORS.gray[500] }}>
+                Please wait for an admin to approve your request to join the dealership.
               </p>
             </div>
           </main>
@@ -205,11 +221,12 @@ export default function CandidatesPage() {
   if (loading) {
     return (
       <RequireAuth>
-        <div className="flex min-h-screen" style={{ width: '100%', overflow: 'hidden', backgroundColor: '#F5F7FA' }}>
+        <div className="flex min-h-screen" style={{ backgroundColor: COLORS.gray[50] }}>
           <HubSidebar />
-          <main className="ml-64 p-8 pl-10 flex-1" style={{ overflowX: 'hidden', minWidth: 0 }}>
-            <div className="flex items-center justify-center h-full">
-              <p className="text-base" style={{ color: '#6B7280' }}>Loading candidates...</p>
+          <main className="ml-64 p-8 flex-1 flex items-center justify-center">
+            <div className="flex items-center gap-3">
+              <div className="w-5 h-5 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: COLORS.primary, borderTopColor: 'transparent' }}></div>
+              <p style={{ color: COLORS.gray[500] }}>Loading candidates...</p>
             </div>
           </main>
         </div>
@@ -219,39 +236,37 @@ export default function CandidatesPage() {
 
   return (
     <RequireAuth>
-      <div className="flex min-h-screen" style={{ width: '100%', overflow: 'hidden', backgroundColor: '#F5F7FA' }}>
+      <div className="flex min-h-screen" style={{ backgroundColor: COLORS.gray[50] }}>
         <HubSidebar />
         
-        <main className="ml-64 p-8 pl-10 flex-1" style={{ overflowX: 'hidden', minWidth: 0 }}>
+        <main className="ml-64 p-8 flex-1" style={{ maxWidth: 'calc(100vw - 256px)' }}>
           {/* Header */}
           <div className="mb-8">
-            <div className="flex items-center justify-between mb-6">
+            <div className="flex items-start justify-between">
               <div>
-                <h1 className="text-4xl font-bold mb-2" style={{ color: '#232E40', letterSpacing: '-0.02em' }}>Candidates</h1>
-                <p className="text-base" style={{ color: '#6B7280' }}>Manage and review candidate applications</p>
+                <h1 className="text-2xl font-semibold mb-1" style={{ color: COLORS.gray[900] }}>Candidates</h1>
+                <p className="text-sm" style={{ color: COLORS.gray[500] }}>
+                  Manage and review candidate applications
+                </p>
               </div>
               <div className="flex gap-3">
                 <button
                   onClick={() => setShowModal(true)}
-                  className="cursor-pointer px-6 py-3 rounded-lg font-semibold text-sm transition-colors"
+                  className="cursor-pointer px-4 py-2 rounded-lg font-medium text-sm transition-colors"
                   style={{ 
-                    backgroundColor: '#4D6DBE', 
+                    backgroundColor: COLORS.primary, 
                     color: '#FFFFFF'
                   }}
-                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#3d5a9e'}
-                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#4D6DBE'}
                 >
                   + Add a Candidate
                 </button>
                 <Link
                   href="/candidates/score"
-                  className="cursor-pointer px-6 py-3 rounded-lg font-semibold text-sm transition-colors"
+                  className="cursor-pointer px-4 py-2 rounded-lg font-medium text-sm transition-colors"
                   style={{ 
-                    backgroundColor: '#0B2E65', 
+                    backgroundColor: COLORS.gray[700], 
                     color: '#FFFFFF'
                   }}
-                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#2c5aa0'}
-                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#0B2E65'}
                 >
                   Score a Candidate
                 </Link>

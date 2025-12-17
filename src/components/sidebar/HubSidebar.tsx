@@ -221,7 +221,7 @@ export default function HubSidebar() {
       icon: <EmployeeIcon />,
       children: [
         { label: 'Employee List', href: '/employees' },
-        { label: 'Performance Review', href: '/employees/performance' },
+        { label: 'Performance Reviews', href: '/employees/performance' },
         { label: 'Role History', href: '/employees/history' },
       ],
     },

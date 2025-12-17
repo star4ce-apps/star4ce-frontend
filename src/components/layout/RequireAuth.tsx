@@ -1,8 +1,8 @@
 'use client';
 
 import { ReactNode, useEffect, useState } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
-import { getToken, clearSession, API_BASE } from '@/lib/auth';
+import { useRouter } from 'next/navigation';
+import { getToken, API_BASE } from '@/lib/auth';
 
 type Props = {
   children: ReactNode;
@@ -10,97 +10,59 @@ type Props = {
 
 export default function RequireAuth({ children }: Props) {
   const router = useRouter();
-  const pathname = usePathname();
   const [checking, setChecking] = useState(true);
+  const [ok, setOk] = useState(false);
 
   useEffect(() => {
-    let cancelled = false;
-
     async function checkAuth() {
       const token = getToken();
-
-      // No token at all -> send to login
       if (!token) {
-        clearSession();
-        router.replace('/login?expired=1');
+        router.replace('/login');
         return;
       }
 
       try {
-        // IMPORTANT: call backend using API_BASE from auth.ts
         const res = await fetch(`${API_BASE}/auth/me`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-          cache: 'no-store',
+          headers: { Authorization: `Bearer ${token}` },
         });
 
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          
-          // Handle manager_not_approved - show waiting message
-          if (data.error === 'manager_not_approved' || res.status === 403) {
-            // Don't logout, just show waiting message
-            if (!cancelled) {
-              setChecking(false);
-            }
-            // The page will handle showing the waiting message
-            return;
-          }
-          
-          // Token invalid / unverified / expired -> logout
-          clearSession();
-          // Only show expired message if it's actually expired, not network errors
-          if (data.error === 'token expired' || res.status === 401) {
-            router.replace('/login?expired=1');
+        if (res.ok) {
+          const data = await res.json();
+          // Check if user is approved (for managers)
+          if (data.error === 'manager_not_approved' || data.is_approved === false) {
+            // Allow access but the page will show approval pending message
+            setOk(true);
           } else {
-            router.replace('/login');
-          }
-          return;
-        }
-
-        const data = await res.json().catch(() => ({}));
-        if (!data.ok) {
-          clearSession();
-          router.replace('/login');
-          return;
-        }
-
-        if (!cancelled) {
-          setChecking(false);
-        }
-      } catch (err) {
-        // Network error - don't logout immediately, might be temporary
-        // Only log non-network errors to avoid console spam
-        if (!(err instanceof TypeError && err.message.includes('fetch'))) {
-          console.error('Auth check failed:', err);
-        }
-        // Only logout if it's clearly an auth error, not a network issue
-        if (err instanceof TypeError && err.message.includes('fetch')) {
-          // Network error - keep session but allow access (backend might be starting)
-          if (!cancelled) {
-            setChecking(false);
+            setOk(true);
           }
         } else {
-          clearSession();
+          // Token invalid or expired
           router.replace('/login');
         }
+      } catch (err) {
+        console.error('Auth check failed:', err);
+        router.replace('/login');
+      } finally {
+        setChecking(false);
       }
     }
 
     checkAuth();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [router, pathname]);
+  }, [router]);
 
   if (checking) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <p className="text-slate-600 text-sm">Checking your session…</p>
+      <div className="flex items-center justify-center min-h-screen" style={{ backgroundColor: '#F8FAFC' }}>
+        <div className="flex items-center gap-3">
+          <div className="w-5 h-5 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: '#3B5998', borderTopColor: 'transparent' }}></div>
+          <p style={{ color: '#64748B' }}>Loading...</p>
+        </div>
       </div>
     );
+  }
+
+  if (!ok) {
+    return null;
   }
 
   return <>{children}</>;

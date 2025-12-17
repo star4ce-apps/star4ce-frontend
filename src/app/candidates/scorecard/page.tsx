@@ -4,6 +4,23 @@ import { useState, useEffect } from 'react';
 import React from 'react';
 import HubSidebar from '@/components/sidebar/HubSidebar';
 import RequireAuth from '@/components/layout/RequireAuth';
+import toast from 'react-hot-toast';
+
+// Modern color palette - matching surveys page
+const COLORS = {
+  primary: '#3B5998',
+  gray: {
+    50: '#F8FAFC',
+    100: '#F1F5F9',
+    200: '#E2E8F0',
+    300: '#CBD5E1',
+    400: '#94A3B8',
+    500: '#64748B',
+    600: '#475569',
+    700: '#334155',
+    900: '#0F172A',
+  }
+};
 
 type Question = {
   id: string;
@@ -604,16 +621,41 @@ export default function ScoreCardEditorPage() {
     }
   };
 
+  const handleSaveScoreCard = async () => {
+    if (!isReadyToSave) {
+      toast.error('Total weight must equal 100% before saving');
+      return;
+    }
+
+    try {
+      // TODO: Replace with actual API call when backend is ready
+      // const token = getToken();
+      // const res = await fetch(`${API_BASE}/scorecards`, {
+      //   method: 'POST',
+      //   headers: {
+      //     Authorization: `Bearer ${token}`,
+      //     'Content-Type': 'application/json',
+      //   },
+      //   body: JSON.stringify({
+      //     role: selectedRole,
+      //     criteria: currentCriteria,
+      //   }),
+      // });
+      
+      // Simulate saving
+      toast.success(`Score card for ${selectedRoleData?.name} saved successfully!`);
+    } catch (err) {
+      toast.error('Failed to save score card');
+      console.error(err);
+    }
+  };
+
   const handlePreviewPDF = () => {
     if (!isReadyToSave) {
       alert('Total weight must equal 100% before previewing PDF');
       return;
     }
     setShowPrintView(true);
-    // Wait for DOM to update, then trigger print
-    setTimeout(() => {
-      window.print();
-    }, 500);
   };
 
   const handleDownloadPDF = () => {
@@ -626,6 +668,10 @@ export default function ScoreCardEditorPage() {
     setTimeout(() => {
       window.print();
     }, 500);
+  };
+
+  const handlePrint = () => {
+    window.print();
   };
 
   // Handle print dialog close
@@ -644,15 +690,19 @@ export default function ScoreCardEditorPage() {
 
   return (
     <RequireAuth>
-      <div className="flex min-h-screen" style={{ width: '100%', overflow: 'hidden', backgroundColor: '#F5F7FA' }}>
+      <div className="flex min-h-screen" style={{ backgroundColor: COLORS.gray[50] }}>
         <HubSidebar />
-        <main className="ml-64 p-8 pl-10 flex-1" style={{ overflowX: 'hidden', minWidth: 0 }}>
+        <main className="ml-64 p-8 flex-1" style={{ maxWidth: 'calc(100vw - 256px)' }}>
           {/* Header */}
-          <div className="mb-6">
-            <h1 className="text-4xl font-bold mb-2" style={{ color: '#232E40', letterSpacing: '-0.02em' }}>Score Card Editor</h1>
-            <p className="text-base" style={{ color: '#6B7280' }}>
-              Define and weight your evaluation criteria by role.
-            </p>
+          <div className="mb-8">
+            <div className="flex items-start justify-between">
+              <div>
+                <h1 className="text-2xl font-semibold mb-1" style={{ color: COLORS.gray[900] }}>Score Card Editor</h1>
+                <p className="text-sm" style={{ color: COLORS.gray[500] }}>
+                  Define and weight your evaluation criteria by role.
+                </p>
+              </div>
+            </div>
           </div>
 
           {/* Role Selection Tabs */}
@@ -831,29 +881,42 @@ export default function ScoreCardEditorPage() {
               </div>
             </div>
 
-            {/* Action Buttons */}
-            <div className="flex items-center gap-3 mt-4">
-              <button
-                onClick={handleDownloadPDF}
-                className="px-5 py-2.5 rounded-lg text-sm font-semibold transition-all"
-                style={{
-                  backgroundColor: '#9333EA',
-                  color: '#FFFFFF',
-                }}
-              >
-                Download PDF
-              </button>
+            {/* Print Scorecard Banner */}
+            <div className="mt-4 mb-4 p-4 rounded-xl flex items-center justify-between" style={{ 
+              backgroundColor: '#EEF2FF', 
+              border: '1px solid #C7D2FE' 
+            }}>
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg" style={{ backgroundColor: '#4D6DBE' }}>
+                  <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                  </svg>
+                </div>
+                <div>
+                  <p className="text-sm font-semibold" style={{ color: '#232E40' }}>Ready to print?</p>
+                  <p className="text-xs" style={{ color: '#6B7280' }}>Print the interview scorecard for interviewers to use during candidate evaluations</p>
+                </div>
+              </div>
               <button
                 onClick={handlePreviewPDF}
-                className="px-5 py-2.5 rounded-lg text-sm font-semibold transition-all"
+                disabled={!isReadyToSave}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
                 style={{
                   backgroundColor: '#4D6DBE',
                   color: '#FFFFFF',
                 }}
               >
-                Preview PDF
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                </svg>
+                Print Scorecard
               </button>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex items-center gap-3">
               <button
+                onClick={handleSaveScoreCard}
                 disabled={!isReadyToSave}
                 className="px-5 py-2.5 rounded-lg text-sm font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 style={{
@@ -1160,26 +1223,47 @@ export default function ScoreCardEditorPage() {
               overflowY: 'auto',
               padding: '20px'
             }}>
-              <button
-                onClick={() => setShowPrintView(false)}
-                className="print-back-button"
-                style={{
-                  position: 'fixed',
-                  top: '20px',
-                  left: '20px',
-                  background: '#4D6DBE',
-                  color: 'white',
-                  border: 'none',
-                  padding: '10px 20px',
-                  borderRadius: '6px',
-                  cursor: 'pointer',
-                  fontSize: '14px',
-                  fontWeight: 600,
-                  zIndex: 10000
-                }}
-              >
-                ← Back to Editor
-              </button>
+              <div className="print-buttons" style={{
+                position: 'fixed',
+                top: '20px',
+                left: '20px',
+                display: 'flex',
+                gap: '10px',
+                zIndex: 10000
+              }}>
+                <button
+                  onClick={() => setShowPrintView(false)}
+                  className="print-back-button"
+                  style={{
+                    background: '#4D6DBE',
+                    color: 'white',
+                    border: 'none',
+                    padding: '10px 20px',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    fontWeight: 600
+                  }}
+                >
+                  ← Back to Editor
+                </button>
+                <button
+                  onClick={handlePrint}
+                  className="print-back-button"
+                  style={{
+                    background: '#10B981',
+                    color: 'white',
+                    border: 'none',
+                    padding: '10px 20px',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    fontWeight: 600
+                  }}
+                >
+                  Print
+                </button>
+              </div>
               <style dangerouslySetInnerHTML={{ __html: `
                 @media print {
                   body * {
@@ -1200,7 +1284,8 @@ export default function ScoreCardEditorPage() {
                   .print-wrapper * {
                     visibility: visible !important;
                   }
-                  .print-back-button {
+                  .print-back-button,
+                  .print-buttons {
                     display: none !important;
                     visibility: hidden !important;
                   }
