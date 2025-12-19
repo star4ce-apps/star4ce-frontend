@@ -1,6 +1,26 @@
 // src/lib/auth.ts
-export const API_BASE =
-  process.env.NEXT_PUBLIC_STAR4CE_API_BASE || "http://127.0.0.1:5000";
+
+// Normalize API_BASE to ensure it has a protocol and no trailing slash
+function normalizeApiBase(base: string | undefined): string {
+  if (!base) {
+    return "http://127.0.0.1:5000";
+  }
+  
+  // Remove leading/trailing whitespace
+  base = base.trim();
+  
+  // If it doesn't start with http:// or https://, add https://
+  if (!base.startsWith("http://") && !base.startsWith("https://")) {
+    base = `https://${base}`;
+  }
+  
+  // Remove trailing slash if present
+  base = base.replace(/\/$/, "");
+  
+  return base;
+}
+
+export const API_BASE = normalizeApiBase(process.env.NEXT_PUBLIC_STAR4CE_API_BASE);
 
 export async function loginApi(email: string, password: string) {
   const res = await fetch(`${API_BASE}/auth/login`, {
