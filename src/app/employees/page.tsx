@@ -202,7 +202,14 @@ export default function EmployeesPage() {
 
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error(data.error || 'Failed to save employee');
+        // Check for subscription error
+        if (data.error === 'subscription_expired') {
+          const subscriptionMsg = data.message || 'Your subscription has expired or been cancelled. Please renew to make changes.';
+          setError(subscriptionMsg);
+          toast.error(subscriptionMsg, { duration: 5000 });
+          return;
+        }
+        throw new Error(data.error || data.message || 'Failed to save employee');
       }
 
       await loadEmployees();
@@ -330,7 +337,14 @@ export default function EmployeesPage() {
 
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error(data.error || 'Failed to update employee');
+        // Check for subscription error
+        if (data.error === 'subscription_expired') {
+          const subscriptionMsg = data.message || 'Your subscription has expired or been cancelled. Please renew to make changes.';
+          setError(subscriptionMsg);
+          toast.error(subscriptionMsg, { duration: 5000 });
+          return;
+        }
+        throw new Error(data.error || data.message || 'Failed to update employee');
       }
 
       await loadEmployees();
@@ -505,14 +519,14 @@ export default function EmployeesPage() {
     );
   }
 
-  if (role !== 'admin') {
+  if (role !== 'admin' && role !== 'corporate') {
     return (
       <RequireAuth>
         <div className="flex min-h-screen" style={{ backgroundColor: COLORS.gray[50] }}>
           <HubSidebar />
           <main className="ml-64 p-8 flex-1" style={{ maxWidth: 'calc(100vw - 256px)' }}>
             <div className="text-center py-12">
-              <div className="text-sm font-medium" style={{ color: COLORS.gray[500] }}>Only Admin users can manage employees.</div>
+              <div className="text-sm font-medium" style={{ color: COLORS.gray[500] }}>Only Admin and Corporate users can view employees.</div>
             </div>
           </main>
         </div>
