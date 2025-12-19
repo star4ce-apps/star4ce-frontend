@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { API_BASE } from '@/lib/auth';
@@ -21,7 +21,7 @@ type InviteInfo = {
   expires_at: string;
 };
 
-export default function ManagerRegisterPage() {
+function ManagerRegisterContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const inviteToken = searchParams.get('token');
@@ -421,6 +421,20 @@ export default function ManagerRegisterPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function ManagerRegisterPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    }>
+      <ManagerRegisterContent />
+    </Suspense>
   );
 }
 
