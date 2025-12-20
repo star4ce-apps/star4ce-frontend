@@ -1,6 +1,6 @@
 // src/lib/auth.ts
 
-// Normalize API_BASE to ensure it has a protocol and no trailing slash
+// Normalize API_BASE to ensure it has a protocol and no trailing slash or paths
 function normalizeApiBase(base: string | undefined): string {
   if (!base) {
     return "http://127.0.0.1:5000";
@@ -16,6 +16,17 @@ function normalizeApiBase(base: string | undefined): string {
   
   // Remove trailing slash if present
   base = base.replace(/\/$/, "");
+  
+  // Remove any paths that might have been accidentally included (like /auth/login)
+  // Keep only the protocol, domain, and port (if any)
+  try {
+    const url = new URL(base);
+    // Reconstruct with only protocol, hostname, and port
+    base = `${url.protocol}//${url.hostname}${url.port ? `:${url.port}` : ''}`;
+  } catch (e) {
+    // If URL parsing fails, just use the base as-is (will be caught by fetch)
+    console.warn('Failed to parse API_BASE URL:', base);
+  }
   
   return base;
 }
