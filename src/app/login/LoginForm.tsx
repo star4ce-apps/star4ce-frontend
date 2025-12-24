@@ -1,6 +1,6 @@
 // src/app/login/LoginForm.tsx
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { loginApi, saveSession } from '@/lib/auth';
@@ -17,8 +17,18 @@ export default function LoginForm() {
   const [email, setEmail] = useState(adminEmail || '');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
 
   const [loading, setLoading] = useState(false);
+
+  // Show success message if coming from subscription
+  useEffect(() => {
+    if (subscriptionSuccess) {
+      setSuccessMessage('🎉 Subscription successful! Your admin account has been created. Please sign in with your email and password.');
+      // Clear the URL parameter
+      router.replace(`/login?email=${encodeURIComponent(adminEmail || '')}`);
+    }
+  }, [subscriptionSuccess, adminEmail, router]);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -32,7 +42,12 @@ export default function LoginForm() {
       if (redirect === 'subscription' || adminReg === 'true') {
         router.push('/subscription');
       } else {
-        router.push('/dashboard');
+        // If coming from subscription success, show success message on dashboard
+        if (subscriptionSuccess) {
+          router.push('/dashboard?subscription=success');
+        } else {
+          router.push('/dashboard');
+        }
       }
     } catch (err: unknown) {
       let msg = 'Login failed';
@@ -102,6 +117,13 @@ export default function LoginForm() {
               </p>
             </div>
 
+            {/* Success Messages */}
+            {(successMessage || subscriptionSuccess) && (
+              <div className="mb-4 rounded-lg bg-green-50 border border-green-200 px-3 py-2 text-sm text-green-800">
+                {successMessage || '🎉 Thank you for subscribing! Your admin account has been created. You may now log in.'}
+              </div>
+            )}
+            
             {/* Error Messages */}
             {error && (
               <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
@@ -111,11 +133,6 @@ export default function LoginForm() {
                     Please check your email and password. If you haven't verified your email, check your inbox for a verification code.
                   </div>
                 )}
-              </div>
-            )}
-            {subscriptionSuccess && (
-              <div className="mb-4 rounded-lg bg-green-50 border border-green-200 px-3 py-2 text-sm text-green-800">
-                🎉 Thank you for subscribing! Your admin account has been created. You may now log in.
               </div>
             )}
             {expired && !subscriptionSuccess && (
