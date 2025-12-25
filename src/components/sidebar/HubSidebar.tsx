@@ -166,9 +166,11 @@ export default function HubSidebar() {
 
       if (res.ok) {
         const data = await res.json();
-        if (data.role) {
-          setRole(data.role);
-          localStorage.setItem('role', data.role);
+        // Check both data.role (from login response) and data.user.role (from /auth/me response)
+        const userRole = data.user?.role || data.role;
+        if (userRole) {
+          setRole(userRole);
+          localStorage.setItem('role', userRole);
         }
         if (data.user) {
           setIsApproved(data.user.is_approved !== false);
