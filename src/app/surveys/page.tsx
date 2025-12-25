@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import HubSidebar from '@/components/sidebar/HubSidebar';
 import RequireAuth from '@/components/layout/RequireAuth';
-import { API_BASE, getToken } from '@/lib/auth';
+import { getJsonAuth } from '@/lib/http';
 import {
   PieChart,
   Pie,
@@ -65,8 +65,20 @@ export default function SurveysPage() {
   const [selectedDepartment, setSelectedDepartment] = useState<string>('All Departments');
   const [sortBy, setSortBy] = useState<string>('Recent');
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [startDate, setStartDate] = useState<string>('2025-09-01');
-  const [endDate, setEndDate] = useState<string>('2025-09-22');
+  // Initialize with current month
+  const getCurrentMonthDates = () => {
+    const today = new Date();
+    const start = new Date(today.getFullYear(), today.getMonth(), 1);
+    const end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+    return {
+      start: start.toISOString().split('T')[0],
+      end: end.toISOString().split('T')[0]
+    };
+  };
+
+  const currentMonth = getCurrentMonthDates();
+  const [startDate, setStartDate] = useState<string>(currentMonth.start);
+  const [endDate, setEndDate] = useState<string>(currentMonth.end);
   const [dateRangePreset, setDateRangePreset] = useState<string>('This month');
 
   const handleDatePresetChange = (preset: string) => {
@@ -76,6 +88,10 @@ export default function SurveysPage() {
     let end = new Date();
 
     switch (preset) {
+      case 'This month':
+        start = new Date(today.getFullYear(), today.getMonth(), 1);
+        end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+        break;
       case 'Month':
         start = new Date(today.getFullYear(), today.getMonth(), 1);
         end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
@@ -98,71 +114,62 @@ export default function SurveysPage() {
     setEndDate(end.toISOString().split('T')[0]);
   };
 
-  useEffect(() => {
-    setTimeout(() => {
-      setOverallSatisfaction([
-        { name: 'Positive', value: 45, percentage: 50.0 },
-        { name: 'Neutral', value: 30, percentage: 33.3 },
-        { name: 'Negative', value: 15, percentage: 16.7 },
-      ]);
+  const fetchSurveyData = async () => {
+    try {
+      setLoading(true);
+      const params = new URLSearchParams();
+      if (startDate) {
+        params.append('start_date', startDate);
+      }
+      if (endDate) {
+        params.append('end_date', endDate);
+      }
+      
+      const queryString = params.toString();
+      const url = `/analytics/surveys${queryString ? `?${queryString}` : ''}`;
+      
+      const data = await getJsonAuth<{
+        ok: boolean;
+        overall_satisfaction: SatisfactionData[];
+        departments: DepartmentData[];
+        feedback: FeedbackItem[];
+      }>(url);
 
-      setDepartments([
-        { name: 'Sales', positive: 33.3, neutral: 33.3, negative: 33.4, total: 100 },
-        { name: 'Parts and Service', positive: 18.2, neutral: 45.5, negative: 36.3, total: 100 },
-        { name: 'Office', positive: 66.7, neutral: 16.7, negative: 16.6, total: 100 },
-        { name: 'Administration', positive: 42.9, neutral: 28.6, negative: 28.5, total: 100 },
-        { name: 'Onboarding', positive: 60.0, neutral: 20.0, negative: 20.0, total: 100 },
-        { name: 'Exit', positive: 6.7, neutral: 13.3, negative: 80.0, total: 100 },
-      ]);
-
-      setFeedback([
-        {
-          id: 1,
-          department: 'Sales',
-          date: 'April 10, 2023',
-          sentiment: 'Highly Positive',
-          comment: "Management has been very supportive, but I'd like clearer communication about upcoming changes....",
-        },
-        {
-          id: 2,
-          department: 'Office',
-          date: 'February 5, 2023',
-          sentiment: 'Highly Negative',
-          comment: 'While I appreciate the support from management, I feel that more transparency regarding...',
-        },
-        {
-          id: 3,
-          department: 'Office',
-          date: 'January 20, 2023',
-          sentiment: 'Highly Negative',
-          comment: "I value the backing from management, but I believe clearer updates on future changes would help us all stay aligned.",
-        },
-        {
-          id: 4,
-          department: 'Administration',
-          date: 'May 25, 2023',
-          sentiment: 'Neutral',
-          comment: "Management's support is commendable, yet I think we could improve by having more straightforward...",
-        },
-        {
-          id: 5,
-          department: 'Sales',
-          date: 'June 30, 2023',
-          sentiment: 'Neutral',
-          comment: "I'm grateful for the support from management, but I would really appreciate clearer insights into the....",
-        },
-        {
-          id: 6,
-          department: 'Parts and Service',
-          date: 'July 15, 2023',
-          sentiment: 'Highly Negative',
-          comment: 'Management has shown great support, but I would love to see more clarity on what changes are coming...',
-        },
-      ]);
-
+      if (data.ok) {
+        setOverallSatisfaction(data.overall_satisfaction || []);
+        setDepartments(data.departments || []);
+        
+        // Map feedback sentiment to match the expected format
+        const mappedFeedback = (data.feedback || []).map(item => {
+          let sentiment: 'Highly Positive' | 'Positive' | 'Neutral' | 'Negative' | 'Highly Negative' = 'Neutral';
+          if (item.sentiment === 'Positive') {
+            sentiment = 'Positive';
+          } else if (item.sentiment === 'Negative') {
+            sentiment = 'Negative';
+          } else {
+            sentiment = 'Neutral';
+          }
+          return {
+            ...item,
+            sentiment
+          };
+        });
+        setFeedback(mappedFeedback);
+      }
+    } catch (error) {
+      console.error('Failed to fetch survey data:', error);
+      // Set empty data on error
+      setOverallSatisfaction([]);
+      setDepartments([]);
+      setFeedback([]);
+    } finally {
       setLoading(false);
-    }, 500);
-  }, []);
+    }
+  };
+
+  useEffect(() => {
+    fetchSurveyData();
+  }, [startDate, endDate]);
 
   const getSentimentStyle = (sentiment: string) => {
     if (sentiment.includes('Positive')) return { bg: COLORS.gray[100], text: COLORS.gray[700] };
@@ -254,46 +261,52 @@ export default function SurveysPage() {
                 <a href="#" className="text-xs hover:underline" style={{ color: COLORS.primary }}>View more →</a>
               </div>
               <div className="flex items-center justify-center">
-                <div className="w-full">
-                  <ResponsiveContainer width="100%" height={220}>
-                    <PieChart>
-                      <Pie
-                        data={overallSatisfaction}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={60}
-                        outerRadius={90}
-                        dataKey="value"
-                        paddingAngle={2}
-                        stroke="none"
-                      >
-                        {overallSatisfaction.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip 
-                        contentStyle={{ 
-                          backgroundColor: '#fff', 
-                          border: `1px solid ${COLORS.gray[200]}`,
-                          borderRadius: '8px',
-                          boxShadow: 'none'
-                        }}
-                      />
-                    </PieChart>
-                  </ResponsiveContainer>
-                  <div className="flex justify-center gap-8 mt-4">
-                    {overallSatisfaction.map((item, idx) => (
-                      <div key={idx} className="text-center">
-                        <div className="flex items-center gap-2 mb-1">
-                          <div className="w-2 h-2 rounded-full" style={{ backgroundColor: CHART_COLORS[idx] }}></div>
-                          <span className="text-xs font-medium" style={{ color: COLORS.gray[600] }}>{item.name}</span>
+                {overallSatisfaction.length > 0 ? (
+                  <div className="w-full">
+                    <ResponsiveContainer width="100%" height={220}>
+                      <PieChart>
+                        <Pie
+                          data={overallSatisfaction}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={60}
+                          outerRadius={90}
+                          dataKey="value"
+                          paddingAngle={2}
+                          stroke="none"
+                        >
+                          {overallSatisfaction.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip 
+                          contentStyle={{ 
+                            backgroundColor: '#fff', 
+                            border: `1px solid ${COLORS.gray[200]}`,
+                            borderRadius: '8px',
+                            boxShadow: 'none'
+                          }}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                    <div className="flex justify-center gap-8 mt-4">
+                      {overallSatisfaction.map((item, idx) => (
+                        <div key={idx} className="text-center">
+                          <div className="flex items-center gap-2 mb-1">
+                            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: CHART_COLORS[idx] }}></div>
+                            <span className="text-xs font-medium" style={{ color: COLORS.gray[600] }}>{item.name}</span>
+                          </div>
+                          <div className="text-lg font-semibold" style={{ color: '#394B67' }}>{item.value}</div>
+                          <div className="text-xs" style={{ color: COLORS.gray[400] }}>{item.percentage}%</div>
                         </div>
-                        <div className="text-lg font-semibold" style={{ color: '#394B67' }}>{item.value}</div>
-                        <div className="text-xs" style={{ color: COLORS.gray[400] }}>{item.percentage}%</div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <p className="text-sm" style={{ color: COLORS.gray[500] }}>No survey data available for the selected date range.</p>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -313,42 +326,48 @@ export default function SurveysPage() {
                   </div>
                 ))}
               </div>
-              <div className="grid grid-cols-3 gap-3">
-                {departments.map((dept, idx) => {
-                  const deptData = [
-                    { name: 'Positive', value: dept.positive },
-                    { name: 'Neutral', value: dept.neutral },
-                    { name: 'Negative', value: dept.negative },
-                  ];
-                  return (
-                    <div key={idx} className="text-center p-3 rounded-lg" style={{ backgroundColor: COLORS.gray[50] }}>
-                      <h3 className="text-xs font-medium mb-2 truncate" style={{ color: COLORS.gray[700] }}>{dept.name}</h3>
-                      <ResponsiveContainer width="100%" height={80}>
-                        <PieChart>
-                          <Pie
-                            data={deptData}
-                            cx="50%"
-                            cy="50%"
-                            innerRadius={20}
-                            outerRadius={35}
-                            dataKey="value"
-                            paddingAngle={2}
-                            stroke="none"
-                          >
-                            {deptData.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={CHART_COLORS[index]} />
-                            ))}
-                          </Pie>
-                          <Tooltip contentStyle={{ borderRadius: '8px', border: `1px solid ${COLORS.gray[200]}`, boxShadow: 'none' }} />
-                        </PieChart>
-                      </ResponsiveContainer>
-                      <div className="text-xs font-medium" style={{ color: COLORS.gray[500] }}>
-                        {dept.positive.toFixed(0)}% positive
+              {departments.length > 0 ? (
+                <div className="grid grid-cols-3 gap-3">
+                  {departments.map((dept, idx) => {
+                    const deptData = [
+                      { name: 'Positive', value: dept.positive },
+                      { name: 'Neutral', value: dept.neutral },
+                      { name: 'Negative', value: dept.negative },
+                    ];
+                    return (
+                      <div key={idx} className="text-center p-3 rounded-lg" style={{ backgroundColor: COLORS.gray[50] }}>
+                        <h3 className="text-xs font-medium mb-2 truncate" style={{ color: COLORS.gray[700] }}>{dept.name}</h3>
+                        <ResponsiveContainer width="100%" height={80}>
+                          <PieChart>
+                            <Pie
+                              data={deptData}
+                              cx="50%"
+                              cy="50%"
+                              innerRadius={20}
+                              outerRadius={35}
+                              dataKey="value"
+                              paddingAngle={2}
+                              stroke="none"
+                            >
+                              {deptData.map((entry, index) => (
+                                <Cell key={`cell-${index}`} fill={CHART_COLORS[index]} />
+                              ))}
+                            </Pie>
+                            <Tooltip contentStyle={{ borderRadius: '8px', border: `1px solid ${COLORS.gray[200]}`, boxShadow: 'none' }} />
+                          </PieChart>
+                        </ResponsiveContainer>
+                        <div className="text-xs font-medium" style={{ color: COLORS.gray[500] }}>
+                          {dept.positive.toFixed(0)}% positive
+                        </div>
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <p className="text-sm" style={{ color: COLORS.gray[500] }}>No department data available for the selected date range.</p>
+                </div>
+              )}
             </div>
           </div>
 
@@ -388,12 +407,9 @@ export default function SurveysPage() {
                   style={{ border: `1px solid ${COLORS.gray[200]}`, color: COLORS.gray[700], backgroundColor: '#fff' }}
                 >
                   <option>All Departments</option>
-                  <option>Sales</option>
-                  <option>Parts and Service</option>
-                  <option>Office</option>
-                  <option>Administration</option>
-                  <option>Onboarding</option>
-                  <option>Exit</option>
+                  {departments.map(dept => (
+                    <option key={dept.name}>{dept.name}</option>
+                  ))}
                 </select>
                 <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: COLORS.gray[400] }}>
@@ -420,16 +436,37 @@ export default function SurveysPage() {
                 </div>
               </div>
             </div>
-            <div className="grid grid-cols-3 gap-4 mb-4">
-              {feedback
-                .filter(item => {
-                  if (searchQuery && !item.comment.toLowerCase().includes(searchQuery.toLowerCase()) && 
-                      !item.department.toLowerCase().includes(searchQuery.toLowerCase())) {
-                    return false;
-                  }
-                  return true;
-                })
-                .map((item) => {
+            {feedback.length > 0 ? (
+              <div className="grid grid-cols-3 gap-4 mb-4">
+                {feedback
+                  .filter(item => {
+                    // Filter by department
+                    if (selectedDepartment !== 'All Departments' && item.department !== selectedDepartment) {
+                      return false;
+                    }
+                    // Filter by search query
+                    if (searchQuery && !item.comment.toLowerCase().includes(searchQuery.toLowerCase()) && 
+                        !item.department.toLowerCase().includes(searchQuery.toLowerCase())) {
+                      return false;
+                    }
+                    return true;
+                  })
+                  .sort((a, b) => {
+                    // Sort by selected option
+                    if (sortBy === 'Recent') {
+                      return b.id - a.id;
+                    } else if (sortBy === 'Oldest') {
+                      return a.id - b.id;
+                    } else if (sortBy === 'Most Positive') {
+                      const sentimentOrder = { 'Highly Positive': 5, 'Positive': 4, 'Neutral': 3, 'Negative': 2, 'Highly Negative': 1 };
+                      return (sentimentOrder[b.sentiment] || 0) - (sentimentOrder[a.sentiment] || 0);
+                    } else if (sortBy === 'Most Negative') {
+                      const sentimentOrder = { 'Highly Positive': 1, 'Positive': 2, 'Neutral': 3, 'Negative': 4, 'Highly Negative': 5 };
+                      return (sentimentOrder[b.sentiment] || 0) - (sentimentOrder[a.sentiment] || 0);
+                    }
+                    return 0;
+                  })
+                  .map((item) => {
                   const style = getSentimentStyle(item.sentiment);
                   return (
                     <div 
@@ -454,10 +491,17 @@ export default function SurveysPage() {
                     </div>
                   );
                 })}
-            </div>
-            <div className="text-right">
-              <a href="#" className="text-xs font-medium hover:underline" style={{ color: COLORS.primary }}>View All →</a>
-            </div>
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <p className="text-sm" style={{ color: COLORS.gray[500] }}>No feedback available for the selected filters.</p>
+              </div>
+            )}
+            {feedback.length > 0 && (
+              <div className="text-right">
+                <a href="#" className="text-xs font-medium hover:underline" style={{ color: COLORS.primary }}>View All →</a>
+              </div>
+            )}
           </div>
         </main>
       </div>
