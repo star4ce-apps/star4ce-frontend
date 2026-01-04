@@ -164,8 +164,9 @@ export default function HubSidebar() {
         headers: { Authorization: `Bearer ${token}` },
       });
 
+      const data = await res.json().catch(() => ({}));
+      
       if (res.ok) {
-        const data = await res.json();
         // Check both data.role (from login response) and data.user.role (from /auth/me response)
         const userRole = data.user?.role || data.role;
         if (userRole) {
@@ -178,10 +179,18 @@ export default function HubSidebar() {
           setIsApproved(data.is_approved !== false);
         }
       } else {
-        const data = await res.json().catch(() => ({}));
+        // Handle manager_not_approved error
         if (data.error === 'manager_not_approved') {
           setRole('manager');
           setIsApproved(false);
+          localStorage.setItem('role', 'manager');
+        } else {
+          // For other errors, try to get role from localStorage
+          const storedRole = localStorage.getItem('role');
+          if (storedRole === 'manager') {
+            setRole('manager');
+            setIsApproved(false);
+          }
         }
       }
     } catch (err) {
