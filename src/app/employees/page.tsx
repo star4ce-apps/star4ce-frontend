@@ -287,7 +287,7 @@ export default function EmployeesPage() {
     setError(null);
 
     // Validate required fields
-    const requiredFields = ['firstName', 'lastName', 'phoneNumber', 'email', 'jobTitle', 'hiredDate', 'department', 'status'];
+    const requiredFields = ['firstName', 'lastName', 'dateOfBirth', 'gender', 'phoneNumber', 'email', 'jobTitle', 'hiredDate', 'department', 'status'];
     const missingFields = requiredFields.filter(field => !formData[field as keyof typeof formData]);
     
     // If "Others" is selected, validate custom department
@@ -1199,6 +1199,113 @@ export default function EmployeesPage() {
                           backgroundColor: '#FFFFFF',
                         }}
                       />
+                    </div>
+                    <div className="col-span-2">
+                      <label className="block text-xs font-semibold mb-1.5" style={{ color: '#374151' }}>Home Address</label>
+                      <div className="grid grid-cols-2 gap-2 mb-2">
+                        <input
+                          type="text"
+                          placeholder="Street"
+                          value={formData.street}
+                          onChange={(e) => setFormData({ ...formData, street: e.target.value })}
+                          className="w-full px-3 py-2 text-sm rounded-lg transition-all focus:outline-none focus:ring-2"
+                          style={{ 
+                            border: '1px solid #D1D5DB', 
+                            color: '#374151', 
+                            backgroundColor: '#FFFFFF',
+                          }}
+                        />
+                        <input
+                          type="text"
+                          placeholder="City"
+                          value={formData.city}
+                          onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                          className="w-full px-3 py-2 text-sm rounded-lg transition-all focus:outline-none focus:ring-2"
+                          style={{ 
+                            border: '1px solid #D1D5DB', 
+                            color: '#374151', 
+                            backgroundColor: '#FFFFFF',
+                          }}
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="relative">
+                          <select
+                            value={formData.state}
+                            onChange={(e) => setFormData({ ...formData, state: e.target.value })}
+                            className="w-full px-3 py-2 text-sm rounded-lg appearance-none cursor-pointer transition-all focus:outline-none focus:ring-2"
+                            style={{ 
+                              border: '1px solid #D1D5DB', 
+                              color: '#374151', 
+                              backgroundColor: '#FFFFFF',
+                            }}
+                          >
+                            <option value="">Select State</option>
+                            {states.map(state => (
+                              <option key={state} value={state}>{state}</option>
+                            ))}
+                          </select>
+                          <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: '#6B7280' }}>
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                            </svg>
+                          </div>
+                        </div>
+                        <input
+                          type="text"
+                          placeholder="Zip Code"
+                          value={formData.zipCode}
+                          onChange={(e) => setFormData({ ...formData, zipCode: e.target.value })}
+                          className="w-full px-3 py-2 text-sm rounded-lg transition-all focus:outline-none focus:ring-2"
+                          style={{ 
+                            border: '1px solid #D1D5DB', 
+                            color: '#374151', 
+                            backgroundColor: '#FFFFFF',
+                          }}
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold mb-1.5" style={{ color: '#374151' }}>Date of Birth *</label>
+                      <input
+                        type="date"
+                        value={formData.dateOfBirth}
+                        onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })}
+                        required
+                        className="w-full px-3 py-2 text-sm rounded-lg transition-all focus:outline-none focus:ring-2"
+                        style={{ 
+                          border: '1px solid #D1D5DB', 
+                          color: '#374151', 
+                          backgroundColor: '#FFFFFF',
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold mb-1.5" style={{ color: '#374151' }}>Gender *</label>
+                      <div className="relative">
+                        <select
+                          value={formData.gender}
+                          onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
+                          required
+                          className="w-full px-3 py-2 text-sm rounded-lg appearance-none cursor-pointer transition-all focus:outline-none focus:ring-2"
+                          style={{ 
+                            border: '1px solid #D1D5DB', 
+                            color: '#374151', 
+                            backgroundColor: '#FFFFFF',
+                          }}
+                        >
+                          <option value="">Select Gender</option>
+                          <option value="Male">Male</option>
+                          <option value="Female">Female</option>
+                          <option value="Other">Other</option>
+                          <option value="Prefer not to say">Prefer not to say</option>
+                        </select>
+                        <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: '#6B7280' }}>
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                          </svg>
+                        </div>
+                      </div>
                     </div>
                     <div>
                       <label className="block text-xs font-semibold mb-1.5" style={{ color: '#374151' }}>Employee ID</label>
