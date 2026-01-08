@@ -31,6 +31,8 @@ type HistoryEntry = {
   changedBy: string;
   timestamp: string;
   department?: string;
+  reason?: string; // For terminations
+  termination_date?: string; // For terminations
 };
 
 export default function EmployeeRoleHistoryPage() {
@@ -79,11 +81,75 @@ export default function EmployeeRoleHistoryPage() {
       }
       
       const data = await response.json();
+      let entries: HistoryEntry[] = [];
       
       if (data.ok && data.entries) {
-        setHistoryEntries(data.entries);
-      } else {
-        setHistoryEntries([]);
+        entries = data.entries;
+      }
+
+      // Also load terminations and merge them
+      try {
+        let terminationRes = await fetch(`${API_BASE}/terminations`, { headers });
+        
+        if (!terminationRes.ok && terminationRes.status === 404) {
+          // If endpoint doesn't exist, try role history with termination filter
+          terminationRes = await fetch(`${API_BASE}/role-history?action=terminated&limit=500`, { headers });
+        }
+
+        if (terminationRes.ok) {
+          const terminationData = await terminationRes.json();
+          let terminations: any[] = [];
+          
+          if (terminationData.terminations) {
+            terminations = terminationData.terminations;
+          } else if (terminationData.entries) {
+            terminations = terminationData.entries.filter((entry: any) => 
+              entry.action?.toLowerCase().includes('terminat') || 
+              entry.newValue?.toLowerCase().includes('terminat')
+            );
+          }
+
+          // Convert terminations to history entries
+          const terminationEntries: HistoryEntry[] = terminations.map((term: any) => ({
+            id: term.id || `term-${term.employee_id}`,
+            type: 'employee' as const,
+            name: term.employee_name || term.name || 'Unknown Employee',
+            action: 'Terminated',
+            previousValue: term.previous_status || 'Active',
+            newValue: 'Terminated',
+            changedBy: term.terminated_by || term.changedBy || 'Unknown',
+            timestamp: term.termination_date || term.timestamp || term.created_at,
+            department: term.department,
+            reason: term.reason || term.comment,
+            termination_date: term.termination_date || term.timestamp,
+          }));
+
+          // Merge and deduplicate (prefer termination entries if duplicate)
+          const allEntries = [...entries, ...terminationEntries];
+          const uniqueEntries = allEntries.reduce((acc, entry) => {
+            const existing = acc.find(e => 
+              e.name === entry.name && 
+              e.action === entry.action && 
+              Math.abs(new Date(e.timestamp).getTime() - new Date(entry.timestamp).getTime()) < 60000 // Within 1 minute
+            );
+            if (!existing) {
+              acc.push(entry);
+            } else if (entry.action === 'Terminated' && existing.action !== 'Terminated') {
+              // Replace with termination entry if it's more specific
+              const index = acc.indexOf(existing);
+              acc[index] = entry;
+            }
+            return acc;
+          }, [] as HistoryEntry[]);
+
+          setHistoryEntries(uniqueEntries);
+        } else {
+          setHistoryEntries(entries);
+        }
+      } catch (terminationErr) {
+        // If termination loading fails, just use role history
+        console.error('Failed to load terminations:', terminationErr);
+        setHistoryEntries(entries);
       }
     } catch (err) {
       console.error('Failed to load role history:', err);
@@ -491,7 +557,14 @@ export default function EmployeeRoleHistoryPage() {
                             {entry.previousValue || '—'}
                           </td>
                           <td className="py-3.5 px-4 text-sm font-semibold" style={{ color: '#232E40' }}>
-                            {entry.newValue || '—'}
+                            <div>
+                              {entry.newValue || '—'}
+                              {entry.reason && entry.action === 'Terminated' && (
+                                <div className="text-xs mt-1" style={{ color: '#6B7280', fontStyle: 'italic' }}>
+                                  Reason: {entry.reason}
+                                </div>
+                              )}
+                            </div>
                           </td>
                           <td className="py-3.5 px-4 text-sm" style={{ color: '#6B7280' }}>
                             {entry.department || '—'}

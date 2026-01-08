@@ -234,6 +234,7 @@ export default function HubSidebar() {
         { label: 'Employee List', href: '/employees' },
         { label: 'Performance Reviews', href: '/employees/performance' },
         { label: 'Role History', href: '/employees/history' },
+        { label: 'Employee Exit', href: '/employees/termination' },
       ],
     },
     {
