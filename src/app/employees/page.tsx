@@ -468,7 +468,6 @@ export default function EmployeesPage() {
 
   const jobTitles = Array.from(new Set(employees.map(emp => emp.position).filter(Boolean))) as string[];
 
-  // Since auth is bypassed, we'll allow access and default to admin role
   // Only show loading if we haven't checked localStorage yet
   const [mounted, setMounted] = useState(false);
   
