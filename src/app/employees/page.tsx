@@ -457,14 +457,20 @@ export default function EmployeesPage() {
 
   const statuses = ['Full-Time', 'Part-time', 'Intern', 'Onboarding'];
   
+  // Statuses that should be excluded from the filter (removed from system)
+  const excludedStatuses = ['Resigned', 'Terminated', 'Fired', 'On Leave'];
+  
   // Get unique statuses from employees, plus standard options
+  // Filter out excluded statuses that are no longer valid options
   const allStatusOptions = [
     'All Statuses',
     'Active',
     'Inactive',
     ...statuses,
     ...Array.from(new Set(employees.map(emp => emp.status).filter(Boolean))) as string[]
-  ].filter((value, index, self) => self.indexOf(value) === index);
+  ]
+    .filter((value, index, self) => self.indexOf(value) === index) // Remove duplicates
+    .filter(status => !excludedStatuses.includes(status)); // Remove excluded statuses
 
   const jobTitles = Array.from(new Set(employees.map(emp => emp.position).filter(Boolean))) as string[];
 

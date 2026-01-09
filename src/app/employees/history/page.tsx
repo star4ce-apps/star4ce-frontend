@@ -111,7 +111,7 @@ export default function EmployeeRoleHistoryPage() {
 
           // Convert terminations to history entries
           const terminationEntries: HistoryEntry[] = terminations.map((term: any) => ({
-            id: term.id || `term-${term.employee_id}`,
+            id: `term-${term.id || term.employee_id || Date.now()}`,
             type: 'employee' as const,
             name: term.employee_name || term.name || 'Unknown Employee',
             action: 'Terminated',
@@ -529,10 +529,10 @@ export default function EmployeeRoleHistoryPage() {
                         </td>
                       </tr>
                     ) : (
-                    paginatedEntries.map((entry) => {
+                    paginatedEntries.map((entry, index) => {
                       return (
                         <tr 
-                          key={entry.id} 
+                          key={entry.id || `entry-${index}`} 
                           className="hover:bg-blue-50 transition-colors"
                           style={{ 
                             borderBottom: '1px solid #F3F4F6'
