@@ -323,7 +323,7 @@ export default function EmployeesPage() {
         zip_code: formData.zipCode || null,
         date_of_birth: formData.dateOfBirth || null,
         gender: formData.gender || null,
-        is_active: formData.status !== 'Fired' && formData.status !== 'Terminated' && formData.status !== 'Resigned',
+        is_active: editingEmployee.is_active, // Preserve existing active status (can be changed via termination page)
       };
 
       const res = await fetch(`${API_BASE}/employees/${editingEmployee.id}`, {
@@ -455,7 +455,7 @@ export default function EmployeesPage() {
     'Virginia', 'Washington', 'West Virginia', 'Wisconsin', 'Wyoming'
   ];
 
-  const statuses = ['Full-Time', 'Part-time', 'Intern', 'Resigned', 'Terminated', 'Fired', 'On Leave', 'Onboarding'];
+  const statuses = ['Full-Time', 'Part-time', 'Intern', 'Onboarding'];
   
   // Get unique statuses from employees, plus standard options
   const allStatusOptions = [
@@ -760,19 +760,11 @@ export default function EmployeesPage() {
                                 backgroundColor: emp.status === 'Full-Time' ? '#D1FAE5' : 
                                                 emp.status === 'Part-time' ? '#DBEAFE' :
                                                 emp.status === 'Intern' ? '#FEF3C7' :
-                                                emp.status === 'Resigned' ? '#FEE2E2' :
-                                                emp.status === 'Terminated' ? '#FEE2E2' :
-                                                emp.status === 'Fired' ? '#FEE2E2' :
-                                                emp.status === 'On Leave' ? '#E0E7FF' :
                                                 emp.status === 'Onboarding' ? '#F3E8FF' :
                                                 emp.is_active ? '#D1FAE5' : '#F3F4F6',
                                 color: emp.status === 'Full-Time' ? '#065F46' :
                                        emp.status === 'Part-time' ? '#1E40AF' :
                                        emp.status === 'Intern' ? '#92400E' :
-                                       emp.status === 'Resigned' ? '#991B1B' :
-                                       emp.status === 'Terminated' ? '#991B1B' :
-                                       emp.status === 'Fired' ? '#991B1B' :
-                                       emp.status === 'On Leave' ? '#3730A3' :
                                        emp.status === 'Onboarding' ? '#6B21A8' :
                                        emp.is_active ? '#065F46' : '#374151'
                               }}
@@ -1039,19 +1031,11 @@ export default function EmployeesPage() {
                                 backgroundColor: viewingEmployee.status === 'Full-Time' ? '#D1FAE5' : 
                                                 viewingEmployee.status === 'Part-time' ? '#DBEAFE' :
                                                 viewingEmployee.status === 'Intern' ? '#FEF3C7' :
-                                                viewingEmployee.status === 'Resigned' ? '#FEE2E2' :
-                                                viewingEmployee.status === 'Terminated' ? '#FEE2E2' :
-                                                viewingEmployee.status === 'Fired' ? '#FEE2E2' :
-                                                viewingEmployee.status === 'On Leave' ? '#E0E7FF' :
                                                 viewingEmployee.status === 'Onboarding' ? '#F3E8FF' :
                                                 viewingEmployee.is_active ? '#D1FAE5' : '#F3F4F6',
                                 color: viewingEmployee.status === 'Full-Time' ? '#065F46' :
                                        viewingEmployee.status === 'Part-time' ? '#1E40AF' :
                                        viewingEmployee.status === 'Intern' ? '#92400E' :
-                                       viewingEmployee.status === 'Resigned' ? '#991B1B' :
-                                       viewingEmployee.status === 'Terminated' ? '#991B1B' :
-                                       viewingEmployee.status === 'Fired' ? '#991B1B' :
-                                       viewingEmployee.status === 'On Leave' ? '#3730A3' :
                                        viewingEmployee.status === 'Onboarding' ? '#6B21A8' :
                                        viewingEmployee.is_active ? '#065F46' : '#374151'
                               }}
