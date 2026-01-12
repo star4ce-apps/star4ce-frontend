@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import HubSidebar from '@/components/sidebar/HubSidebar';
 import RequireAuth from '@/components/layout/RequireAuth';
 import { API_BASE, getToken } from '@/lib/auth';
+import toast from 'react-hot-toast';
 
 // Modern color palette - matching surveys page
 const COLORS = {
@@ -33,6 +34,9 @@ type HistoryEntry = {
   department?: string;
   reason?: string; // For terminations
   termination_date?: string; // For terminations
+  reverted?: boolean; // Whether this entry has been reverted
+  revertedBy?: string; // Who reverted it
+  revertedAt?: string; // When it was reverted
 };
 
 export default function EmployeeRoleHistoryPage() {
@@ -383,12 +387,63 @@ export default function EmployeeRoleHistoryPage() {
     };
   }, [openMenuId]);
 
-  const handleRevert = (entry: HistoryEntry) => {
-    // TODO: Implement revert functionality
-    console.log('Reverting entry:', entry);
+  async function handleRevert(entry: HistoryEntry) {
     setOpenMenuId(null);
-    // Show success message
-  };
+    
+    // Cannot revert creation or termination
+    if (entry.action === 'Employee Created' || entry.action === 'Candidate Created' || entry.action === 'Terminated') {
+      toast.error(`Cannot revert ${entry.action}`);
+      return;
+    }
+    
+    // Need previous value to revert
+    if (!entry.previousValue || entry.previousValue === '—' || entry.previousValue === 'N/A') {
+      toast.error('Cannot revert - previous value not available');
+      return;
+    }
+    
+    if (!window.confirm(`Are you sure you want to revert "${entry.action}" for ${entry.name}?`)) {
+      return;
+    }
+    
+    try {
+      const token = getToken();
+      if (!token) {
+        toast.error('Not logged in');
+        return;
+      }
+      
+      const res = await fetch(`${API_BASE}/role-history/revert`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          id: entry.id,
+          type: entry.type,
+          name: entry.name,
+          action: entry.action,
+          previousValue: entry.previousValue,
+          newValue: entry.newValue,
+        }),
+      });
+      
+      const data = await res.json().catch(() => ({}));
+      
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to revert change');
+      }
+      
+      toast.success(data.message || 'Change reverted successfully');
+      
+      // Reload history to show updated data
+      await loadRoleHistory();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to revert change';
+      toast.error(msg);
+    }
+  }
 
   return (
     <RequireAuth>
@@ -551,7 +606,21 @@ export default function EmployeeRoleHistoryPage() {
                           </td>
                           <td className="py-3.5 px-4 text-sm font-semibold" style={{ color: '#232E40' }}>{entry.name}</td>
                           <td className="py-3.5 px-4 text-sm font-medium" style={{ color: '#374151' }}>
-                            {entry.action}
+                            <div className="flex items-center gap-2">
+                              <span>{entry.action}</span>
+                              {entry.reverted && (
+                                <span 
+                                  className="text-xs font-semibold px-2 py-0.5 rounded-full"
+                                  style={{ 
+                                    backgroundColor: '#FEF3C7',
+                                    color: '#92400E'
+                                  }}
+                                  title={`Reverted by ${entry.revertedBy || 'Unknown'} on ${entry.revertedAt ? new Date(entry.revertedAt).toLocaleString() : ''}`}
+                                >
+                                  Reverted
+                                </span>
+                              )}
+                            </div>
                           </td>
                           <td className="py-3.5 px-4 text-sm" style={{ color: '#6B7280' }}>
                             {entry.previousValue || '—'}
@@ -588,8 +657,16 @@ export default function EmployeeRoleHistoryPage() {
                                 <div className="absolute right-0 mt-1 w-40 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
                                   <button
                                     onClick={() => handleRevert(entry)}
-                                    className="w-full text-left px-4 py-2 text-sm font-medium transition-colors hover:bg-gray-50"
+                                    disabled={entry.action === 'Employee Created' || entry.action === 'Candidate Created' || entry.action === 'Terminated' || !entry.previousValue || entry.previousValue === '—' || entry.previousValue === 'N/A'}
+                                    className="w-full text-left px-4 py-2 text-sm font-medium transition-colors hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                                     style={{ color: '#374151' }}
+                                    title={
+                                      entry.action === 'Employee Created' || entry.action === 'Candidate Created' || entry.action === 'Terminated'
+                                        ? 'Cannot revert creation or termination'
+                                        : !entry.previousValue || entry.previousValue === '—' || entry.previousValue === 'N/A'
+                                        ? 'Previous value not available'
+                                        : 'Revert this change'
+                                    }
                                   >
                                     Revert
                                   </button>
