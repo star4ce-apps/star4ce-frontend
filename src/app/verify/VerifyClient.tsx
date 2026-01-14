@@ -15,9 +15,20 @@ export default function VerifyPage() {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [resendLoading, setResendLoading] = useState(false);
+  const [devCode, setDevCode] = useState('');
+  const [devCodeRequested, setDevCodeRequested] = useState(false);
 
   // Pre-fill email from ?email=...
   const [emailFromUrl, setEmailFromUrl] = useState(false);
+  const roleParam = (search.get('role') || '').toLowerCase();
+  const showCode =
+    search.get('show_code') === 'true' ||
+    search.get('admin') === 'true' ||
+    search.get('manager') === 'true' ||
+    search.get('corporate') === 'true' ||
+    roleParam === 'admin' ||
+    roleParam === 'manager' ||
+    roleParam === 'corporate';
   
   useEffect(() => {
     const qEmail = search.get('email');
@@ -39,13 +50,19 @@ export default function VerifyPage() {
         // Wait a moment then check if we need to resend
         setTimeout(async () => {
           try {
-            const res = await fetch(`${API_BASE}/auth/resend-verify`, {
+            const endpoint = showCode ? '/auth/dev-verification-code' : '/auth/resend-verify';
+            const res = await fetch(`${API_BASE}${endpoint}`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ email: emailToUse }),
             });
+            const data = await res.json().catch(() => ({}));
             if (res.ok) {
-              setMessage('🎉 Subscription successful! Verification code has been sent to your email. Please check your inbox.');
+              if (data.code) {
+                setDevCode(data.code);
+                setCode(data.code);
+              }
+              setMessage('🎉 Subscription successful! Verification code is ready. Please check the code below.');
             }
           } catch (err) {
             // Silently fail - user can manually resend
@@ -55,6 +72,33 @@ export default function VerifyPage() {
       }
     }
   }, [search, router, email]);
+
+  useEffect(() => {
+    if (!showCode || !email || devCodeRequested) return;
+    setDevCodeRequested(true);
+    const fetchDevCode = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/auth/dev-verification-code`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error(data.error || 'Dev code unavailable');
+        }
+        if (data.code) {
+          setDevCode(data.code);
+          setCode(data.code);
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Dev code unavailable';
+        setError(message);
+        console.error('Dev code fetch failed:', err);
+      }
+    };
+    fetchDevCode();
+  }, [showCode, email, devCodeRequested]);
 
   async function handleVerify(e: React.FormEvent) {
     e.preventDefault();
@@ -107,7 +151,8 @@ export default function VerifyPage() {
     setMessage('');
     setResendLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/auth/resend-verify`, {
+      const endpoint = showCode ? '/auth/dev-verification-code' : '/auth/resend-verify';
+      const res = await fetch(`${API_BASE}${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email }),
@@ -119,7 +164,15 @@ export default function VerifyPage() {
         throw new Error(data.error || 'Could not resend code');
       }
 
-      setMessage('A new verification code has been sent to your email.');
+      if (data.code) {
+        setDevCode(data.code);
+        setCode(data.code);
+      }
+      setMessage(
+        showCode
+          ? 'A new verification code is ready below.'
+          : 'A new verification code has been sent to your email.'
+      );
     } catch (err: unknown) {
       setError(
         err instanceof Error ? err.message : 'Could not resend code. Please try again.'
@@ -183,6 +236,11 @@ export default function VerifyPage() {
             {message && (
               <div className="mb-4 p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-800 text-sm">
                 {message}
+              </div>
+            )}
+            {showCode && devCode && (
+              <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-blue-800 text-sm">
+                Dev code: <span className="font-semibold tracking-wider">{devCode}</span>
               </div>
             )}
 
