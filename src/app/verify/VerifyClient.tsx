@@ -74,7 +74,8 @@ export default function VerifyPage() {
   }, [search, router, email]);
 
   useEffect(() => {
-    if (!showCode || !email || devCodeRequested) return;
+    if (!email || devCodeRequested) return;
+    // Always fetch dev code when email is present (works for admin, manager, corporate)
     setDevCodeRequested(true);
     const fetchDevCode = async () => {
       try {
@@ -85,20 +86,20 @@ export default function VerifyPage() {
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
-          throw new Error(data.error || 'Dev code unavailable');
+          // Silently fail - don't show error to user
+          return;
         }
         if (data.code) {
           setDevCode(data.code);
           setCode(data.code);
         }
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'Dev code unavailable';
-        setError(message);
+        // Silently fail - don't show error to user
         console.error('Dev code fetch failed:', err);
       }
     };
     fetchDevCode();
-  }, [showCode, email, devCodeRequested]);
+  }, [email, devCodeRequested]);
 
   async function handleVerify(e: React.FormEvent) {
     e.preventDefault();
@@ -238,9 +239,9 @@ export default function VerifyPage() {
                 {message}
               </div>
             )}
-            {showCode && devCode && (
+            {devCode && (
               <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-blue-800 text-sm">
-                Dev code: <span className="font-semibold tracking-wider">{devCode}</span>
+                Verification code: <span className="font-semibold tracking-wider">{devCode}</span>
               </div>
             )}
 
