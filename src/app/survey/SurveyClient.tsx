@@ -23,6 +23,7 @@ export default function SurveyPage() {
   const [loading, setLoading] = useState(false);          // for final submit
   const [validatingCode, setValidatingCode] = useState(false); // for "Start Survey"
   const [codeError, setCodeError] = useState<string | null>(null);
+  const [disclaimerAccepted, setDisclaimerAccepted] = useState(false);
 
   // Calculate progress percentage
   const getProgress = () => {
@@ -57,6 +58,7 @@ export default function SurveyPage() {
           setLeaveReason(progress.leaveReason || '');
           setLeaveOther(progress.leaveOther || '');
           setAdditionalFeedback(progress.additionalFeedback || '');
+          setDisclaimerAccepted(progress.disclaimerAccepted || false);
           if (progress.currentStep) setCurrentStep(progress.currentStep);
           toast.success('Resumed previous survey progress');
         }
@@ -80,13 +82,14 @@ export default function SurveyPage() {
         leaveReason,
         leaveOther,
         additionalFeedback,
+        disclaimerAccepted,
         currentStep,
       };
       localStorage.setItem('survey_progress', JSON.stringify(progress));
     }
   }, [accessCode, employeeStatus, role, satisfactionAnswers, trainingAnswers, 
       terminationReason, terminationOther, leaveReason, leaveOther, 
-      additionalFeedback, currentStep]);
+      additionalFeedback, disclaimerAccepted, currentStep]);
 
   const roles = [
     'Sales Department',
@@ -174,6 +177,11 @@ export default function SurveyPage() {
       return;
     }
 
+    if (!disclaimerAccepted) {
+      toast.error('Please read and accept the survey disclaimer to continue');
+      return;
+    }
+
     setCodeError(null);
     setValidatingCode(true);
 
@@ -232,6 +240,7 @@ export default function SurveyPage() {
         leave_reason: leaveReason || null,
         leave_other: leaveOther || null,
         additional_feedback: additionalFeedback || null,
+        disclaimer_accepted: disclaimerAccepted,
       };
 
       const res = await fetch(`${API_BASE}/survey/submit`, {
@@ -384,9 +393,38 @@ export default function SurveyPage() {
                   )}
                 </div>
 
+                {/* Survey Disclaimer */}
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
+                  <h3 className="text-sm font-semibold text-[#0B2E65]">Survey Disclaimer</h3>
+                  <div className="text-xs text-gray-700 space-y-2 max-h-[200px] overflow-y-auto pr-2">
+                    <p>
+                      By participating in this survey, you acknowledge that:
+                    </p>
+                    <ul className="list-disc list-inside space-y-1 ml-2">
+                      <li>Your responses are anonymous and will be used for internal analysis and improvement purposes</li>
+                      <li>You understand the purpose of this survey and agree to provide honest and accurate feedback</li>
+                      <li>Your participation is voluntary and you may choose not to answer any question</li>
+                      <li>The information collected will be used to improve workplace conditions and employee experience</li>
+                      <li>You have read and understood the terms and conditions of this survey</li>
+                    </ul>
+                  </div>
+                  <label className="flex items-start gap-3 cursor-pointer group">
+                    <input
+                      type="checkbox"
+                      checked={disclaimerAccepted}
+                      onChange={(e) => setDisclaimerAccepted(e.target.checked)}
+                      className="mt-1 w-4 h-4 text-[#0B2E65] border-gray-300 rounded focus:ring-[#0B2E65] cursor-pointer"
+                      required
+                    />
+                    <span className="text-sm text-gray-700 group-hover:text-[#0B2E65] transition-colors">
+                      I have read and agree to the survey disclaimer and terms above
+                    </span>
+                  </label>
+                </div>
+
                 <button
                   onClick={handleStartSurvey}
-                  disabled={!accessCode || validatingCode}
+                  disabled={!accessCode || !disclaimerAccepted || validatingCode}
                   className="cursor-pointer w-full bg-[#0B2E65] text-white py-3 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   {validatingCode ? 'Checking code...' : 'Start Survey'}
