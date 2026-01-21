@@ -23,7 +23,7 @@ const COLORS = {
 };
 
 type HistoryEntry = {
-  id: number;
+  id: number | string;
   type: 'employee' | 'candidate';
   name: string;
   action: string;
@@ -44,7 +44,7 @@ export default function EmployeeRoleHistoryPage() {
   const [selectedType, setSelectedType] = useState('All Types');
   const [selectedAction, setSelectedAction] = useState('All Actions');
   const [currentPage, setCurrentPage] = useState(1);
-  const [openMenuId, setOpenMenuId] = useState<number | null>(null);
+  const [openMenuId, setOpenMenuId] = useState<number | string | null>(null);
   const [historyEntries, setHistoryEntries] = useState<HistoryEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
