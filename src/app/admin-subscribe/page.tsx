@@ -70,24 +70,33 @@ function AdminSubscribePageContent() {
       try {
         const stored = localStorage.getItem('pending_dealership_info');
         console.log('[CHECKOUT] Checking localStorage for dealership info:', stored);
+        console.log('[CHECKOUT] Current email from URL:', email);
         if (stored) {
           const parsed = JSON.parse(stored);
           console.log('[CHECKOUT] Parsed dealership info:', parsed);
+          console.log('[CHECKOUT] Stored email:', parsed.email, 'Type:', typeof parsed.email);
+          console.log('[CHECKOUT] Current email (normalized):', email.trim().toLowerCase(), 'Type:', typeof email);
+          
+          // Normalize both emails for comparison
+          const storedEmail = (parsed.email || '').trim().toLowerCase();
+          const currentEmail = email.trim().toLowerCase();
+          
           // Only use if email matches
-          if (parsed.email === email.trim().toLowerCase()) {
+          if (storedEmail === currentEmail) {
             dealershipInfo = parsed;
-            console.log('[CHECKOUT] Using dealership info for checkout:', dealershipInfo);
+            console.log('[CHECKOUT] ✅ Email match! Using dealership info for checkout:', dealershipInfo);
             // Clean up after retrieving
             localStorage.removeItem('pending_dealership_info');
           } else {
-            console.log('[CHECKOUT] Email mismatch - stored:', parsed.email, 'current:', email.trim().toLowerCase());
+            console.warn('[CHECKOUT] ❌ Email mismatch - stored:', storedEmail, 'current:', currentEmail);
+            console.warn('[CHECKOUT] Stored email length:', storedEmail.length, 'Current email length:', currentEmail.length);
           }
         } else {
           console.log('[CHECKOUT] No dealership info found in localStorage');
         }
       } catch (e) {
         // Ignore localStorage errors
-        console.warn('Failed to retrieve dealership info from localStorage:', e);
+        console.error('[CHECKOUT] Failed to retrieve dealership info from localStorage:', e);
       }
 
       // Create checkout session - checkout endpoint will find user by email
