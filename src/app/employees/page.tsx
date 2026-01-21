@@ -287,7 +287,7 @@ export default function EmployeesPage() {
     setError(null);
 
     // Validate required fields
-    const requiredFields = ['firstName', 'lastName', 'phoneNumber', 'email', 'jobTitle', 'hiredDate', 'department', 'status'];
+    const requiredFields = ['firstName', 'lastName', 'dateOfBirth', 'gender', 'phoneNumber', 'email', 'jobTitle', 'hiredDate', 'department', 'status'];
     const missingFields = requiredFields.filter(field => !formData[field as keyof typeof formData]);
     
     // If "Others" is selected, validate custom department
@@ -323,7 +323,7 @@ export default function EmployeesPage() {
         zip_code: formData.zipCode || null,
         date_of_birth: formData.dateOfBirth || null,
         gender: formData.gender || null,
-        is_active: formData.status !== 'Fired' && formData.status !== 'Terminated' && formData.status !== 'Resigned',
+        is_active: editingEmployee.is_active, // Preserve existing active status (can be changed via termination page)
       };
 
       const res = await fetch(`${API_BASE}/employees/${editingEmployee.id}`, {
@@ -455,20 +455,25 @@ export default function EmployeesPage() {
     'Virginia', 'Washington', 'West Virginia', 'Wisconsin', 'Wyoming'
   ];
 
-  const statuses = ['Full-Time', 'Part-time', 'Intern', 'Resigned', 'Terminated', 'Fired', 'On Leave', 'Onboarding'];
+  const statuses = ['Full-Time', 'Part-time', 'Intern', 'Onboarding'];
+  
+  // Statuses that should be excluded from the filter (removed from system)
+  const excludedStatuses = ['Resigned', 'Terminated', 'Fired', 'On Leave'];
   
   // Get unique statuses from employees, plus standard options
+  // Filter out excluded statuses that are no longer valid options
   const allStatusOptions = [
     'All Statuses',
     'Active',
     'Inactive',
     ...statuses,
     ...Array.from(new Set(employees.map(emp => emp.status).filter(Boolean))) as string[]
-  ].filter((value, index, self) => self.indexOf(value) === index);
+  ]
+    .filter((value, index, self) => self.indexOf(value) === index) // Remove duplicates
+    .filter(status => !excludedStatuses.includes(status)); // Remove excluded statuses
 
   const jobTitles = Array.from(new Set(employees.map(emp => emp.position).filter(Boolean))) as string[];
 
-  // Since auth is bypassed, we'll allow access and default to admin role
   // Only show loading if we haven't checked localStorage yet
   const [mounted, setMounted] = useState(false);
   
@@ -761,19 +766,11 @@ export default function EmployeesPage() {
                                 backgroundColor: emp.status === 'Full-Time' ? '#D1FAE5' : 
                                                 emp.status === 'Part-time' ? '#DBEAFE' :
                                                 emp.status === 'Intern' ? '#FEF3C7' :
-                                                emp.status === 'Resigned' ? '#FEE2E2' :
-                                                emp.status === 'Terminated' ? '#FEE2E2' :
-                                                emp.status === 'Fired' ? '#FEE2E2' :
-                                                emp.status === 'On Leave' ? '#E0E7FF' :
                                                 emp.status === 'Onboarding' ? '#F3E8FF' :
                                                 emp.is_active ? '#D1FAE5' : '#F3F4F6',
                                 color: emp.status === 'Full-Time' ? '#065F46' :
                                        emp.status === 'Part-time' ? '#1E40AF' :
                                        emp.status === 'Intern' ? '#92400E' :
-                                       emp.status === 'Resigned' ? '#991B1B' :
-                                       emp.status === 'Terminated' ? '#991B1B' :
-                                       emp.status === 'Fired' ? '#991B1B' :
-                                       emp.status === 'On Leave' ? '#3730A3' :
                                        emp.status === 'Onboarding' ? '#6B21A8' :
                                        emp.is_active ? '#065F46' : '#374151'
                               }}
@@ -1040,19 +1037,11 @@ export default function EmployeesPage() {
                                 backgroundColor: viewingEmployee.status === 'Full-Time' ? '#D1FAE5' : 
                                                 viewingEmployee.status === 'Part-time' ? '#DBEAFE' :
                                                 viewingEmployee.status === 'Intern' ? '#FEF3C7' :
-                                                viewingEmployee.status === 'Resigned' ? '#FEE2E2' :
-                                                viewingEmployee.status === 'Terminated' ? '#FEE2E2' :
-                                                viewingEmployee.status === 'Fired' ? '#FEE2E2' :
-                                                viewingEmployee.status === 'On Leave' ? '#E0E7FF' :
                                                 viewingEmployee.status === 'Onboarding' ? '#F3E8FF' :
                                                 viewingEmployee.is_active ? '#D1FAE5' : '#F3F4F6',
                                 color: viewingEmployee.status === 'Full-Time' ? '#065F46' :
                                        viewingEmployee.status === 'Part-time' ? '#1E40AF' :
                                        viewingEmployee.status === 'Intern' ? '#92400E' :
-                                       viewingEmployee.status === 'Resigned' ? '#991B1B' :
-                                       viewingEmployee.status === 'Terminated' ? '#991B1B' :
-                                       viewingEmployee.status === 'Fired' ? '#991B1B' :
-                                       viewingEmployee.status === 'On Leave' ? '#3730A3' :
                                        viewingEmployee.status === 'Onboarding' ? '#6B21A8' :
                                        viewingEmployee.is_active ? '#065F46' : '#374151'
                               }}
@@ -1199,6 +1188,113 @@ export default function EmployeesPage() {
                           backgroundColor: '#FFFFFF',
                         }}
                       />
+                    </div>
+                    <div className="col-span-2">
+                      <label className="block text-xs font-semibold mb-1.5" style={{ color: '#374151' }}>Home Address</label>
+                      <div className="grid grid-cols-2 gap-2 mb-2">
+                        <input
+                          type="text"
+                          placeholder="Street"
+                          value={formData.street}
+                          onChange={(e) => setFormData({ ...formData, street: e.target.value })}
+                          className="w-full px-3 py-2 text-sm rounded-lg transition-all focus:outline-none focus:ring-2"
+                          style={{ 
+                            border: '1px solid #D1D5DB', 
+                            color: '#374151', 
+                            backgroundColor: '#FFFFFF',
+                          }}
+                        />
+                        <input
+                          type="text"
+                          placeholder="City"
+                          value={formData.city}
+                          onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                          className="w-full px-3 py-2 text-sm rounded-lg transition-all focus:outline-none focus:ring-2"
+                          style={{ 
+                            border: '1px solid #D1D5DB', 
+                            color: '#374151', 
+                            backgroundColor: '#FFFFFF',
+                          }}
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="relative">
+                          <select
+                            value={formData.state}
+                            onChange={(e) => setFormData({ ...formData, state: e.target.value })}
+                            className="w-full px-3 py-2 text-sm rounded-lg appearance-none cursor-pointer transition-all focus:outline-none focus:ring-2"
+                            style={{ 
+                              border: '1px solid #D1D5DB', 
+                              color: '#374151', 
+                              backgroundColor: '#FFFFFF',
+                            }}
+                          >
+                            <option value="">Select State</option>
+                            {states.map(state => (
+                              <option key={state} value={state}>{state}</option>
+                            ))}
+                          </select>
+                          <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: '#6B7280' }}>
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                            </svg>
+                          </div>
+                        </div>
+                        <input
+                          type="text"
+                          placeholder="Zip Code"
+                          value={formData.zipCode}
+                          onChange={(e) => setFormData({ ...formData, zipCode: e.target.value })}
+                          className="w-full px-3 py-2 text-sm rounded-lg transition-all focus:outline-none focus:ring-2"
+                          style={{ 
+                            border: '1px solid #D1D5DB', 
+                            color: '#374151', 
+                            backgroundColor: '#FFFFFF',
+                          }}
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold mb-1.5" style={{ color: '#374151' }}>Date of Birth *</label>
+                      <input
+                        type="date"
+                        value={formData.dateOfBirth}
+                        onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })}
+                        required
+                        className="w-full px-3 py-2 text-sm rounded-lg transition-all focus:outline-none focus:ring-2"
+                        style={{ 
+                          border: '1px solid #D1D5DB', 
+                          color: '#374151', 
+                          backgroundColor: '#FFFFFF',
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold mb-1.5" style={{ color: '#374151' }}>Gender *</label>
+                      <div className="relative">
+                        <select
+                          value={formData.gender}
+                          onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
+                          required
+                          className="w-full px-3 py-2 text-sm rounded-lg appearance-none cursor-pointer transition-all focus:outline-none focus:ring-2"
+                          style={{ 
+                            border: '1px solid #D1D5DB', 
+                            color: '#374151', 
+                            backgroundColor: '#FFFFFF',
+                          }}
+                        >
+                          <option value="">Select Gender</option>
+                          <option value="Male">Male</option>
+                          <option value="Female">Female</option>
+                          <option value="Other">Other</option>
+                          <option value="Prefer not to say">Prefer not to say</option>
+                        </select>
+                        <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: '#6B7280' }}>
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                          </svg>
+                        </div>
+                      </div>
                     </div>
                     <div>
                       <label className="block text-xs font-semibold mb-1.5" style={{ color: '#374151' }}>Employee ID</label>

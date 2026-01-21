@@ -164,11 +164,14 @@ export default function HubSidebar() {
         headers: { Authorization: `Bearer ${token}` },
       });
 
+      const data = await res.json().catch(() => ({}));
+      
       if (res.ok) {
-        const data = await res.json();
-        if (data.role) {
-          setRole(data.role);
-          localStorage.setItem('role', data.role);
+        // Check both data.role (from login response) and data.user.role (from /auth/me response)
+        const userRole = data.user?.role || data.role;
+        if (userRole) {
+          setRole(userRole);
+          localStorage.setItem('role', userRole);
         }
         if (data.user) {
           setIsApproved(data.user.is_approved !== false);
@@ -176,10 +179,18 @@ export default function HubSidebar() {
           setIsApproved(data.is_approved !== false);
         }
       } else {
-        const data = await res.json().catch(() => ({}));
+        // Handle manager_not_approved error
         if (data.error === 'manager_not_approved') {
           setRole('manager');
           setIsApproved(false);
+          localStorage.setItem('role', 'manager');
+        } else {
+          // For other errors, try to get role from localStorage
+          const storedRole = localStorage.getItem('role');
+          if (storedRole === 'manager') {
+            setRole('manager');
+            setIsApproved(false);
+          }
         }
       }
     } catch (err) {
@@ -223,6 +234,7 @@ export default function HubSidebar() {
         { label: 'Employee List', href: '/employees' },
         { label: 'Performance Reviews', href: '/employees/performance' },
         { label: 'Role History', href: '/employees/history' },
+        { label: 'Employee Exit', href: '/employees/termination' },
       ],
     },
     {
@@ -243,8 +255,7 @@ export default function HubSidebar() {
     { label: 'Dealership Standings', href: '/standings', icon: <StandingsIcon /> },
     ...(role === 'corporate' ? [
       { label: 'Select Dealership', href: '/corporate/select-dealership', icon: <DealershipIcon /> },
-      { label: 'Dealership Overview', href: '/dealerships', icon: <DealershipIcon /> },
-      { label: 'Admin Requests', href: '/corporate/admin-requests', icon: <DealershipIcon /> }
+      { label: 'Dealership Overview', href: '/dealerships', icon: <DealershipIcon /> }
     ] : []),
   ];
 

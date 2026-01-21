@@ -26,22 +26,29 @@ export default function RequireAuth({ children }: Props) {
           headers: { Authorization: `Bearer ${token}` },
         });
 
+        const data = await res.json().catch(() => ({}));
+
         if (res.ok) {
-          const data = await res.json();
-          // Check if user is approved (for managers)
-          if (data.error === 'manager_not_approved' || data.is_approved === false) {
-            // Allow access but the page will show approval pending message
-            setOk(true);
-          } else {
-            setOk(true);
-          }
-        } else {
-          // Token invalid or expired
+          // User is authenticated and approved
+          setOk(true);
+        } else if (res.status === 403 && data.error === 'manager_not_approved') {
+          // Manager not approved - allow access so they can see the waiting message
+          setOk(true);
+        } else if (res.status === 401 || res.status === 403) {
+          // Token invalid, expired, or unauthorized - redirect to login
           router.replace('/login');
+        } else {
+          // Other error - allow access (page will handle it)
+          setOk(true);
         }
       } catch (err) {
         console.error('Auth check failed:', err);
-        router.replace('/login');
+        // On network error, check if we have a token - if yes, allow access
+        if (token) {
+          setOk(true);
+        } else {
+          router.replace('/login');
+        }
       } finally {
         setChecking(false);
       }

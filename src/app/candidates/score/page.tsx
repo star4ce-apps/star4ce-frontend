@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react';
 import React from 'react';
 import HubSidebar from '@/components/sidebar/HubSidebar';
 import RequireAuth from '@/components/layout/RequireAuth';
+import { API_BASE, getToken } from '@/lib/auth';
+import toast from 'react-hot-toast';
 
 // Modern color palette - matching surveys page
 const COLORS = {
@@ -469,6 +471,23 @@ const criteriaData: Record<string, Criterion[]> = {
   ],
 };
 
+type Candidate = {
+  id: number;
+  name: string;
+  email: string;
+  phone: string | null;
+  position: string;
+  status: string;
+  score?: number | null;
+};
+
+type Manager = {
+  id: number;
+  email: string;
+  full_name?: string | null;
+  role: string;
+};
+
 export default function ScoreCandidatePage() {
   const [selectedRole, setSelectedRole] = useState('mid-level');
   const [selectedCandidate, setSelectedCandidate] = useState('');
@@ -477,9 +496,75 @@ export default function ScoreCandidatePage() {
   const [scores, setScores] = useState<Record<string, number>>({});
   const [expandedCriteria, setExpandedCriteria] = useState<Record<string, boolean>>({});
   const [showPrintView, setShowPrintView] = useState(false);
+  const [candidates, setCandidates] = useState<Candidate[]>([]);
+  const [managers, setManagers] = useState<Manager[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   const currentCriteria = criteriaData[selectedRole] || [];
   const selectedRoleData = roles.find(r => r.id === selectedRole);
+
+  // Load candidates and managers on mount
+  useEffect(() => {
+    loadCandidates();
+    loadManagers();
+  }, []);
+
+  async function loadCandidates() {
+    try {
+      const token = getToken();
+      if (!token) return;
+
+      const res = await fetch(`${API_BASE}/candidates`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setCandidates(data.items || []);
+      }
+    } catch (err) {
+      console.error('Failed to load candidates:', err);
+    }
+  }
+
+  async function loadManagers() {
+    try {
+      const token = getToken();
+      if (!token) return;
+
+      // Try to get managers from admin endpoint
+      const res = await fetch(`${API_BASE}/admin/managers`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        // Combine approved and pending managers
+        const allManagers = [
+          ...(data.managers || []),
+          ...(data.pending || [])
+        ];
+        setManagers(allManagers);
+      } else {
+        // If not admin, try to get current user as manager
+        const userRes = await fetch(`${API_BASE}/auth/me`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const userData = await userRes.json().catch(() => ({}));
+        if (userRes.ok && (userData.role === 'manager' || userData.role === 'hiring_manager')) {
+          setManagers([{
+            id: userData.id || 0,
+            email: userData.email || '',
+            full_name: userData.full_name || null,
+            role: userData.role || 'manager'
+          }]);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load managers:', err);
+    }
+  }
 
   const toggleExpand = (criterionId: string) => {
     setExpandedCriteria(prev => ({
@@ -507,9 +592,85 @@ export default function ScoreCandidatePage() {
     return sum + calculateWeighted(criterion.id);
   }, 0);
 
-  const handleSubmit = () => {
-    // TODO: Submit scores to API
-    alert('Scores submitted successfully!');
+  const handleSubmit = async () => {
+    if (!selectedCandidate) {
+      toast.error('Please select a candidate');
+      return;
+    }
+
+    if (!selectedManager) {
+      toast.error('Please select a hiring manager');
+      return;
+    }
+
+    if (!selectedStage) {
+      toast.error('Please select an interview stage');
+      return;
+    }
+
+    // Check if at least one score is entered
+    const hasScores = Object.keys(scores).some(key => scores[key] > 0);
+    if (!hasScores) {
+      toast.error('Please enter at least one score');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const token = getToken();
+      if (!token) {
+        toast.error('Not logged in');
+        return;
+      }
+
+      // Convert total weighted score (0-10 scale) to 0-100 scale
+      const scoreOutOf100 = Math.round(totalWeighted * 10);
+
+      // Get candidate and manager info
+      const candidate = candidates.find(c => c.id.toString() === selectedCandidate);
+      const manager = managers.find(m => m.id.toString() === selectedManager);
+
+      // Create notes with interview details
+      const interviewNotes = `Interview Stage: ${selectedStage}\nHiring Manager: ${manager?.full_name || manager?.email || 'Unknown'}\nRole: ${selectedRoleData?.name || selectedRole}\n\nScores:\n${currentCriteria.map(c => {
+        const score = scores[c.id] || 0;
+        const weighted = calculateWeighted(c.id);
+        return `${c.name}: ${score}/10 (Weighted: ${weighted.toFixed(2)})`;
+      }).join('\n')}\n\nTotal Weighted Score: ${totalWeighted.toFixed(2)}/10 (${scoreOutOf100}/100)`;
+
+      // Update candidate with score and notes
+      const res = await fetch(`${API_BASE}/candidates/${selectedCandidate}`, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          score: scoreOutOf100,
+          notes: interviewNotes,
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to submit scores');
+      }
+
+      toast.success('Scores submitted successfully!');
+      
+      // Reset form
+      setScores({});
+      setSelectedCandidate('');
+      setSelectedManager('');
+      setSelectedStage('');
+      
+      // Reload candidates to get updated score
+      await loadCandidates();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to submit scores';
+      toast.error(msg);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleReset = () => {
@@ -577,6 +738,22 @@ export default function ScoreCandidatePage() {
           </div>
 
           {/* Candidate, Hiring Manager, and Interview Stage Selection */}
+          {(() => {
+            const selectedCandidateObj = candidates.find(c => c.id.toString() === selectedCandidate);
+            if (selectedCandidate && selectedCandidateObj && selectedCandidateObj.score !== null && selectedCandidateObj.score !== undefined) {
+              return (
+                <div className="mb-4 p-3 rounded-lg" style={{ backgroundColor: '#FEF3C7', border: '1px solid #FCD34D' }}>
+                  <p className="text-sm font-semibold" style={{ color: '#92400E' }}>
+                    Existing Score: {selectedCandidateObj.score}/100
+                  </p>
+                  <p className="text-xs" style={{ color: '#78350F' }}>
+                    Entering new scores will update this candidate's score.
+                  </p>
+                </div>
+              );
+            }
+            return null;
+          })()}
           <div className="grid grid-cols-3 gap-4 mb-6">
             <div>
               <label className="block text-sm font-bold mb-2" style={{ color: '#232E40' }}>
@@ -591,11 +768,14 @@ export default function ScoreCandidatePage() {
                   color: '#374151',
                   backgroundColor: '#FFFFFF',
                 }}
+                disabled={loading}
               >
                 <option value="">Please choose...</option>
-                <option value="candidate1">Candidate 1</option>
-                <option value="candidate2">Candidate 2</option>
-                <option value="candidate3">Candidate 3</option>
+                {candidates.map(candidate => (
+                  <option key={candidate.id} value={candidate.id.toString()}>
+                    {candidate.name} - {candidate.position} {candidate.score !== null && candidate.score !== undefined ? `(Score: ${candidate.score})` : ''}
+                  </option>
+                ))}
               </select>
             </div>
             <div>
@@ -611,11 +791,14 @@ export default function ScoreCandidatePage() {
                   color: '#374151',
                   backgroundColor: '#FFFFFF',
                 }}
+                disabled={loading}
               >
                 <option value="">Please choose...</option>
-                <option value="manager1">Manager 1</option>
-                <option value="manager2">Manager 2</option>
-                <option value="manager3">Manager 3</option>
+                {managers.map(manager => (
+                  <option key={manager.id} value={manager.id.toString()}>
+                    {manager.full_name || manager.email} ({manager.role})
+                  </option>
+                ))}
               </select>
             </div>
             <div>
@@ -809,14 +992,14 @@ export default function ScoreCandidatePage() {
               </button>
               <button
                 onClick={handleSubmit}
-                disabled={!selectedCandidate || !selectedManager || !selectedStage}
+                disabled={!selectedCandidate || !selectedManager || !selectedStage || submitting}
                 className="px-6 py-2.5 rounded-lg text-sm font-semibold transition-all hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
                 style={{
                   backgroundColor: '#10B981',
                   color: '#FFFFFF',
                 }}
               >
-                Submit
+                {submitting ? 'Submitting...' : 'Submit'}
               </button>
             </div>
           </div>

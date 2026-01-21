@@ -150,23 +150,54 @@ function DashboardContent() {
           const token = getToken();
           if (!token) return;
           
+          // Check localStorage first for quick display
+          const storedRole = localStorage.getItem('role');
+          if (storedRole === 'manager') {
+            setUserRole('manager');
+            // Don't set isApproved yet, wait for API response
+          }
+          
           const res = await fetch(`${API_BASE}/auth/me`, {
             headers: { Authorization: `Bearer ${token}` },
           });
           
+          const data = await res.json().catch(() => ({}));
+          
           if (res.ok) {
-            const data = await res.json();
             setUserRole(data.user?.role || data.role);
             setIsApproved(data.user?.is_approved !== false && data.is_approved !== false);
           } else {
-            const data = await res.json();
-            if (data.error === 'manager_not_approved') {
+            // Handle manager_not_approved error
+            console.log('Auth check failed:', res.status, data);
+            
+            // If we get a 403, check if it's manager_not_approved
+            if (res.status === 403) {
+              if (data.error === 'manager_not_approved') {
+                // Explicitly manager not approved
+                setUserRole('manager');
+                setIsApproved(false);
+                localStorage.setItem('role', 'manager');
+                console.log('Manager not approved - showing waiting message');
+              } else if (storedRole === 'manager') {
+                // 403 error and we know we're a manager - assume not approved
+                setUserRole('manager');
+                setIsApproved(false);
+                console.log('Manager with 403 error - showing waiting message');
+              }
+            } else if (storedRole === 'manager') {
+              // Other error but we're a manager - assume not approved
               setUserRole('manager');
               setIsApproved(false);
             }
           }
         } catch (err) {
           console.error('Failed to check user status:', err);
+          // On error, check localStorage
+          const storedRole = localStorage.getItem('role');
+          if (storedRole === 'manager') {
+            setUserRole('manager');
+            setIsApproved(false);
+          }
         }
       }
       
@@ -327,7 +358,18 @@ function DashboardContent() {
   };
 
   // Show waiting message for unapproved managers
-  if (userRole === 'manager' && isApproved === false) {
+  // Check if manager role and either explicitly not approved, or check localStorage as fallback
+  const storedRole = typeof window !== 'undefined' ? localStorage.getItem('role') : null;
+  const isManager = userRole === 'manager' || storedRole === 'manager';
+  // Show message if: explicitly not approved, OR we're a manager and approval status is null/unknown
+  const isNotApproved = isApproved === false || (isApproved === null && isManager);
+  
+  // Debug logging
+  if (isManager) {
+    console.log('Manager check:', { userRole, storedRole, isApproved, isNotApproved, willShow: isManager && isNotApproved });
+  }
+  
+  if (isManager && isNotApproved) {
     return (
       <RequireAuth>
         <div className="flex min-h-screen" style={{ backgroundColor: COLORS.gray[50] }}>

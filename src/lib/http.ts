@@ -50,3 +50,29 @@ export async function getJson<T = any>(
 
   return data as T;
 }
+
+export async function getJsonAuth<T = any>(
+  path: string,
+  init: RequestInit = {}
+): Promise<T> {
+  const token = getToken();
+
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: 'GET',
+    cache: 'no-store',
+    ...init,
+    headers: {
+      ...(init.headers || {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+
+  const data = (await res.json().catch(() => ({}))) as any;
+
+  if (!res.ok) {
+    const msg = data?.error || `Request failed (${res.status})`;
+    throw new Error(msg);
+  }
+
+  return data as T;
+}
