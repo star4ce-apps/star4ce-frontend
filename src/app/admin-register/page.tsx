@@ -131,14 +131,18 @@ function AdminRegisterPageContent() {
 
         // Store dealership information in localStorage for later use during checkout
         if (dealershipName || dealershipAddress || dealershipCity || dealershipState || dealershipZipCode) {
-          localStorage.setItem('pending_dealership_info', JSON.stringify({
+          const dealershipInfo = {
             name: dealershipName.trim(),
             address: dealershipAddress.trim() || null,
             city: dealershipCity.trim() || null,
             state: dealershipState.trim() || null,
             zip_code: dealershipZipCode.trim() || null,
             email: email.trim().toLowerCase(),
-          }));
+          };
+          localStorage.setItem('pending_dealership_info', JSON.stringify(dealershipInfo));
+          console.log('[REGISTER] Stored dealership info in localStorage:', dealershipInfo);
+        } else {
+          console.log('[REGISTER] No dealership info to store');
         }
 
         // Redirect to verification page - user must verify email first, then subscribe

@@ -69,14 +69,21 @@ function AdminSubscribePageContent() {
       let dealershipInfo: any = null;
       try {
         const stored = localStorage.getItem('pending_dealership_info');
+        console.log('[CHECKOUT] Checking localStorage for dealership info:', stored);
         if (stored) {
           const parsed = JSON.parse(stored);
+          console.log('[CHECKOUT] Parsed dealership info:', parsed);
           // Only use if email matches
           if (parsed.email === email.trim().toLowerCase()) {
             dealershipInfo = parsed;
+            console.log('[CHECKOUT] Using dealership info for checkout:', dealershipInfo);
             // Clean up after retrieving
             localStorage.removeItem('pending_dealership_info');
+          } else {
+            console.log('[CHECKOUT] Email mismatch - stored:', parsed.email, 'current:', email.trim().toLowerCase());
           }
+        } else {
+          console.log('[CHECKOUT] No dealership info found in localStorage');
         }
       } catch (e) {
         // Ignore localStorage errors
@@ -96,6 +103,15 @@ function AdminSubscribePageContent() {
         checkoutBody.dealership_city = dealershipInfo.city || null;
         checkoutBody.dealership_state = dealershipInfo.state || null;
         checkoutBody.dealership_zip_code = dealershipInfo.zip_code || null;
+        console.log('[CHECKOUT] Sending dealership info to backend:', {
+          name: checkoutBody.dealership_name,
+          address: checkoutBody.dealership_address,
+          city: checkoutBody.dealership_city,
+          state: checkoutBody.dealership_state,
+          zip_code: checkoutBody.dealership_zip_code,
+        });
+      } else {
+        console.log('[CHECKOUT] No dealership info to send');
       }
 
       const checkoutRes = await fetch(`${API_BASE}/subscription/create-checkout`, {
