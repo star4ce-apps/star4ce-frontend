@@ -129,6 +129,18 @@ function AdminRegisterPageContent() {
         
         user_id = registerData.user_id;
 
+        // Store dealership information in localStorage for later use during checkout
+        if (dealershipName || dealershipAddress || dealershipCity || dealershipState || dealershipZipCode) {
+          localStorage.setItem('pending_dealership_info', JSON.stringify({
+            name: dealershipName.trim(),
+            address: dealershipAddress.trim() || null,
+            city: dealershipCity.trim() || null,
+            state: dealershipState.trim() || null,
+            zip_code: dealershipZipCode.trim() || null,
+            email: email.trim().toLowerCase(),
+          }));
+        }
+
         // Redirect to verification page - user must verify email first, then subscribe
         toast.success('Account created! Please check your email for verification code.');
         router.push(`/verify?email=${encodeURIComponent(email.trim().toLowerCase())}&admin=true`);

@@ -65,14 +65,43 @@ function AdminSubscribePageContent() {
     setLoading(true);
     setError('');
     try {
+      // Retrieve dealership information from localStorage if available
+      let dealershipInfo: any = null;
+      try {
+        const stored = localStorage.getItem('pending_dealership_info');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          // Only use if email matches
+          if (parsed.email === email.trim().toLowerCase()) {
+            dealershipInfo = parsed;
+            // Clean up after retrieving
+            localStorage.removeItem('pending_dealership_info');
+          }
+        }
+      } catch (e) {
+        // Ignore localStorage errors
+        console.warn('Failed to retrieve dealership info from localStorage:', e);
+      }
+
       // Create checkout session - checkout endpoint will find user by email
+      const checkoutBody: any = {
+        email: email.trim().toLowerCase(),
+        billing_plan: plan,
+      };
+
+      // Add dealership information to checkout metadata if available
+      if (dealershipInfo) {
+        checkoutBody.dealership_name = dealershipInfo.name || null;
+        checkoutBody.dealership_address = dealershipInfo.address || null;
+        checkoutBody.dealership_city = dealershipInfo.city || null;
+        checkoutBody.dealership_state = dealershipInfo.state || null;
+        checkoutBody.dealership_zip_code = dealershipInfo.zip_code || null;
+      }
+
       const checkoutRes = await fetch(`${API_BASE}/subscription/create-checkout`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: email.trim().toLowerCase(),
-          billing_plan: plan,
-        }),
+        body: JSON.stringify(checkoutBody),
       });
 
       if (!checkoutRes.ok) {
