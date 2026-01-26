@@ -2,6 +2,7 @@
 import { ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import TopNav from "../nav/TopNav";
+import Footer from "../nav/Footer";
 import PageScripts from "../PageScripts";
 
 export default function AppShell({ children }: { children: ReactNode }) {
@@ -19,18 +20,32 @@ export default function AppShell({ children }: { children: ReactNode }) {
                           pathname?.startsWith('/surveys') ||
                           pathname?.startsWith('/access-codes');
   
+  // Survey page should not have footer and should not have padding
+  const isSurveyPage = pathname === '/survey';
+  
+  // Only show footer on home page
+  const showFooter = pathname === '/';
+  
   if (isDashboardPage) {
     return <>{children}</>;
   }
 
-  if (isDashboardPage) {
-    return <>{children}</>;
+  // Survey page has TopNav but no footer and no padding
+  if (isSurveyPage) {
+    return (
+      <div className="min-h-screen flex flex-col bg-white">
+        <TopNav />
+        <main className="flex-1">{children}</main>
+        <PageScripts />
+      </div>
+    );
   }
 
   return (
     <div className="min-h-screen flex flex-col bg-white">
       <TopNav />
-      <main className="flex-1 pt-[120px]">{children}</main>
+      <main className="flex-1 pt-[110px]">{children}</main>
+      {showFooter && <Footer />}
       <PageScripts />
     </div>
   );

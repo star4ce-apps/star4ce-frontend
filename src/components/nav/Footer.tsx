@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import Logo from '@/components/Logo';
 
 export default function Footer()
 {
@@ -8,7 +9,7 @@ export default function Footer()
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-12">
           {/* Logo/Brand Column */}
           <div className="md:col-span-1">
-            <img src="/images/Logo 4.png" alt="Star4ce" className="h-12 mb-4" />
+            <Logo size="md" variant="white" className="mb-4" />
             <p className="text-white/80 text-sm leading-relaxed mb-4">
               Better Hires. Fewer Exits.
             </p>
@@ -118,18 +119,34 @@ export default function Footer()
               </p>
             </div>
             <div className="mt-4 space-y-2">
-              <a href="/privacy" className="text-white/80 hover:text-white transition-colors text-sm block">
+              <Link href="/privacy" className="text-white/80 hover:text-white transition-colors text-sm block">
                 Privacy Policy
-              </a>
-              <a href="/terms" className="text-white/80 hover:text-white transition-colors text-sm block">
+              </Link>
+              <Link href="/terms" className="text-white/80 hover:text-white transition-colors text-sm block">
                 Terms of Service
-              </a>
+              </Link>
+              <Link href="/legal" className="text-white/80 hover:text-white transition-colors text-sm block">
+                Legal Notice
+              </Link>
             </div>
           </div>
         </div>
 
-        {/* Copyright */}
+        {/* Legal Links */}
         <div className="border-t border-white/20 pt-6 mt-8">
+          <div className="flex flex-wrap justify-center items-center gap-6 mb-4">
+            <Link href="/privacy" className="text-white/80 hover:text-white transition-colors text-sm">
+              Privacy Policy
+            </Link>
+            <span className="text-white/40">|</span>
+            <Link href="/terms" className="text-white/80 hover:text-white transition-colors text-sm">
+              Terms of Service
+            </Link>
+            <span className="text-white/40">|</span>
+            <Link href="/legal" className="text-white/80 hover:text-white transition-colors text-sm">
+              Legal Notice
+            </Link>
+          </div>
           <div className="text-center">
             <p className="text-white text-sm">&copy; {new Date().getFullYear()} Star4ce. All rights reserved.</p>
           </div>

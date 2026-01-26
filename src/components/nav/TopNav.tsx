@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
 import { getToken, clearSession } from '@/lib/auth';
 import Image from "next/image";
+import Logo from "@/components/Logo";
 
 export default function TopNav()
 {
@@ -92,25 +93,27 @@ export default function TopNav()
       </div>
 
       {/* Main Navigation */}
-      <div className="bg-[#f5f5f5] py-3">
+      <div className="bg-[#f5f5f5] py-4">
         <div className="max-w-[1200px] mx-auto px-5">
           <div className="flex justify-between items-center gap-4">
             <Link href="/" className="flex items-center hover:scale-[1.02] transition-transform flex-shrink-0">
-              <Image
-                src="/images/Logo 4.png"
-                alt="Star4ce"
-                width={200}
-                height={80}
-                className="h-12 md:h-[50px] w-auto"
-              />
+              <Logo size="lg" />
             </Link>
 
             <nav className="hidden lg:flex items-center gap-4 xl:gap-6 flex-wrap">
               {email ? (
                 <>
                   <Link 
+                    href="/" 
+                    className={`cursor-pointer text-[#0B2E65] font-bold whitespace-nowrap hover:text-[#2c5aa0] transition-colors ${
+                      pathname === '/' ? 'text-[#2c5aa0] border-b-2 border-[#2c5aa0] pb-1' : ''
+                    }`}
+                  >
+                    Home
+                  </Link>
+                  <Link 
                     href="/dashboard" 
-                    className={`cursor-pointer text-[#0B2E65] font-bold text-sm whitespace-nowrap hover:text-[#2c5aa0] transition-colors ${
+                    className={`cursor-pointer text-[#0B2E65] font-bold whitespace-nowrap hover:text-[#2c5aa0] transition-colors ${
                       pathname === '/dashboard' ? 'text-[#2c5aa0] border-b-2 border-[#2c5aa0] pb-1' : ''
                     }`}
                   >
@@ -118,7 +121,7 @@ export default function TopNav()
                   </Link>
                   <Link 
                     href="/employees" 
-                    className={`cursor-pointer text-[#0B2E65] font-bold text-sm whitespace-nowrap hover:text-[#2c5aa0] transition-colors ${
+                    className={`cursor-pointer text-[#0B2E65] font-bold whitespace-nowrap hover:text-[#2c5aa0] transition-colors ${
                       pathname === '/employees' ? 'text-[#2c5aa0] border-b-2 border-[#2c5aa0] pb-1' : ''
                     }`}
                   >
@@ -126,7 +129,7 @@ export default function TopNav()
                   </Link>
                   <Link 
                     href="/analytics" 
-                    className={`cursor-pointer text-[#0B2E65] font-bold text-sm whitespace-nowrap hover:text-[#2c5aa0] transition-colors ${
+                    className={`cursor-pointer text-[#0B2E65] font-bold whitespace-nowrap hover:text-[#2c5aa0] transition-colors ${
                       pathname === '/analytics' ? 'text-[#2c5aa0] border-b-2 border-[#2c5aa0] pb-1' : ''
                     }`}
                   >
@@ -134,7 +137,7 @@ export default function TopNav()
                   </Link>
                   <Link 
                     href="/access-codes" 
-                    className={`cursor-pointer text-[#0B2E65] font-bold text-sm whitespace-nowrap hover:text-[#2c5aa0] transition-colors ${
+                    className={`cursor-pointer text-[#0B2E65] font-bold whitespace-nowrap hover:text-[#2c5aa0] transition-colors ${
                       pathname === '/access-codes' ? 'text-[#2c5aa0] border-b-2 border-[#2c5aa0] pb-1' : ''
                     }`}
                   >
@@ -142,7 +145,7 @@ export default function TopNav()
                   </Link>
                   <Link 
                     href="/survey" 
-                    className={`cursor-pointer text-[#0B2E65] font-bold text-sm whitespace-nowrap hover:text-[#2c5aa0] transition-colors ${
+                    className={`cursor-pointer text-[#0B2E65] font-bold whitespace-nowrap hover:text-[#2c5aa0] transition-colors ${
                       pathname === '/survey' ? 'text-[#2c5aa0] border-b-2 border-[#2c5aa0] pb-1' : ''
                     }`}
                   >
@@ -150,7 +153,7 @@ export default function TopNav()
                   </Link>
                   <Link 
                     href="/subscription" 
-                    className={`cursor-pointer text-[#0B2E65] font-bold text-sm whitespace-nowrap hover:text-[#2c5aa0] transition-colors ${
+                    className={`cursor-pointer text-[#0B2E65] font-bold whitespace-nowrap hover:text-[#2c5aa0] transition-colors ${
                       pathname === '/subscription' ? 'text-[#2c5aa0] border-b-2 border-[#2c5aa0] pb-1' : ''
                     }`}
                   >
@@ -158,7 +161,7 @@ export default function TopNav()
                   </Link>
                   <Link 
                     href="/standings" 
-                    className={`cursor-pointer text-[#0B2E65] font-bold text-sm whitespace-nowrap hover:text-[#2c5aa0] transition-colors ${
+                    className={`cursor-pointer text-[#0B2E65] font-bold whitespace-nowrap hover:text-[#2c5aa0] transition-colors ${
                       pathname === '/standings' ? 'text-[#2c5aa0] border-b-2 border-[#2c5aa0] pb-1' : ''
                     }`}
                   >
@@ -168,8 +171,16 @@ export default function TopNav()
               ) : (
                 <>
                   <Link 
+                    href="/" 
+                    className={`cursor-pointer text-[#0B2E65] font-bold whitespace-nowrap hover:text-[#2c5aa0] transition-colors ${
+                      pathname === '/' ? 'text-[#2c5aa0] border-b-2 border-[#2c5aa0] pb-1' : ''
+                    }`}
+                  >
+                    Home
+                  </Link>
+                  <Link 
                     href="/choose-star4ce" 
-                    className={`cursor-pointer text-[#0B2E65] font-bold text-sm whitespace-nowrap hover:text-[#2c5aa0] transition-colors ${
+                    className={`cursor-pointer text-[#0B2E65] font-bold whitespace-nowrap hover:text-[#2c5aa0] transition-colors ${
                       pathname === '/choose-star4ce' ? 'text-[#2c5aa0] border-b-2 border-[#2c5aa0] pb-1' : ''
                     }`}
                   >
@@ -177,7 +188,7 @@ export default function TopNav()
                   </Link>
                   <Link 
                     href="/case-studies" 
-                    className={`cursor-pointer text-[#0B2E65] font-bold text-sm whitespace-nowrap hover:text-[#2c5aa0] transition-colors ${
+                    className={`cursor-pointer text-[#0B2E65] font-bold whitespace-nowrap hover:text-[#2c5aa0] transition-colors ${
                       pathname === '/case-studies' ? 'text-[#2c5aa0] border-b-2 border-[#2c5aa0] pb-1' : ''
                     }`}
                   >
@@ -185,7 +196,7 @@ export default function TopNav()
                   </Link>
                   <Link 
                     href="/survey" 
-                    className={`cursor-pointer text-[#0B2E65] font-bold text-sm whitespace-nowrap hover:text-[#2c5aa0] transition-colors ${
+                    className={`cursor-pointer text-[#0B2E65] font-bold whitespace-nowrap hover:text-[#2c5aa0] transition-colors ${
                       pathname === '/survey' ? 'text-[#2c5aa0] border-b-2 border-[#2c5aa0] pb-1' : ''
                     }`}
                   >
@@ -198,7 +209,7 @@ export default function TopNav()
             <div className="flex items-center gap-3 flex-shrink-0">
               <Link
                 href="/pricing"
-                className="hidden lg:block cursor-pointer bg-[#e74c3c] text-white px-4 py-2 rounded uppercase text-xs font-bold hover:bg-[#c0392b] transition-colors whitespace-nowrap"
+                className="hidden lg:block cursor-pointer bg-[#e74c3c] text-white px-4 py-2 rounded uppercase font-bold hover:bg-[#c0392b] transition-colors whitespace-nowrap"
               >
                 BOOK NOW
               </Link>
@@ -218,6 +229,15 @@ export default function TopNav()
                 <div className="flex flex-col py-2 max-h-[80vh] overflow-y-auto">
                   {email ? (
                     <>
+                      <Link 
+                        href="/" 
+                        className={`px-6 py-3 text-[#0B2E65] font-semibold hover:bg-gray-50 transition-colors ${
+                          pathname === '/' ? 'bg-blue-50 text-[#2c5aa0] border-l-4 border-[#2c5aa0]' : ''
+                        }`}
+                        onClick={() => setMobileMenuOpen(false)}
+                      >
+                        Home
+                      </Link>
                       <Link 
                         href="/dashboard" 
                         className={`px-6 py-3 text-[#0B2E65] font-semibold hover:bg-gray-50 transition-colors ${
@@ -295,6 +315,15 @@ export default function TopNav()
                   ) : (
                     <>
                       <Link 
+                        href="/" 
+                        className={`px-6 py-3 text-[#0B2E65] font-semibold hover:bg-gray-50 transition-colors ${
+                          pathname === '/' ? 'bg-blue-50 text-[#2c5aa0] border-l-4 border-[#2c5aa0]' : ''
+                        }`}
+                        onClick={() => setMobileMenuOpen(false)}
+                      >
+                        Home
+                      </Link>
+                      <Link 
                         href="/choose-star4ce" 
                         className={`px-6 py-3 text-[#0B2E65] font-semibold hover:bg-gray-50 transition-colors ${
                           pathname === '/choose-star4ce' ? 'bg-blue-50 text-[#2c5aa0] border-l-4 border-[#2c5aa0]' : ''
@@ -324,7 +353,7 @@ export default function TopNav()
                       <div className="px-6 py-4 border-t border-gray-200 mt-2">
                         <Link
                           href="/pricing"
-                          className="cursor-pointer block bg-[#e74c3c] text-white px-5 py-2.5 rounded text-center uppercase text-sm font-bold hover:bg-[#c0392b] transition-colors"
+                          className="cursor-pointer block bg-[#e74c3c] text-white px-5 py-2.5 rounded text-center uppercase font-bold hover:bg-[#c0392b] transition-colors"
                           onClick={() => setMobileMenuOpen(false)}
                         >
                           BOOK NOW
