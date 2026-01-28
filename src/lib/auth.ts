@@ -101,6 +101,15 @@ export function getEmail() {
   return typeof window !== "undefined" ? localStorage.getItem(EMAIL_KEY) : null;
 }
 
+// ---- corporate dealership context helpers ----
+export function getSelectedDealershipId(): number | null {
+  if (typeof window === "undefined") return null;
+  const raw = localStorage.getItem("selected_dealership_id");
+  if (!raw) return null;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : null;
+}
+
 export async function getCurrentUser() {
   const token = getToken();
   if (!token) return null;

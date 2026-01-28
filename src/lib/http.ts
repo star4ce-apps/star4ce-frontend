@@ -1,5 +1,11 @@
 // src/lib/http.ts
-import { API_BASE, getToken } from '@/lib/auth';
+import { API_BASE, getSelectedDealershipId, getToken } from '@/lib/auth';
+
+function maybeDealershipHeader(): Record<string, string> {
+  // Corporate users operate "one dealership at a time" via this header.
+  const selectedId = getSelectedDealershipId();
+  return selectedId ? { 'X-Dealership-Id': String(selectedId) } : {};
+}
 
 export async function postJsonAuth<T = any>(
   path: string,
@@ -14,6 +20,7 @@ export async function postJsonAuth<T = any>(
     headers: {
       'Content-Type': 'application/json',
       ...(init.headers || {}),
+      ...maybeDealershipHeader(),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
     body: JSON.stringify(body),
@@ -63,6 +70,7 @@ export async function getJsonAuth<T = any>(
     ...init,
     headers: {
       ...(init.headers || {}),
+      ...maybeDealershipHeader(),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
   });

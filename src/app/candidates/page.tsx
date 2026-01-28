@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import HubSidebar from '@/components/sidebar/HubSidebar';
 import RequireAuth from '@/components/layout/RequireAuth';
 import { API_BASE, getToken } from '@/lib/auth';
+import { getJsonAuth } from '@/lib/http';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
@@ -101,15 +102,9 @@ export default function CandidatesPage() {
         return;
       }
 
-      const res = await fetch(`${API_BASE}/candidates`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setCandidates(data.items || []);
-      } else {
-        setError(data.error || 'Failed to load candidates');
-      }
+      // Use getJsonAuth to include X-Dealership-Id header for corporate users
+      const data = await getJsonAuth<{ ok: boolean; items: any[] }>('/candidates');
+      setCandidates(data.items || []);
     } catch (err) {
       setError('Failed to load candidates');
       console.error(err);

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import HubSidebar from '@/components/sidebar/HubSidebar';
 import RequireAuth from '@/components/layout/RequireAuth';
 import { API_BASE, getToken } from '@/lib/auth';
+import { getJsonAuth } from '@/lib/http';
 import {
   PieChart,
   Pie,
@@ -189,34 +190,36 @@ export default function AnalyticsPage() {
     
     try {
       const token = getToken();
-      const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
+      if (!token) {
+        setError('Not logged in');
+        setLoading(false);
+        return;
+      }
       
       // Build date range query params
       const rangeParam = `?start_date=${startDate}&end_date=${endDate}`;
 
-      const [summaryRes, averagesRes, breakdownRes, timeSeriesRes, employeesRes] = await Promise.all([
-        fetch(`${API_BASE}/analytics/summary${rangeParam}`, { headers }).catch(() => null),
-        fetch(`${API_BASE}/analytics/averages${rangeParam}`, { headers }).catch(() => null),
-        fetch(`${API_BASE}/analytics/role-breakdown${rangeParam}`, { headers }).catch(() => null),
-        fetch(`${API_BASE}/analytics/time-series${rangeParam}`, { headers }).catch(() => null),
-        fetch(`${API_BASE}/employees${rangeParam}`, { headers }).catch(() => null),
+      // Use getJsonAuth to include X-Dealership-Id header for corporate users
+      const [summaryData, averagesData, breakdownData, timeSeriesData, employeesData] = await Promise.all([
+        getJsonAuth(`/analytics/summary${rangeParam}`).catch(() => null),
+        getJsonAuth(`/analytics/averages${rangeParam}`).catch(() => null),
+        getJsonAuth(`/analytics/role-breakdown${rangeParam}`).catch(() => null),
+        getJsonAuth(`/analytics/time-series${rangeParam}`).catch(() => null),
+        getJsonAuth(`/employees${rangeParam}`).catch(() => null),
       ]);
 
-      if (summaryRes?.ok) setSummary(await summaryRes.json());
-      if (averagesRes?.ok) setAverages(await averagesRes.json());
-      if (breakdownRes?.ok) {
-        const data = await breakdownRes.json();
-        setRoleBreakdown(data.breakdown || data || {});
+      if (summaryData) setSummary(summaryData);
+      if (averagesData) setAverages(averagesData);
+      if (breakdownData) {
+        setRoleBreakdown(breakdownData.breakdown || breakdownData || {});
       }
-      if (timeSeriesRes?.ok) {
-        const data = await timeSeriesRes.json();
-        setTimeSeries(data.data || data || []);
+      if (timeSeriesData) {
+        setTimeSeries(timeSeriesData.data || timeSeriesData || []);
       }
-      if (employeesRes?.ok) {
-        const data = await employeesRes.json();
+      if (employeesData) {
         // Ensure employees is always an array
-        const employeesData = data.employees || data || [];
-        setEmployees(Array.isArray(employeesData) ? employeesData : []);
+        const employeesList = employeesData.employees || employeesData.items || employeesData || [];
+        setEmployees(Array.isArray(employeesList) ? employeesList : []);
       }
     } catch (err) {
       console.error('Failed to load analytics:', err);

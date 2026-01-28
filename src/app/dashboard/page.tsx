@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import HubSidebar from '@/components/sidebar/HubSidebar';
 import RequireAuth from '@/components/layout/RequireAuth';
 import { API_BASE, getToken } from '@/lib/auth';
+import { getJsonAuth } from '@/lib/http';
 import toast from 'react-hot-toast';
 import {
   PieChart,
@@ -244,34 +245,17 @@ function DashboardContent() {
           return;
         }
 
-        const headers = {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        };
-
         // Build date range query params
         const rangeParam = `?start_date=${startDate}&end_date=${endDate}`;
 
-        // Fetch all data in parallel
-        const [summaryRes, terminatedQuitRes, roleBreakdownRes, surveyFeedbackRes, turnoverRes] = await Promise.all([
-          fetch(`${API_BASE}/analytics/summary${rangeParam}`, { headers }),
-          fetch(`${API_BASE}/analytics/terminated-quit${rangeParam}`, { headers }),
-          fetch(`${API_BASE}/analytics/role-breakdown${rangeParam}`, { headers }),
-          fetch(`${API_BASE}/analytics/survey-feedback${rangeParam}`, { headers }),
-          fetch(`${API_BASE}/analytics/turnover-time-series${rangeParam}`, { headers }),
-        ]);
-
+        // Fetch all data in parallel using getJsonAuth (includes X-Dealership-Id header for corporate)
         const [summaryData, terminatedQuitData, roleBreakdownData, surveyFeedbackData, turnoverData] = await Promise.all([
-          summaryRes.json().catch(() => ({})),
-          terminatedQuitRes.json().catch(() => ({})),
-          roleBreakdownRes.json().catch(() => ({})),
-          surveyFeedbackRes.json().catch(() => ({})),
-          turnoverRes.json().catch(() => ({})),
+          getJsonAuth(`/analytics/summary${rangeParam}`),
+          getJsonAuth(`/analytics/terminated-quit${rangeParam}`),
+          getJsonAuth(`/analytics/role-breakdown${rangeParam}`),
+          getJsonAuth(`/analytics/survey-feedback${rangeParam}`),
+          getJsonAuth(`/analytics/turnover-time-series${rangeParam}`),
         ]);
-
-        if (!summaryRes.ok) {
-          throw new Error(summaryData?.error || `Failed to load analytics (${summaryRes.status})`);
-        }
 
         setAnalytics(summaryData as AnalyticsSummary);
 

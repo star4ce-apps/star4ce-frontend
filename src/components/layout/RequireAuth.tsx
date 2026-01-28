@@ -1,7 +1,7 @@
 'use client';
 
 import { ReactNode, useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { getToken, API_BASE } from '@/lib/auth';
 
 type Props = {
@@ -10,6 +10,7 @@ type Props = {
 
 export default function RequireAuth({ children }: Props) {
   const router = useRouter();
+  const pathname = usePathname();
   const [checking, setChecking] = useState(true);
   const [ok, setOk] = useState(false);
 
@@ -29,6 +30,19 @@ export default function RequireAuth({ children }: Props) {
         const data = await res.json().catch(() => ({}));
 
         if (res.ok) {
+          // Corporate users must select an active dealership before using the app
+          const role = data?.user?.role || data?.role || null;
+          if (role === 'corporate') {
+            const selectedId =
+              typeof window !== 'undefined'
+                ? localStorage.getItem('selected_dealership_id')
+                : null;
+            const onSelectPage = pathname?.startsWith('/corporate/select-dealership');
+            if (!selectedId && !onSelectPage) {
+              router.replace('/corporate/select-dealership');
+              return;
+            }
+          }
           // User is authenticated and approved
           setOk(true);
         } else if (res.status === 403 && data.error === 'manager_not_approved') {
@@ -55,7 +69,7 @@ export default function RequireAuth({ children }: Props) {
     }
 
     checkAuth();
-  }, [router]);
+  }, [router, pathname]);
 
   if (checking) {
     return (

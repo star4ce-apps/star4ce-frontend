@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import RequireAuth from '@/components/layout/RequireAuth';
 import HubSidebar from '@/components/sidebar/HubSidebar';
 import { API_BASE, getToken } from '@/lib/auth';
+import { getJsonAuth } from '@/lib/http';
 import toast from 'react-hot-toast';
 
 // Modern color palette - matching surveys page
@@ -131,15 +132,8 @@ export default function EmployeesPage() {
         return;
       }
 
-      const res = await fetch(`${API_BASE}/employees`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(data.error || 'Failed to load employees');
-      }
-
+      // Use getJsonAuth to include X-Dealership-Id header for corporate users
+      const data = await getJsonAuth<{ ok: boolean; items: any[] }>('/employees');
       setEmployees(data.items || []);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to load employees');
