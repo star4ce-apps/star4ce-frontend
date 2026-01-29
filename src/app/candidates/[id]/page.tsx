@@ -236,7 +236,7 @@ export default function CandidateProfilePage() {
 
       // Use getJsonAuth to include X-Dealership-Id header for corporate users
       const data = await getJsonAuth<{ ok: boolean; items: CandidateProfile[] }>('/candidates');
-      if (res.ok) {
+      if (data.ok && data.items) {
         const candidates = (data.items || []).map((c: any) => ({
           id: c.id,
           name: c.name,
