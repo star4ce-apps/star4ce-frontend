@@ -327,12 +327,8 @@ export default function CandidateProfilePage() {
       }
 
       // Use postJsonAuth to include X-Dealership-Id header for corporate users
+      // postJsonAuth throws on error, so if we get here, it succeeded
       await postJsonAuth(`/candidates/${candidateId}`, data, { method: 'PUT' });
-
-      const response = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(response.error || 'Failed to update candidate');
-      }
 
       // Reload candidate data
       await loadCandidate();
