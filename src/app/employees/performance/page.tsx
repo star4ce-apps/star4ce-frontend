@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import HubSidebar from '@/components/sidebar/HubSidebar';
 import RequireAuth from '@/components/layout/RequireAuth';
 import { API_BASE, getToken } from '@/lib/auth';
+import { getJsonAuth } from '@/lib/http';
 
 // Modern color palette - matching surveys page
 const COLORS = {
@@ -118,12 +119,9 @@ export default function PerformanceReviewsPage() {
         return;
       }
 
-      const res = await fetch(`${API_BASE}/employees`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      const data = await res.json().catch(() => ({}));
-      if (res.ok && data.items && data.items.length > 0) {
+      // Use getJsonAuth to include X-Dealership-Id header for corporate users
+      const data = await getJsonAuth<{ ok: boolean; items: any[] }>('/employees');
+      if (data.items && data.items.length > 0) {
         // Map real employees with mock review data
         const employeesWithReviews = data.items.map((emp: Employee, idx: number) => ({
           ...emp,

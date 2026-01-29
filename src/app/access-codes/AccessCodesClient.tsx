@@ -6,6 +6,7 @@ import { useSearchParams } from 'next/navigation';
 import RequireAuth from '@/components/layout/RequireAuth';
 import HubSidebar from '@/components/sidebar/HubSidebar';
 import { API_BASE, getToken } from '@/lib/auth';
+import { getJsonAuth } from '@/lib/http';
 import { postJsonAuth } from '@/lib/http';
 
 // Modern color palette - matching surveys page
@@ -83,21 +84,12 @@ export default function AccessCodesClient() {
         return;
       }
 
-      const res = await fetch(`${API_BASE}/survey/access-codes`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      const data = await res.json().catch(() => ({})) as {
+      // Use getJsonAuth to include X-Dealership-Id header for corporate users
+      const data = await getJsonAuth<{
         ok?: boolean;
         items?: AccessCodeItem[];
         error?: string;
-      };
-
-      if (!res.ok || data.ok === false) {
-        throw new Error(data.error || `Failed to load access codes (${res.status})`);
-      }
+      }>('/survey/access-codes');
 
       setCodes(data.items || []);
     } catch (err: unknown) {

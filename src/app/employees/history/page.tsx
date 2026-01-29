@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import HubSidebar from '@/components/sidebar/HubSidebar';
 import RequireAuth from '@/components/layout/RequireAuth';
 import { API_BASE, getToken } from '@/lib/auth';
+import { getJsonAuth } from '@/lib/http';
 import toast from 'react-hot-toast';
 
 // Modern color palette - matching surveys page
@@ -62,7 +63,9 @@ export default function EmployeeRoleHistoryPage() {
     
     try {
       const token = getToken();
-      const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
+      if (!token) {
+        throw new Error('Not logged in');
+      }
       
       // Build query params
       const params = new URLSearchParams();
@@ -78,13 +81,8 @@ export default function EmployeeRoleHistoryPage() {
       // Note: Action filter is handled on frontend after receiving all entries
       // because backend action names don't match frontend display names
       
-      const response = await fetch(`${API_BASE}/role-history?${params.toString()}`, { headers });
-      
-      if (!response.ok) {
-        throw new Error('Failed to load role history');
-      }
-      
-      const data = await response.json();
+      // Use getJsonAuth to include X-Dealership-Id header for corporate users
+      const data = await getJsonAuth<{ ok: boolean; entries: HistoryEntry[] }>(`/role-history?${params.toString()}`);
       let entries: HistoryEntry[] = [];
       
       if (data.ok && data.entries) {
@@ -93,15 +91,19 @@ export default function EmployeeRoleHistoryPage() {
 
       // Also load terminations and merge them
       try {
-        let terminationRes = await fetch(`${API_BASE}/terminations`, { headers });
-        
-        if (!terminationRes.ok && terminationRes.status === 404) {
-          // If endpoint doesn't exist, try role history with termination filter
-          terminationRes = await fetch(`${API_BASE}/role-history?action=terminated&limit=500`, { headers });
+        let terminationData: any = null;
+        try {
+          terminationData = await getJsonAuth('/terminations');
+        } catch (e: any) {
+          // If endpoint doesn't exist (404), try role history with termination filter
+          if (e.message?.includes('404') || e.message?.includes('Failed')) {
+            terminationData = await getJsonAuth('/role-history?action=terminated&limit=500');
+          } else {
+            throw e;
+          }
         }
 
-        if (terminationRes.ok) {
-          const terminationData = await terminationRes.json();
+        if (terminationData) {
           let terminations: any[] = [];
           
           if (terminationData.terminations) {

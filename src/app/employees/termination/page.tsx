@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import HubSidebar from '@/components/sidebar/HubSidebar';
 import RequireAuth from '@/components/layout/RequireAuth';
 import { API_BASE, getToken } from '@/lib/auth';
+import { getJsonAuth, postJsonAuth } from '@/lib/http';
 import toast from 'react-hot-toast';
 
 // Modern color palette - matching surveys page
@@ -249,14 +250,8 @@ export default function TerminationPage() {
         return;
       }
 
-      const res = await fetch(`${API_BASE}/employees`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(data.error || 'Failed to load employees');
-      }
+      // Use getJsonAuth to include X-Dealership-Id header for corporate users
+      const data = await getJsonAuth<{ ok: boolean; items: Employee[] }>('/employees');
 
       // Filter to only show active employees
       const activeEmployees = (data.items || []).filter((emp: Employee) => emp.is_active);
@@ -275,19 +270,19 @@ export default function TerminationPage() {
       if (!token) return;
 
       // Try to fetch exit records from a dedicated endpoint, or fall back to role history
-      let res = await fetch(`${API_BASE}/terminations`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (!res.ok && res.status === 404) {
-        // If endpoint doesn't exist, try role history with termination/resignation filter
-        res = await fetch(`${API_BASE}/role-history?limit=500`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+      let data: any = null;
+      try {
+        data = await getJsonAuth('/terminations');
+      } catch (e: any) {
+        // If endpoint doesn't exist (404), try role history with termination/resignation filter
+        if (e.message?.includes('404') || e.message?.includes('Failed')) {
+          data = await getJsonAuth('/role-history?limit=500');
+        } else {
+          throw e;
+        }
       }
 
-      if (res.ok) {
-        const data = await res.json();
+      if (data) {
         let records: ExitRecord[] = [];
         
         if (data.terminations || data.exit_records) {
@@ -369,22 +364,11 @@ export default function TerminationPage() {
       const status = formData.exitType === 'resignation' ? 'Resigned' : 'Terminated';
 
       // First, update employee status
-      const updateRes = await fetch(`${API_BASE}/employees/${formData.employeeId}`, {
-        method: 'PUT',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          status: status,
-          is_active: false,
-        }),
-      });
-
-      if (!updateRes.ok) {
-        const updateData = await updateRes.json().catch(() => ({}));
-        throw new Error(updateData.error || 'Failed to update employee status');
-      }
+      // Use postJsonAuth to include X-Dealership-Id header for corporate users
+      await postJsonAuth(`/employees/${formData.employeeId}`, {
+        status: status,
+        is_active: false,
+      }, { method: 'PUT' });
 
       // Then, create exit record
       const exitData = {
@@ -398,17 +382,9 @@ export default function TerminationPage() {
         ),
       };
 
-      let exitRes;
       try {
         // Try dedicated exit/termination endpoint
-        exitRes = await fetch(`${API_BASE}/terminations`, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(exitData),
-        });
+        await postJsonAuth('/terminations', exitData);
       } catch (err) {
         // If endpoint doesn't exist, the record will be tracked via role history
         console.log('Exit endpoint not available, using role history');

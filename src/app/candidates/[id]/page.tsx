@@ -5,6 +5,7 @@ import { useRouter, useParams } from 'next/navigation';
 import HubSidebar from '@/components/sidebar/HubSidebar';
 import RequireAuth from '@/components/layout/RequireAuth';
 import { API_BASE, getToken } from '@/lib/auth';
+import { getJsonAuth, postJsonAuth } from '@/lib/http';
 import toast from 'react-hot-toast';
 
 type InterviewHistory = {
@@ -233,10 +234,8 @@ export default function CandidateProfilePage() {
       const token = getToken();
       if (!token) return;
 
-      const res = await fetch(`${API_BASE}/candidates`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json();
+      // Use getJsonAuth to include X-Dealership-Id header for corporate users
+      const data = await getJsonAuth<{ ok: boolean; items: CandidateProfile[] }>('/candidates');
       if (res.ok) {
         const candidates = (data.items || []).map((c: any) => ({
           id: c.id,
@@ -273,11 +272,9 @@ export default function CandidateProfilePage() {
         return;
       }
 
-      const res = await fetch(`${API_BASE}/candidates/${candidateId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json();
-      if (res.ok && data.candidate) {
+      // Use getJsonAuth to include X-Dealership-Id header for corporate users
+      const data = await getJsonAuth<{ ok: boolean; candidate: any }>(`/candidates/${candidateId}`);
+      if (data.candidate) {
         const c = data.candidate;
         const candidateData: CandidateProfile = {
           id: c.id,
@@ -329,14 +326,8 @@ export default function CandidateProfilePage() {
         throw new Error('Not logged in');
       }
 
-      const res = await fetch(`${API_BASE}/candidates/${candidateId}`, {
-        method: 'PUT',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data),
-      });
+      // Use postJsonAuth to include X-Dealership-Id header for corporate users
+      await postJsonAuth(`/candidates/${candidateId}`, data, { method: 'PUT' });
 
       const response = await res.json().catch(() => ({}));
       if (!res.ok) {
