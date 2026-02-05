@@ -2,9 +2,11 @@
 
 import { useState, useEffect } from 'react';
 import React from 'react';
+import { useSearchParams } from 'next/navigation';
 import HubSidebar from '@/components/sidebar/HubSidebar';
 import RequireAuth from '@/components/layout/RequireAuth';
 import { API_BASE, getToken } from '@/lib/auth';
+import { getJsonAuth, postJsonAuth } from '@/lib/http';
 import toast from 'react-hot-toast';
 
 // Modern color palette - matching surveys page
@@ -484,11 +486,31 @@ type Candidate = {
 type Manager = {
   id: number;
   email: string;
-  full_name?: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
+  full_name?: string | null; // Keep for backward compatibility
   role: string;
 };
 
+// Helper function to get display name from manager/user
+function getDisplayName(manager: Manager | { first_name?: string | null; last_name?: string | null; full_name?: string | null; email?: string }): string {
+  // Try full_name first (backward compatibility)
+  if (manager.full_name) {
+    return manager.full_name;
+  }
+  // Combine first_name and last_name
+  const firstName = manager.first_name || '';
+  const lastName = manager.last_name || '';
+  const combined = [firstName, lastName].filter(Boolean).join(' ').trim();
+  if (combined) {
+    return combined;
+  }
+  // Fallback to email
+  return (manager as any).email || 'Unknown';
+}
+
 export default function ScoreCandidatePage() {
+  const searchParams = useSearchParams();
   const [selectedRole, setSelectedRole] = useState('mid-level');
   const [selectedCandidate, setSelectedCandidate] = useState('');
   const [selectedManager, setSelectedManager] = useState('');
@@ -500,27 +522,55 @@ export default function ScoreCandidatePage() {
   const [managers, setManagers] = useState<Manager[]>([]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [role, setRole] = useState<string | null>(null);
 
   const currentCriteria = criteriaData[selectedRole] || [];
   const selectedRoleData = roles.find(r => r.id === selectedRole);
 
   // Load candidates and managers on mount
   useEffect(() => {
+    loadUserRole();
     loadCandidates();
     loadManagers();
   }, []);
+
+  // Handle candidateId from URL params after candidates are loaded
+  useEffect(() => {
+    const candidateId = searchParams?.get('candidateId');
+    if (candidateId && candidates.length > 0) {
+      // Verify candidate exists before setting
+      const candidateExists = candidates.some(c => c.id.toString() === candidateId);
+      if (candidateExists) {
+        setSelectedCandidate(candidateId);
+      }
+    }
+  }, [searchParams, candidates]);
+
+  async function loadUserRole() {
+    try {
+      const token = getToken();
+      if (!token) return;
+      
+      const res = await fetch(`${API_BASE}/auth/me`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      
+      if (res.ok) {
+        const data = await res.json();
+        setRole(data.user?.role || data.role || null);
+      }
+    } catch (err) {
+      console.error('Failed to load user role:', err);
+    }
+  }
 
   async function loadCandidates() {
     try {
       const token = getToken();
       if (!token) return;
 
-      const res = await fetch(`${API_BASE}/candidates`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      const data = await res.json().catch(() => ({}));
-      if (res.ok) {
+      const data = await getJsonAuth<{ ok: boolean; items: Candidate[] }>('/candidates');
+      if (data.ok && data.items) {
         setCandidates(data.items || []);
       }
     } catch (err) {
@@ -556,7 +606,9 @@ export default function ScoreCandidatePage() {
           setManagers([{
             id: userData.id || 0,
             email: userData.email || '',
-            full_name: userData.full_name || null,
+            first_name: userData.first_name || null,
+            last_name: userData.last_name || null,
+            full_name: userData.full_name || null, // Keep for backward compatibility
             role: userData.role || 'manager'
           }]);
         }
@@ -615,11 +667,18 @@ export default function ScoreCandidatePage() {
       return;
     }
 
+    // Block corporate users from submitting
+    if (role === 'corporate') {
+      toast.error('Corporate users have view-only access. Cannot submit candidate scores.');
+      return;
+    }
+
     setSubmitting(true);
     try {
       const token = getToken();
       if (!token) {
         toast.error('Not logged in');
+        setSubmitting(false);
         return;
       }
 
@@ -631,29 +690,18 @@ export default function ScoreCandidatePage() {
       const manager = managers.find(m => m.id.toString() === selectedManager);
 
       // Create notes with interview details
-      const interviewNotes = `Interview Stage: ${selectedStage}\nHiring Manager: ${manager?.full_name || manager?.email || 'Unknown'}\nRole: ${selectedRoleData?.name || selectedRole}\n\nScores:\n${currentCriteria.map(c => {
+      const managerName = manager ? getDisplayName(manager) : 'Unknown';
+      const interviewNotes = `Interview Stage: ${selectedStage}\nHiring Manager: ${managerName}\nRole: ${selectedRoleData?.name || selectedRole}\n\nScores:\n${currentCriteria.map(c => {
         const score = scores[c.id] || 0;
         const weighted = calculateWeighted(c.id);
         return `${c.name}: ${score}/10 (Weighted: ${weighted.toFixed(2)})`;
       }).join('\n')}\n\nTotal Weighted Score: ${totalWeighted.toFixed(2)}/10 (${scoreOutOf100}/100)`;
 
-      // Update candidate with score and notes
-      const res = await fetch(`${API_BASE}/candidates/${selectedCandidate}`, {
-        method: 'PUT',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          score: scoreOutOf100,
-          notes: interviewNotes,
-        }),
-      });
-
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(data.error || 'Failed to submit scores');
-      }
+      // Update candidate with score and notes using postJsonAuth helper
+      await postJsonAuth(`/candidates/${selectedCandidate}`, {
+        score: scoreOutOf100,
+        notes: interviewNotes,
+      }, { method: 'PUT' });
 
       toast.success('Scores submitted successfully!');
       
@@ -796,7 +844,7 @@ export default function ScoreCandidatePage() {
                 <option value="">Please choose...</option>
                 {managers.map(manager => (
                   <option key={manager.id} value={manager.id.toString()}>
-                    {manager.full_name || manager.email} ({manager.role})
+                    {getDisplayName(manager)} ({manager.role})
                   </option>
                 ))}
               </select>

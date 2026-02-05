@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import HubSidebar from '@/components/sidebar/HubSidebar';
 import RequireAuth from '@/components/layout/RequireAuth';
 import { API_BASE, getToken } from '@/lib/auth';
-import { getJsonAuth } from '@/lib/http';
+import { getJsonAuth, postJsonAuth } from '@/lib/http';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
@@ -91,23 +91,49 @@ export default function CandidatesPage() {
     loadCandidates();
   }, []);
 
-  async function loadCandidates() {
+  async function loadCandidates(suppressErrors = false) {
     setLoading(true);
-    setError(null);
+    // Only clear list-level errors, not form errors
+    // Form errors are handled separately in handleSubmit
+    if (!suppressErrors && candidates.length === 0) {
+      setError(null);
+    }
     try {
       const token = getToken();
       if (!token) {
-        setError('Not logged in');
+        if (!suppressErrors) {
+          setError('Not logged in');
+        }
         setLoading(false);
         return;
       }
 
       // Use getJsonAuth to include X-Dealership-Id header for corporate users
       const data = await getJsonAuth<{ ok: boolean; items: any[] }>('/candidates');
-      setCandidates(data.items || []);
+      
+      // Handle response - require ok === true for success
+      if (data && data.ok === true) {
+        const candidatesList = Array.isArray(data.items) ? data.items : [];
+        setCandidates(candidatesList);
+        // Clear list-level errors on successful load, but preserve form errors
+        if (!suppressErrors) {
+          setError(null);
+        }
+      } else {
+        setCandidates([]);
+        if (!suppressErrors) {
+          const errorMsg = (data as any)?.error || 'Failed to load candidates: Unexpected response format';
+          setError(errorMsg);
+        }
+      }
     } catch (err) {
-      setError('Failed to load candidates');
-      console.error(err);
+      // Set error if we're not suppressing errors (always show errors on initial load)
+      if (!suppressErrors) {
+        const errorMsg = err instanceof Error ? err.message : 'Failed to load candidates';
+        setError(errorMsg);
+        // Also set empty array to ensure UI shows empty state
+        setCandidates([]);
+      }
     } finally {
       setLoading(false);
     }
@@ -130,27 +156,37 @@ export default function CandidatesPage() {
         throw new Error('Not logged in');
       }
 
-      const res = await fetch(`${API_BASE}/candidates`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(formData),
-      });
-
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(data.error || 'Failed to save candidate');
+      // Use postJsonAuth to include X-Dealership-Id header for corporate users
+      const result = await postJsonAuth<{ ok: boolean; candidate?: any }>('/candidates', formData);
+      
+      if (!result.ok) {
+        throw new Error('Failed to create candidate');
       }
 
-      await loadCandidates();
+      // Success! Reset pagination to show the new candidate
+      setCurrentPage(1);
+      
+      // Clear search filters to ensure new candidate is visible
+      setSearchQuery('');
+      setSelectedStatus('All Statuses');
+      
+      // Reload candidates list to show the newly created candidate
+      // Suppress errors during reload to avoid clearing form success state
+      await loadCandidates(true);
+      
+      // Clear any previous errors
+      setError(null);
+      
+      // Reset form and close modal only on success
       resetForm();
       toast.success('Candidate added successfully');
     } catch (err: unknown) {
+      // On error, keep the modal open and show the error
+      // Don't reload the list or close the modal
       const msg = err instanceof Error ? err.message : 'Failed to save candidate';
       setError(msg);
       toast.error(msg);
+      // Don't reset form on error - let user fix the issue
     } finally {
       setLoading(false);
     }
@@ -167,13 +203,25 @@ export default function CandidatesPage() {
     });
     setShowModal(false);
     setError(null);
+    
+    // If candidates list is empty, try reloading it
+    // This helps if the initial load failed
+    if (candidates.length === 0 && !loading) {
+      loadCandidates();
+    }
   }
 
   const filteredCandidates = candidates.filter(candidate => {
+    // Defensive checks for null/undefined values
+    const name = (candidate.name || '').toLowerCase();
+    const email = (candidate.email || '').toLowerCase();
+    const position = (candidate.position || '').toLowerCase();
+    const searchLower = searchQuery.toLowerCase();
+    
     const matchesSearch = 
-      candidate.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      candidate.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      candidate.position.toLowerCase().includes(searchQuery.toLowerCase());
+      name.includes(searchLower) ||
+      email.includes(searchLower) ||
+      position.includes(searchLower);
     
     const matchesStatus = selectedStatus === 'All Statuses' || candidate.status === selectedStatus;
     

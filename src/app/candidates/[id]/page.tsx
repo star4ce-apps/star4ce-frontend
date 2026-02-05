@@ -203,7 +203,7 @@ export default function CandidateProfilePage() {
           setRole(data.user?.role || data.role || null);
         }
       } catch (err) {
-        console.error('Failed to load user role:', err);
+        // Silently fail - role will remain null
       }
     }
     
@@ -259,7 +259,8 @@ export default function CandidateProfilePage() {
         setAllCandidates(candidates);
       }
     } catch (err) {
-      console.error('Failed to load candidates:', err);
+      // Silently fail - candidates list will remain empty
+      // Error will be shown when trying to load specific candidate
     }
   }
 
@@ -268,13 +269,14 @@ export default function CandidateProfilePage() {
     try {
       const token = getToken();
       if (!token) {
+        toast.error('Not logged in');
         setLoading(false);
         return;
       }
 
       // Use getJsonAuth to include X-Dealership-Id header for corporate users
       const data = await getJsonAuth<{ ok: boolean; candidate: any }>(`/candidates/${candidateId}`);
-      if (data.candidate) {
+      if (data.ok && data.candidate) {
         const c = data.candidate;
         const candidateData: CandidateProfile = {
           id: c.id,
@@ -300,10 +302,19 @@ export default function CandidateProfilePage() {
         const sortedIds = allCandidates.map(c => c.id).sort((a, b) => a - b);
         setCurrentCandidateIndex(sortedIds.indexOf(candidateId));
       } else {
+        toast.error('Candidate not found or access denied');
         setCandidate(null);
       }
-    } catch (err) {
-      console.error('Failed to load candidate:', err);
+    } catch (err: unknown) {
+      const errorMsg = err instanceof Error ? err.message : 'Failed to load candidate';
+      // Check if it's a permission error
+      if (errorMsg.includes('403') || errorMsg.includes('forbidden') || errorMsg.includes('insufficient role')) {
+        toast.error('You do not have permission to view this candidate');
+      } else if (errorMsg.includes('404') || errorMsg.includes('not found')) {
+        toast.error('Candidate not found');
+      } else {
+        toast.error(errorMsg);
+      }
       setCandidate(null);
     } finally {
       setLoading(false);
