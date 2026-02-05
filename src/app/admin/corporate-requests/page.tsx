@@ -218,8 +218,8 @@ export default function CorporateRequestsPage() {
         <HubSidebar />
         <main className="ml-64 p-8 flex-1">
           <div className="mb-8">
-            <h1 className="text-3xl font-bold mb-2" style={{ color: '#232E40' }}>Corporate Access Requests</h1>
-            <p style={{ color: '#6B7280' }}>
+            <h1 className="text-2xl font-semibold mb-1" style={{ color: '#232E40' }}>Corporate Access Requests</h1>
+            <p className="text-sm" style={{ color: '#6B7280' }}>
               Review and approve/reject requests from corporate users to view your dealership (view-only access)
             </p>
           </div>

@@ -243,7 +243,6 @@ export default function HubSidebar() {
       children: [
         { label: 'Candidate List', href: '/candidates' },
         { label: 'Score a Candidate', href: '/candidates/score' },
-        { label: 'Score Card Editor', href: '/candidates/scorecard' },
       ],
     },
   ];

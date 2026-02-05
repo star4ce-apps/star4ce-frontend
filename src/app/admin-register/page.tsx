@@ -531,8 +531,26 @@ function AdminRegisterPageContent() {
                       />
                     </div>
 
-                    {/* City, State, Zip */}
+                    {/* State, City, Zip */}
                     <div className="grid grid-cols-3 gap-4 mb-3">
+                      <div>
+                        <select
+                          className="cursor-pointer w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#0B2E65] focus:border-transparent"
+                          value={dealershipState}
+                          onChange={(e) => {
+                            setDealershipState(e.target.value);
+                            setDealershipCity(''); // Reset city when state changes
+                            setDealershipCityOther(''); // Reset other city input
+                          }}
+                        >
+                          <option value="">Select State</option>
+                          {usStates.map((stateOption) => (
+                            <option key={stateOption.code} value={stateOption.code}>
+                              {stateOption.code} - {stateOption.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
                       <div className="col-span-2">
                         <select
                           className="cursor-pointer w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#0B2E65] focus:border-transparent disabled:bg-gray-100 disabled:text-gray-400"
@@ -557,7 +575,7 @@ function AdminRegisterPageContent() {
                           {dealershipState && <option value="__other__">Other (Enter manually)</option>}
                         </select>
                         {!dealershipState && (
-                          <p className="text-gray-500 mt-1">Please select a state first</p>
+                          <p className="text-gray-500 mt-1 text-sm">Please select a state first</p>
                         )}
                         {dealershipCity === '__other__' && (
                           <input
@@ -569,24 +587,6 @@ function AdminRegisterPageContent() {
                             required
                           />
                         )}
-                      </div>
-                      <div>
-                        <select
-                          className="cursor-pointer w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#0B2E65] focus:border-transparent"
-                          value={dealershipState}
-                            onChange={(e) => {
-                            setDealershipState(e.target.value);
-                            setDealershipCity(''); // Reset city when state changes
-                            setDealershipCityOther(''); // Reset other city input
-                          }}
-                        >
-                          <option value="">Select State</option>
-                          {usStates.map((stateOption) => (
-                            <option key={stateOption.code} value={stateOption.code}>
-                              {stateOption.code} - {stateOption.name}
-                            </option>
-                          ))}
-                        </select>
                       </div>
                     </div>
 

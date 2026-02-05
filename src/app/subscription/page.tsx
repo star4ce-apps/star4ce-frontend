@@ -297,8 +297,8 @@ function SubscriptionPageContent() {
           <main className="ml-64 p-8 pl-10 flex-1" style={{ overflowX: 'hidden', minWidth: 0 }}>
             <div className="mb-8">
               <div className="mb-6">
-                <h1 className="text-4xl font-bold mb-2" style={{ color: '#232E40', letterSpacing: '-0.02em' }}>Subscription Management</h1>
-                <p className="text-base" style={{ color: '#6B7280' }}>Manage subscriptions for all assigned dealerships</p>
+                <h1 className="text-2xl font-semibold mb-1" style={{ color: '#232E40' }}>Subscription Management</h1>
+                <p className="text-sm" style={{ color: '#6B7280' }}>Manage subscriptions for all assigned dealerships</p>
               </div>
             </div>
 
@@ -436,8 +436,8 @@ function SubscriptionPageContent() {
         <main className="ml-64 p-8 pl-10 flex-1" style={{ overflowX: 'hidden', minWidth: 0 }}>
           <div className="mb-8">
             <div className="mb-6">
-              <h1 className="text-4xl font-bold mb-2" style={{ color: '#232E40', letterSpacing: '-0.02em' }}>Subscription & Billing</h1>
-              <p className="text-base" style={{ color: '#6B7280' }}>Manage your subscription, billing, and access to Star4ce features</p>
+              <h1 className="text-2xl font-semibold mb-1" style={{ color: '#232E40' }}>Subscription & Billing</h1>
+              <p className="text-sm" style={{ color: '#6B7280' }}>Manage your subscription, billing, and access to Star4ce features</p>
             </div>
           </div>
 

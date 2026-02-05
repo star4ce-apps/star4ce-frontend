@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import React from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import HubSidebar from '@/components/sidebar/HubSidebar';
 import RequireAuth from '@/components/layout/RequireAuth';
 import { API_BASE, getToken } from '@/lib/auth';
@@ -10,6 +11,8 @@ import toast from 'react-hot-toast';
 // Modern color palette - matching surveys page
 const COLORS = {
   primary: '#3B5998',
+  primaryLight: '#4D6DBE',
+  secondary: '#10B981',
   gray: {
     50: '#F8FAFC',
     100: '#F1F5F9',
@@ -36,250 +39,682 @@ type Criterion = {
   expanded?: boolean;
 };
 
+// Roles from the PDF assessment tools
 const roles = [
-  { id: 'c-level', name: 'C-Level Executives', description: 'Dealer Principal, CFO, COO, General Manager' },
-  { id: 'mid-level', name: 'Mid-Level Managers', description: 'Department Managers, Sales Managers, Service Managers' },
-  { id: 'office-staff', name: 'Office Staff', description: 'Administrative, Reception, Office Support' },
-  { id: 'salespeople', name: 'Salespeople', description: 'Sales Representatives, Sales Consultants' },
-  { id: 'service-advisors', name: 'Service Advisors', description: 'Service Advisors, Service Writers' },
-  { id: 'service-technicians', name: 'Service Technicians', description: 'Service Technicians, Mechanics' },
+  { id: 'c-level-manager', name: 'C-Level Manager', description: 'Dealer Principal, CFO, COO' },
+  { id: 'gm', name: 'General Manager', description: 'GM Assessment Tool Enhanced' },
+  { id: 'sales-manager', name: 'Sales Manager', description: 'Sales department management' },
+  { id: 'salesperson', name: 'Salesperson', description: 'Sales consultants and representatives' },
+  { id: 'service-manager', name: 'Service Manager', description: 'Service department management' },
+  { id: 'service-advisor', name: 'Service Advisor', description: 'Service department advisors' },
+  { id: 'parts-manager', name: 'Parts Manager', description: 'Parts department management' },
+  { id: 'office-clerk', name: 'Office Clerk', description: 'Administrative and office support' },
+  { id: 'hr-manager', name: 'HR Manager', description: 'Human resources management' },
+  { id: 'finance-manager', name: 'Finance Manager', description: 'Finance and accounting management' },
+  { id: 'used-car-manager', name: 'Used Car Manager', description: 'Used car department management' },
+  { id: 'body-shop-manager', name: 'Body Shop Manager', description: 'Body shop department management' },
+  { id: 'automotive-technician', name: 'Automotive Technician', description: 'Automotive service technicians' },
+  { id: 'support-staff', name: 'Support Staff', description: 'General support staff' },
 ];
 
-// Full criteria data with questions - same as Score Card Editor
+// Full criteria data with questions - populated from Score Card Editor or PDFs
+// This will be dynamically loaded from the scorecard editor or API
 const criteriaData: Record<string, Criterion[]> = {
-  'c-level': [
+  'c-level-manager': [
     {
-      id: '1',
-      name: 'Strategic Leadership & Vision',
-      weight: 15,
-      questions: [
-        { id: 'q1-1', text: 'How do you develop and communicate a long-term vision for the dealership?' },
-        { id: 'q1-2', text: 'Describe a time when you had to make a strategic decision that impacted the entire organization.' },
-        { id: 'q1-3', text: 'How do you balance short-term operational needs with long-term strategic goals?' },
-      ],
-    },
-    {
-      id: '2',
-      name: 'Financial & Business Acumen',
-      weight: 18,
-      questions: [
-        { id: 'q2-1', text: 'How do you analyze financial statements to make business decisions?' },
-        { id: 'q2-2', text: 'Describe your experience with P&L management and budget forecasting.' },
-        { id: 'q2-3', text: 'What key metrics do you use to measure operational efficiency?' },
-      ],
-    },
-    {
-      id: '3',
-      name: 'Industry Experience & Dealership Knowledge',
-      weight: 15,
-      questions: [
-        { id: 'q3-1', text: 'What is your understanding of the automotive dealership business model and its key revenue streams?' },
-        { id: 'q3-2', text: 'How do you stay current with industry trends and regulatory changes affecting dealerships?' },
-        { id: 'q3-3', text: 'Describe your experience managing relationships with manufacturers and vendors.' },
-      ],
-    },
-    {
-      id: '4',
-      name: 'Decision-Making Under Pressure',
+      id: 'clm1',
+      name: 'Strategic Vision & Planning',
       weight: 12,
       questions: [
-        { id: 'q4-1', text: 'Tell me about a high-pressure situation where you had to make a critical decision quickly.' },
-        { id: 'q4-2', text: 'How do you prioritize competing demands when resources are limited?' },
-        { id: 'q4-3', text: 'Describe a time when you had to make an unpopular decision that was necessary for the business.' },
+        { id: 'clm1-q1', text: 'Does the candidate demonstrate ability to develop and execute long-term strategic plans that drive organizational growth?' },
+        { id: 'clm1-q2', text: 'Evidence/KPIs: Strategic initiatives led | Business growth achieved | Market expansion examples' },
       ],
     },
     {
-      id: '5',
-      name: 'Executive Communication & Influence',
+      id: 'clm2',
+      name: 'Financial Acumen',
       weight: 10,
       questions: [
-        { id: 'q5-1', text: 'How do you communicate complex business strategies to stakeholders at different levels?' },
-        { id: 'q5-2', text: 'Describe a time when you had to influence a decision without direct authority.' },
-        { id: 'q5-3', text: 'How do you handle difficult conversations with board members or senior executives?' },
+        { id: 'clm2-q1', text: 'How strong is the candidate\'s understanding of financial statements, budgeting, and P&L management?' },
+        { id: 'clm2-q2', text: 'Evidence/KPIs: P&L responsibility size | Budget management experience | Financial improvements achieved' },
       ],
     },
     {
-      id: '6',
-      name: 'Team & Stakeholder Alignment',
+      id: 'clm3',
+      name: 'Industry Knowledge & Market Awareness',
       weight: 8,
       questions: [
-        { id: 'q6-1', text: 'How do you ensure all departments are aligned with the dealership\'s strategic objectives?' },
-        { id: 'q6-2', text: 'Describe your approach to building consensus among diverse stakeholder groups.' },
-        { id: 'q6-3', text: 'How do you handle conflicts between different departments or teams?' },
+        { id: 'clm3-q1', text: 'Does the candidate demonstrate deep understanding of automotive retail trends, competitive landscape, and market dynamics?' },
+        { id: 'clm3-q2', text: 'Evidence/KPIs: Industry experience years | OEM relationships | Market analysis capabilities' },
       ],
     },
     {
-      id: '7',
-      name: 'Innovation & Change Management',
-      weight: 7,
+      id: 'clm4',
+      name: 'Executive Presence & Influence',
+      weight: 10,
       questions: [
-        { id: 'q7-1', text: 'How do you identify opportunities for innovation in a traditional dealership environment?' },
-        { id: 'q7-2', text: 'Describe a significant change initiative you led and how you managed resistance.' },
-        { id: 'q7-3', text: 'How do you balance innovation with maintaining proven business practices?' },
+        { id: 'clm4-q1', text: 'Does the candidate project executive presence and ability to influence stakeholders at all levels?' },
       ],
     },
     {
-      id: '8',
-      name: 'Prior Success in Leadership Roles',
+      id: 'clm5',
+      name: 'Organizational Development',
+      weight: 10,
+      questions: [
+        { id: 'clm5-q1', text: 'What is the candidate\'s track record in building high-performing teams and developing organizational capabilities?' },
+        { id: 'clm5-q2', text: 'Evidence/KPIs: Organizations built/transformed | Talent development programs | Succession planning experience' },
+      ],
+    },
+    {
+      id: 'clm6',
+      name: 'Change Management',
+      weight: 8,
+      questions: [
+        { id: 'clm6-q1', text: 'How effectively has the candidate led major organizational changes or transformations?' },
+        { id: 'clm6-q2', text: 'Evidence/KPIs: Change initiatives led | Transformation outcomes | Stakeholder management' },
+      ],
+    },
+    {
+      id: 'clm7',
+      name: 'Compliance & Ethics',
+      weight: 8,
+      questions: [
+        { id: 'clm7-q1', text: 'Does the candidate demonstrate strong commitment to compliance, ethics, and corporate governance?' },
+        { id: 'clm7-q2', text: 'Evidence/KPIs: Compliance programs implemented | Ethics initiatives | Regulatory experience' },
+      ],
+    },
+    {
+      id: 'clm8',
+      name: 'Risk Management',
+      weight: 6,
+      questions: [
+        { id: 'clm8-q1', text: 'How effectively does the candidate identify, assess, and mitigate business risks?' },
+        { id: 'clm8-q2', text: 'Evidence/KPIs: Risk management frameworks used | Crisis management experience' },
+      ],
+    },
+    {
+      id: 'clm9',
+      name: 'Board & Owner Relations',
+      weight: 6,
+      questions: [
+        { id: 'clm9-q1', text: 'How effectively can the candidate communicate with and advise ownership/board members?' },
+        { id: 'clm9-q2', text: 'Evidence/KPIs: Board presentation experience | Owner relationship management' },
+      ],
+    },
+    {
+      id: 'clm10',
+      name: 'External Relationships',
+      weight: 6,
+      questions: [
+        { id: 'clm10-q1', text: 'What is the candidate\'s ability to build relationships with OEMs, lenders, vendors, and community stakeholders?' },
+        { id: 'clm10-q2', text: 'Evidence/KPIs: Key relationships built | Partnership examples | Community involvement' },
+      ],
+    },
+    {
+      id: 'clm11',
+      name: 'Primary Residence Distance',
       weight: 5,
       questions: [
-        { id: 'q8-1', text: 'What is your most significant leadership achievement in your career?' },
-        { id: 'q8-2', text: 'How have you measured success in your previous executive roles?' },
-        { id: 'q8-3', text: 'Describe a challenging situation you overcame as a leader and what you learned.' },
+        { id: 'clm11-q1', text: 'Is the candidate\'s primary residence a reasonable distance from the dealership?' },
+        { id: 'clm11-q2', text: 'Evidence/KPIs: Distance in miles | Estimated commute time | Relocation plans if applicable' },
       ],
     },
     {
-      id: '9',
-      name: 'Negotiation & Vendor/Partner Relations',
-      weight: 5,
+      id: 'clm12',
+      name: 'References',
+      weight: 6,
       questions: [
-        { id: 'q9-1', text: 'Describe your experience negotiating major contracts with vendors or partners.' },
-        { id: 'q9-2', text: 'How do you maintain strong relationships while ensuring favorable terms for the dealership?' },
-        { id: 'q9-3', text: 'Tell me about a time when you had to resolve a dispute with a key vendor or partner.' },
+        { id: 'clm12-q1', text: 'Are the candidate\'s professional references excellent?' },
+        { id: 'clm12-q2', text: 'Evidence/KPIs: # of references contacted | Reference quality | Key themes from feedback' },
       ],
     },
     {
-      id: '10',
-      name: 'Team Leadership & Coaching',
+      id: 'clm13',
+      name: 'Dealership Culture Alignment',
       weight: 5,
       questions: [
-        { id: 'q10-1', text: 'How do you develop and mentor your direct reports to prepare them for leadership roles?' },
-        { id: 'q10-2', text: 'Describe your approach to building a high-performing executive team.' },
-        { id: 'q10-3', text: 'How do you handle underperformance at the senior management level?' },
+        { id: 'clm13-q1', text: 'Does the candidate align with the dealership\'s culture, values, and way of doing business?' },
+        { id: 'clm13-q2', text: 'Evidence/KPIs: Cultural fit observations | Values alignment | Team dynamics compatibility' },
       ],
     },
   ],
-  'mid-level': [
+  'gm': [
     {
-      id: 'm1',
-      name: 'Department Management & Operations',
-      weight: 20,
-      questions: [
-        { id: 'mq1-1', text: 'How do you ensure your department meets its monthly and annual targets?' },
-        { id: 'mq1-2', text: 'Describe your approach to managing daily operations while focusing on strategic goals.' },
-        { id: 'mq1-3', text: 'How do you allocate resources and prioritize tasks within your department?' },
-      ],
-    },
-    {
-      id: 'm2',
-      name: 'Team Leadership & Development',
-      weight: 18,
-      questions: [
-        { id: 'mq2-1', text: 'How do you motivate and engage your team members to achieve their best performance?' },
-        { id: 'mq2-2', text: 'Describe your process for identifying and developing talent within your team.' },
-        { id: 'mq2-3', text: 'How do you handle conflicts or performance issues within your team?' },
-      ],
-    },
-    {
-      id: 'm3',
-      name: 'Communication & Collaboration',
-      weight: 15,
-      questions: [
-        { id: 'mq3-1', text: 'How do you communicate department goals and expectations to your team?' },
-        { id: 'mq3-2', text: 'Describe your approach to collaborating with other department managers.' },
-        { id: 'mq3-3', text: 'How do you ensure information flows effectively between your team and upper management?' },
-      ],
-    },
-    {
-      id: 'm4',
-      name: 'Problem-Solving & Decision Making',
-      weight: 15,
-      questions: [
-        { id: 'mq4-1', text: 'Tell me about a complex problem you solved in your department and your approach.' },
-        { id: 'mq4-2', text: 'How do you make decisions when you have incomplete information?' },
-        { id: 'mq4-3', text: 'Describe a time when you had to make a quick decision that impacted your team.' },
-      ],
-    },
-    {
-      id: 'm5',
-      name: 'Customer Service & Satisfaction',
+      id: 'gm1',
+      name: 'Target Achievement',
       weight: 12,
       questions: [
-        { id: 'mq5-1', text: 'How do you ensure your department delivers excellent customer service?' },
-        { id: 'mq5-2', text: 'Describe how you handle customer complaints or difficult situations.' },
-        { id: 'mq5-3', text: 'What metrics do you use to measure customer satisfaction in your department?' },
+        { id: 'gm1-q1', text: 'To what extent does the manager consistently meet or exceed the key financial and operational targets set by ownership (e.g., net profit, F&I penetration, CSI) and those mandated by the manufacturer (e.g., sales volume, CPO targets, service absorption)?' },
+        { id: 'gm1-q2', text: 'KPI Evidence: YTD Net Profit $ / % vs budget | Sales volume vs objective | F&I PVR & penetration | Service absorption % | CSI/SSI trend (6-12 mo)' },
       ],
     },
     {
-      id: 'm6',
-      name: 'Process Improvement & Efficiency',
-      weight: 10,
+      id: 'gm2',
+      name: 'Strategic Planning',
+      weight: 8,
       questions: [
-        { id: 'mq6-1', text: 'How do you identify opportunities to improve processes in your department?' },
-        { id: 'mq6-2', text: 'Describe a process improvement you implemented and its impact.' },
-        { id: 'mq6-3', text: 'How do you balance efficiency with quality in your department operations?' },
+        { id: 'gm2-q1', text: 'How effectively does the manager develop and execute departmental and store-wide business plans that proactively address market challenges and capitalize on opportunities to drive profitability?' },
+        { id: 'gm2-q2', text: 'KPI Evidence: Market share trend | New initiative ROI | Competitive positioning' },
       ],
     },
     {
-      id: 'm7',
-      name: 'Budget & Financial Management',
-      weight: 10,
+      id: 'gm3',
+      name: 'Talent Management',
+      weight: 8,
       questions: [
-        { id: 'mq7-1', text: 'How do you manage your department budget and control costs?' },
-        { id: 'mq7-2', text: 'Describe your experience with forecasting and budget planning.' },
-        { id: 'mq7-3', text: 'How do you justify budget requests to upper management?' },
+        { id: 'gm3-q1', text: 'Evaluate the manager\'s effectiveness in recruiting, onboarding, developing, and retaining high-performing personnel across all departments. (Consider turnover rates, promotion from within, and team morale indicators).' },
+        { id: 'gm3-q2', text: 'KPI Evidence: Turnover rate by dept | Internal promotions | Training completion % | Employee satisfaction scores' },
+      ],
+    },
+    {
+      id: 'gm4',
+      name: 'Leadership Influence',
+      weight: 8,
+      questions: [
+        { id: 'gm4-q1', text: 'Describe the manager\'s ability to inspire, motivate, and hold teams accountable. Does their leadership style cultivate a culture of high performance, collaboration, and accountability?' },
+      ],
+    },
+    {
+      id: 'gm5',
+      name: 'Succession Planning',
+      weight: 5,
+      questions: [
+        { id: 'gm5-q1', text: 'What evidence is there that the manager is actively identifying and developing future leaders within the dealership to ensure continuity and growth?' },
+        { id: 'gm5-q2', text: 'KPI Evidence: # of identified successors | Development plans in place | Cross-training initiatives' },
+      ],
+    },
+    {
+      id: 'gm6',
+      name: 'Process Adherence & Improvement',
+      weight: 8,
+      questions: [
+        { id: 'gm6-q1', text: 'How well are established policies and procedures understood, implemented, and consistently followed across all departments? Provide examples of how the manager has streamlined or improved processes.' },
+        { id: 'gm6-q2', text: 'KPI Evidence: Process audit scores | Efficiency improvements documented' },
+      ],
+    },
+    {
+      id: 'gm7',
+      name: 'Problem Resolution',
+      weight: 8,
+      questions: [
+        { id: 'gm7-q1', text: 'Assess the manager\'s skill in diagnosing root causes of complex operational, customer, or personnel issues and implementing effective, sustainable solutions. (Ask for a specific example).' },
+      ],
+    },
+    {
+      id: 'gm8',
+      name: 'Communication',
+      weight: 8,
+      questions: [
+        { id: 'gm8-q1', text: 'How effectively does the manager communicate strategic goals, provide clear direction, and give constructive feedback to their staff? How transparent and effective is their communication with senior leadership/ownership?' },
+      ],
+    },
+    {
+      id: 'gm9',
+      name: 'Ownership & Engagement',
+      weight: 8,
+      questions: [
+        { id: 'gm9-q1', text: 'To what degree does the manager demonstrate full ownership of the dealership\'s results? Provide examples of them taking initiative, making data-driven decisions, and going beyond basic responsibilities to drive the business forward.' },
+      ],
+    },
+    {
+      id: 'gm10',
+      name: 'Value & Culture Impact',
+      weight: 5,
+      questions: [
+        { id: 'gm10-q1', text: 'Beyond core responsibilities, what specific, tangible impact has the manager had on the dealership\'s culture, reputation, or long-term strategic value? (e.g., improving community relations, implementing training programs, fostering exceptional employee engagement that reduced turnover).' },
+        { id: 'gm10-q2', text: 'KPI Evidence: Google/Yelp rating trend | Community involvement | Employee engagement scores' },
+      ],
+    },
+    {
+      id: 'gm11',
+      name: 'Compliance, Controls & Risk Management',
+      weight: 5,
+      questions: [
+        { id: 'gm11-q1', text: 'How effectively does the GM maintain compliance (OEM standards, F&I/legal requirements, HR policies, safety regulations) and implement controls that prevent losses and reputational risk? Include audit readiness, cash controls, and advertising compliance.' },
+        { id: 'gm11-q2', text: 'KPI Evidence: Audit findings/resolutions | Compliance training completion | Open legal/HR issues | Cash control variances' },
+      ],
+    },
+    {
+      id: 'gm12',
+      name: 'Primary Residence Distance',
+      weight: 5,
+      questions: [
+        { id: 'gm12-q1', text: 'Is the candidate\'s primary residence a reasonable distance from the dealership? Consider commute time, reliability, availability for emergencies, and long-term sustainability of the commute.' },
+        { id: 'gm12-q2', text: 'KPI Evidence: Distance in miles | Estimated commute time | Relocation plans if applicable' },
+      ],
+    },
+    {
+      id: 'gm13',
+      name: 'References',
+      weight: 5,
+      questions: [
+        { id: 'gm13-q1', text: 'Are the candidate\'s professional references excellent? Consider the quality and relevance of references, consistency of feedback, specific examples provided, and any concerns or reservations expressed.' },
+        { id: 'gm13-q2', text: 'KPI Evidence: # of references contacted | Reference quality (former supervisors, peers, direct reports) | Key themes from feedback' },
+      ],
+    },
+    {
+      id: 'gm14',
+      name: 'Dealership Culture Alignment',
+      weight: 7,
+      questions: [
+        { id: 'gm14-q1', text: 'Does the candidate align with the dealership\'s culture, values, and way of doing business? Consider their attitude, work ethic, interpersonal style, and how well they would fit with the existing team and organizational values.' },
+        { id: 'gm14-q2', text: 'KPI Evidence: Cultural fit observations from interviews | Values alignment | Team dynamics compatibility' },
       ],
     },
   ],
-  'office-staff': [
+  'sales-manager': [
     {
-      id: 'o1',
-      name: 'Administrative Skills & Organization',
-      weight: 25,
+      id: 'sm1',
+      name: 'Sales Volume & Target Achievement',
+      weight: 12,
       questions: [
-        { id: 'oq1-1', text: 'How do you manage multiple tasks and deadlines in a busy office environment?' },
-        { id: 'oq1-2', text: 'Describe your experience with office software and administrative systems.' },
-        { id: 'oq1-3', text: 'How do you prioritize your work when everything seems urgent?' },
+        { id: 'sm1-q1', text: 'What is the candidate\'s track record in achieving and exceeding sales volume targets?' },
+        { id: 'sm1-q2', text: 'Evidence/KPIs: Units sold vs target | Market share | YoY growth achieved' },
       ],
     },
     {
-      id: 'o2',
-      name: 'Communication & Customer Service',
-      weight: 20,
-      questions: [
-        { id: 'oq2-1', text: 'How do you handle phone calls and in-person inquiries from customers?' },
-        { id: 'oq2-2', text: 'Describe your approach to communicating with colleagues and management.' },
-        { id: 'oq2-3', text: 'How do you ensure accuracy when relaying messages or information?' },
-      ],
-    },
-    {
-      id: 'o3',
-      name: 'Attention to Detail & Accuracy',
-      weight: 20,
-      questions: [
-        { id: 'oq3-1', text: 'How do you ensure accuracy when handling paperwork or data entry?' },
-        { id: 'oq3-2', text: 'Describe your process for proofreading and checking your work.' },
-        { id: 'oq3-3', text: 'What steps do you take to avoid errors in administrative tasks?' },
-      ],
-    },
-    {
-      id: 'o4',
-      name: 'Time Management & Efficiency',
-      weight: 15,
-      questions: [
-        { id: 'oq4-1', text: 'How do you organize your day to maximize productivity?' },
-        { id: 'oq4-2', text: 'Describe a time when you had to handle multiple urgent requests simultaneously.' },
-        { id: 'oq4-3', text: 'How do you balance routine tasks with unexpected requests or emergencies?' },
-      ],
-    },
-    {
-      id: 'o5',
-      name: 'Problem-Solving & Initiative',
+      id: 'sm2',
+      name: 'Gross Profit Performance',
       weight: 10,
       questions: [
-        { id: 'oq5-1', text: 'Tell me about a problem you solved independently in an office setting.' },
-        { id: 'oq5-2', text: 'How do you handle situations when you don\'t know the answer to a question?' },
-        { id: 'oq5-3', text: 'Describe a time when you took initiative to improve a process or procedure.' },
+        { id: 'sm2-q1', text: 'How effectively does the candidate maximize front-end and back-end gross profit?' },
+        { id: 'sm2-q2', text: 'Evidence/KPIs: Front gross per unit | Total gross per unit | Holdback/incentive capture' },
       ],
     },
     {
-      id: 'o6',
-      name: 'Professionalism & Adaptability',
+      id: 'sm3',
+      name: 'Inventory Management',
+      weight: 8,
+      questions: [
+        { id: 'sm3-q1', text: 'Does the candidate demonstrate ability to manage inventory levels, aging, and turn rates?' },
+        { id: 'sm3-q2', text: 'Evidence/KPIs: Days supply managed | Aged inventory % | Turn rate' },
+      ],
+    },
+    {
+      id: 'sm4',
+      name: 'Sales Team Leadership',
       weight: 10,
       questions: [
-        { id: 'oq6-1', text: 'How do you maintain professionalism in stressful or challenging situations?' },
-        { id: 'oq6-2', text: 'Describe how you adapt to changes in office procedures or technology.' },
-        { id: 'oq6-3', text: 'How do you handle confidential information and maintain discretion?' },
+        { id: 'sm4-q1', text: 'How effectively can the candidate lead, motivate, and hold a sales team accountable?' },
+        { id: 'sm4-q2', text: 'Evidence/KPIs: Team size managed | Salesperson productivity | Team retention rate' },
+      ],
+    },
+    {
+      id: 'sm5',
+      name: 'Training & Coaching',
+      weight: 8,
+      questions: [
+        { id: 'sm5-q1', text: 'What is the candidate\'s approach to training and developing salespeople?' },
+        { id: 'sm5-q2', text: 'Evidence/KPIs: Training programs used | Coaching methods | Salesperson improvement examples' },
+      ],
+    },
+    {
+      id: 'sm6',
+      name: 'Desking & Deal Structure',
+      weight: 8,
+      questions: [
+        { id: 'sm6-q1', text: 'How proficient is the candidate at structuring deals and working the desk?' },
+        { id: 'sm6-q2', text: 'Evidence/KPIs: Closing ratio | Deal structure examples' },
+      ],
+    },
+    {
+      id: 'sm7',
+      name: 'Customer Satisfaction Focus',
+      weight: 8,
+      questions: [
+        { id: 'sm7-q1', text: 'What is the candidate\'s commitment to customer satisfaction and CSI/SSI scores?' },
+        { id: 'sm7-q2', text: 'Evidence/KPIs: CSI/SSI scores achieved | Customer retention rate | Repeat/referral business' },
+      ],
+    },
+    {
+      id: 'sm8',
+      name: 'Customer Complaint Resolution',
+      weight: 6,
+      questions: [
+        { id: 'sm8-q1', text: 'How effectively does the candidate handle customer complaints and escalations?' },
+      ],
+    },
+    {
+      id: 'sm9',
+      name: 'CRM & Technology Utilization',
+      weight: 6,
+      questions: [
+        { id: 'sm9-q1', text: 'How well does the candidate utilize CRM systems and sales technology?' },
+        { id: 'sm9-q2', text: 'Evidence/KPIs: CRM systems used | Digital retailing experience | Lead management' },
+      ],
+    },
+    {
+      id: 'sm10',
+      name: 'Sales Process Adherence',
+      weight: 6,
+      questions: [
+        { id: 'sm10-q1', text: 'Does the candidate demonstrate commitment to following and enforcing sales processes?' },
+        { id: 'sm10-q2', text: 'Evidence/KPIs: Process compliance examples | Road-to-sale adherence' },
+      ],
+    },
+    {
+      id: 'sm11',
+      name: 'Primary Residence Distance',
+      weight: 6,
+      questions: [
+        { id: 'sm11-q1', text: 'Is the candidate\'s primary residence a reasonable distance from the dealership?' },
+        { id: 'sm11-q2', text: 'Evidence/KPIs: Distance in miles | Estimated commute time | Relocation plans if applicable' },
+      ],
+    },
+    {
+      id: 'sm12',
+      name: 'References',
+      weight: 6,
+      questions: [
+        { id: 'sm12-q1', text: 'Are the candidate\'s professional references excellent?' },
+        { id: 'sm12-q2', text: 'Evidence/KPIs: # of references contacted | Reference quality | Key themes from feedback' },
+      ],
+    },
+    {
+      id: 'sm13',
+      name: 'Dealership Culture Alignment',
+      weight: 6,
+      questions: [
+        { id: 'sm13-q1', text: 'Does the candidate align with the dealership\'s culture, values, and way of doing business?' },
+        { id: 'sm13-q2', text: 'Evidence/KPIs: Cultural fit observations | Values alignment | Team dynamics compatibility' },
+      ],
+    },
+  ],
+  'salesperson': [
+    {
+      id: 'sp1',
+      name: 'Sales Experience & Results',
+      weight: 14,
+      questions: [
+        { id: 'sp1-q1', text: 'What is the candidate\'s track record in automotive or related sales? Consider units sold and consistency.' },
+        { id: 'sp1-q2', text: 'Evidence/KPIs: Units sold monthly | Closing ratio | Years of sales experience' },
+      ],
+    },
+    {
+      id: 'sp2',
+      name: 'Product Knowledge',
+      weight: 10,
+      questions: [
+        { id: 'sp2-q1', text: 'Does the candidate demonstrate strong product knowledge or ability to quickly learn vehicle features and benefits?' },
+        { id: 'sp2-q2', text: 'Evidence/KPIs: Brand familiarity | Competitive knowledge | Learning aptitude' },
+      ],
+    },
+    {
+      id: 'sp3',
+      name: 'Prospecting & Lead Follow-up',
+      weight: 10,
+      questions: [
+        { id: 'sp3-q1', text: 'How effective is the candidate at generating and following up on leads?' },
+        { id: 'sp3-q2', text: 'Evidence/KPIs: Self-generated business % | Follow-up discipline | CRM usage' },
+      ],
+    },
+    {
+      id: 'sp4',
+      name: 'Customer Service Orientation',
+      weight: 12,
+      questions: [
+        { id: 'sp4-q1', text: 'Does the candidate demonstrate genuine commitment to customer satisfaction?' },
+        { id: 'sp4-q2', text: 'Evidence/KPIs: Customer feedback examples | Repeat/referral business | CSI awareness' },
+      ],
+    },
+    {
+      id: 'sp5',
+      name: 'Communication & Presentation Skills',
+      weight: 10,
+      questions: [
+        { id: 'sp5-q1', text: 'How effectively does the candidate communicate and present to customers?' },
+      ],
+    },
+    {
+      id: 'sp6',
+      name: 'Negotiation Skills',
+      weight: 8,
+      questions: [
+        { id: 'sp6-q1', text: 'Does the candidate demonstrate ability to negotiate effectively while maintaining customer rapport?' },
+        { id: 'sp6-q2', text: 'Evidence/KPIs: Gross profit maintained | Negotiation approach' },
+      ],
+    },
+    {
+      id: 'sp7',
+      name: 'Work Ethic & Motivation',
+      weight: 10,
+      questions: [
+        { id: 'sp7-q1', text: 'Does the candidate demonstrate strong work ethic, self-motivation, and drive to succeed?' },
+        { id: 'sp7-q2', text: 'Evidence/KPIs: Attendance record | Hours willing to work | Goal orientation' },
+      ],
+    },
+    {
+      id: 'sp8',
+      name: 'Professional Appearance & Demeanor',
+      weight: 6,
+      questions: [
+        { id: 'sp8-q1', text: 'Does the candidate present professionally and appropriately for a sales role?' },
+      ],
+    },
+    {
+      id: 'sp9',
+      name: 'Primary Residence Distance',
+      weight: 6,
+      questions: [
+        { id: 'sp9-q1', text: 'Is the candidate\'s primary residence a reasonable distance from the dealership?' },
+        { id: 'sp9-q2', text: 'Evidence/KPIs: Distance in miles | Estimated commute time' },
+      ],
+    },
+    {
+      id: 'sp10',
+      name: 'References',
+      weight: 7,
+      questions: [
+        { id: 'sp10-q1', text: 'Are the candidate\'s professional references excellent?' },
+        { id: 'sp10-q2', text: 'Evidence/KPIs: # of references contacted | Reference quality | Key themes from feedback' },
+      ],
+    },
+    {
+      id: 'sp11',
+      name: 'Dealership Culture Alignment',
+      weight: 7,
+      questions: [
+        { id: 'sp11-q1', text: 'Does the candidate align with the dealership\'s culture, values, and way of doing business?' },
+        { id: 'sp11-q2', text: 'Evidence/KPIs: Cultural fit observations | Values alignment | Team dynamics compatibility' },
+      ],
+    },
+  ],
+  'service-manager': [
+    {
+      id: 'svm1',
+      name: 'Service Department Performance',
+      weight: 12,
+      questions: [
+        { id: 'svm1-q1', text: 'How effectively does the candidate demonstrate ability to manage service operations, meet revenue targets, and maintain high customer satisfaction scores?' },
+        { id: 'svm1-q2', text: 'Evidence/KPIs: Service revenue vs target | Labor gross profit | Customer pay RO count | Warranty RO processing' },
+      ],
+    },
+    {
+      id: 'svm2',
+      name: 'Technical Knowledge & Expertise',
+      weight: 10,
+      questions: [
+        { id: 'svm2-q1', text: 'Does the candidate possess strong technical knowledge of automotive systems, repair procedures, and diagnostic processes to effectively lead technicians?' },
+        { id: 'svm2-q2', text: 'Evidence/KPIs: Certifications held | Years of technical experience | Familiarity with brand-specific systems' },
+      ],
+    },
+    {
+      id: 'svm3',
+      name: 'Service Absorption & Profitability',
+      weight: 10,
+      questions: [
+        { id: 'svm3-q1', text: 'What is the candidate\'s track record in achieving service absorption targets and driving departmental profitability?' },
+        { id: 'svm3-q2', text: 'Evidence/KPIs: Service absorption % | Parts-to-labor ratio | Effective labor rate' },
+      ],
+    },
+    {
+      id: 'svm4',
+      name: 'Team Leadership & Development',
+      weight: 10,
+      questions: [
+        { id: 'svm4-q1', text: 'How effectively can the candidate lead, motivate, and develop a team of service advisors, technicians, and support staff?' },
+        { id: 'svm4-q2', text: 'Evidence/KPIs: Previous team size managed | Turnover rate in previous role | Training programs implemented' },
+      ],
+    },
+    {
+      id: 'svm5',
+      name: 'Conflict Resolution & Problem Solving',
+      weight: 8,
+      questions: [
+        { id: 'svm5-q1', text: 'How well does the candidate handle customer complaints, technician disputes, and operational challenges?' },
+      ],
+    },
+    {
+      id: 'svm6',
+      name: 'Customer Satisfaction Focus',
+      weight: 10,
+      questions: [
+        { id: 'svm6-q1', text: 'What is the candidate\'s approach to ensuring exceptional customer experiences and handling escalations?' },
+        { id: 'svm6-q2', text: 'Evidence/KPIs: CSI scores from previous role | Customer retention strategies | Complaint resolution examples' },
+      ],
+    },
+    {
+      id: 'svm7',
+      name: 'Communication Skills',
+      weight: 8,
+      questions: [
+        { id: 'svm7-q1', text: 'How effectively does the candidate communicate with customers, staff, and other departments?' },
+      ],
+    },
+    {
+      id: 'svm8',
+      name: 'Process Management & Efficiency',
+      weight: 8,
+      questions: [
+        { id: 'svm8-q1', text: 'Does the candidate demonstrate ability to implement and improve service processes for maximum efficiency?' },
+        { id: 'svm8-q2', text: 'Evidence/KPIs: Workflow improvements implemented | Scheduling optimization experience' },
+      ],
+    },
+    {
+      id: 'svm9',
+      name: 'Compliance & Safety',
+      weight: 6,
+      questions: [
+        { id: 'svm9-q1', text: 'How well does the candidate understand and enforce safety regulations, environmental compliance, and warranty procedures?' },
+        { id: 'svm9-q2', text: 'Evidence/KPIs: Safety record | Warranty audit results | EPA/OSHA compliance experience' },
+      ],
+    },
+    {
+      id: 'svm10',
+      name: 'Primary Residence Distance',
+      weight: 6,
+      questions: [
+        { id: 'svm10-q1', text: 'Is the candidate\'s primary residence a reasonable distance from the dealership? Consider commute time, reliability, and availability for emergencies.' },
+        { id: 'svm10-q2', text: 'Evidence/KPIs: Distance in miles | Estimated commute time | Relocation plans if applicable' },
+      ],
+    },
+    {
+      id: 'svm11',
+      name: 'References',
+      weight: 6,
+      questions: [
+        { id: 'svm11-q1', text: 'Are the candidate\'s professional references excellent? Consider quality, relevance, and consistency of feedback.' },
+        { id: 'svm11-q2', text: 'Evidence/KPIs: # of references contacted | Reference quality | Key themes from feedback' },
+      ],
+    },
+    {
+      id: 'svm12',
+      name: 'Dealership Culture Alignment',
+      weight: 6,
+      questions: [
+        { id: 'svm12-q1', text: 'Does the candidate align with the dealership\'s culture, values, and way of doing business?' },
+        { id: 'svm12-q2', text: 'Evidence/KPIs: Cultural fit observations | Values alignment | Team dynamics compatibility' },
+      ],
+    },
+  ],
+  'service-advisor': [
+    {
+      id: 'sa1',
+      name: 'Service Sales Performance',
+      weight: 14,
+      questions: [
+        { id: 'sa1-q1', text: 'What is the candidate\'s track record in generating service sales, including customer pay and upselling?' },
+        { id: 'sa1-q2', text: 'Evidence/KPIs: Hours per RO | Customer pay revenue | Upsell rate | Menu selling results' },
+      ],
+    },
+    {
+      id: 'sa2',
+      name: 'Customer Service Excellence',
+      weight: 12,
+      questions: [
+        { id: 'sa2-q1', text: 'How effectively does the candidate provide exceptional customer service and build relationships?' },
+        { id: 'sa2-q2', text: 'Evidence/KPIs: CSI scores | Customer retention | Customer feedback examples' },
+      ],
+    },
+    {
+      id: 'sa3',
+      name: 'Communication Skills',
+      weight: 10,
+      questions: [
+        { id: 'sa3-q1', text: 'How well does the candidate communicate technical information to customers in understandable terms?' },
+      ],
+    },
+    {
+      id: 'sa4',
+      name: 'Automotive Knowledge',
+      weight: 10,
+      questions: [
+        { id: 'sa4-q1', text: 'Does the candidate have sufficient automotive knowledge to accurately describe repairs and services?' },
+        { id: 'sa4-q2', text: 'Evidence/KPIs: Technical background | Brand-specific knowledge | Certification training' },
+      ],
+    },
+    {
+      id: 'sa5',
+      name: 'Service Process Adherence',
+      weight: 8,
+      questions: [
+        { id: 'sa5-q1', text: 'How well does the candidate follow service processes including write-up, status updates, and delivery?' },
+        { id: 'sa5-q2', text: 'Evidence/KPIs: Process compliance | Appointment scheduling | Active delivery experience' },
+      ],
+    },
+    {
+      id: 'sa6',
+      name: 'Organization & Multi-tasking',
+      weight: 10,
+      questions: [
+        { id: 'sa6-q1', text: 'Can the candidate effectively manage multiple customers and repair orders simultaneously?' },
+        { id: 'sa6-q2', text: 'Evidence/KPIs: RO volume handled | Organization methods' },
+      ],
+    },
+    {
+      id: 'sa7',
+      name: 'DMS & Technology Skills',
+      weight: 6,
+      questions: [
+        { id: 'sa7-q1', text: 'How proficient is the candidate with dealership management systems and service technology?' },
+        { id: 'sa7-q2', text: 'Evidence/KPIs: DMS systems used | Tablet/mobile check-in experience' },
+      ],
+    },
+    {
+      id: 'sa8',
+      name: 'Primary Residence Distance',
+      weight: 8,
+      questions: [
+        { id: 'sa8-q1', text: 'Is the candidate\'s primary residence a reasonable distance from the dealership?' },
+        { id: 'sa8-q2', text: 'Evidence/KPIs: Distance in miles | Estimated commute time' },
+      ],
+    },
+    {
+      id: 'sa9',
+      name: 'References',
+      weight: 10,
+      questions: [
+        { id: 'sa9-q1', text: 'Are the candidate\'s professional references excellent?' },
+        { id: 'sa9-q2', text: 'Evidence/KPIs: # of references contacted | Reference quality | Key themes from feedback' },
+      ],
+    },
+    {
+      id: 'sa10',
+      name: 'Dealership Culture Alignment',
+      weight: 12,
+      questions: [
+        { id: 'sa10-q1', text: 'Does the candidate align with the dealership\'s culture, values, and way of doing business?' },
+        { id: 'sa10-q2', text: 'Evidence/KPIs: Cultural fit observations | Values alignment | Team dynamics compatibility' },
       ],
     },
   ],
@@ -345,127 +780,844 @@ const criteriaData: Record<string, Criterion[]> = {
       ],
     },
   ],
-  'service-advisors': [
+  'parts-manager': [
     {
-      id: 'sa1',
-      name: 'Customer Service & Communication',
-      weight: 25,
-      questions: [
-        { id: 'saq1-1', text: 'How do you explain service recommendations to customers in a clear and understandable way?' },
-        { id: 'saq1-2', text: 'Describe your approach to handling customers who are frustrated or upset about their vehicle.' },
-        { id: 'saq1-3', text: 'How do you build trust and confidence with customers regarding service work?' },
-      ],
-    },
-    {
-      id: 'sa2',
-      name: 'Service Knowledge & Technical Understanding',
-      weight: 22,
-      questions: [
-        { id: 'saq2-1', text: 'How do you diagnose customer concerns and determine appropriate service recommendations?' },
-        { id: 'saq2-2', text: 'Describe your knowledge of vehicle systems and common maintenance requirements.' },
-        { id: 'saq2-3', text: 'How do you stay current with new vehicle technologies and service procedures?' },
-      ],
-    },
-    {
-      id: 'sa3',
-      name: 'Work Order Management & Accuracy',
-      weight: 18,
-      questions: [
-        { id: 'saq3-1', text: 'How do you ensure work orders are accurate and complete before service begins?' },
-        { id: 'saq3-2', text: 'Describe your process for estimating repair costs and time requirements.' },
-        { id: 'saq3-3', text: 'How do you handle situations when additional work is needed beyond the original estimate?' },
-      ],
-    },
-    {
-      id: 'sa4',
-      name: 'Time Management & Scheduling',
-      weight: 15,
-      questions: [
-        { id: 'saq4-1', text: 'How do you manage your schedule to accommodate walk-in customers and appointments?' },
-        { id: 'saq4-2', text: 'Describe your approach to coordinating with technicians to ensure timely service completion.' },
-        { id: 'saq4-3', text: 'How do you handle scheduling conflicts or delays in service completion?' },
-      ],
-    },
-    {
-      id: 'sa5',
-      name: 'Upselling & Service Recommendations',
+      id: 'pm1',
+      name: 'Inventory Management',
       weight: 12,
       questions: [
-        { id: 'saq5-1', text: 'How do you identify and recommend additional services that benefit the customer?' },
-        { id: 'saq5-2', text: 'Describe your approach to upselling without being pushy or aggressive.' },
-        { id: 'saq5-3', text: 'How do you explain the value of preventive maintenance to customers?' },
+        { id: 'pm1-q1', text: 'How effectively does the candidate manage parts inventory, including stock levels, obsolescence, and turnover rates?' },
+        { id: 'pm1-q2', text: 'Evidence/KPIs: Inventory turn rate | Obsolescence % | Fill rate | Stock order accuracy' },
       ],
     },
     {
-      id: 'sa6',
-      name: 'Problem-Solving & Follow-Up',
+      id: 'pm2',
+      name: 'Parts Department Profitability',
+      weight: 10,
+      questions: [
+        { id: 'pm2-q1', text: 'What is the candidate\'s track record in achieving gross profit targets and managing pricing strategies?' },
+        { id: 'pm2-q2', text: 'Evidence/KPIs: Gross profit % | Revenue vs target | Pricing matrix experience' },
+      ],
+    },
+    {
+      id: 'pm3',
+      name: 'Vendor & OEM Relationships',
       weight: 8,
       questions: [
-        { id: 'saq6-1', text: 'How do you handle situations when a customer is not satisfied with service work?' },
-        { id: 'saq6-2', text: 'Describe your follow-up process after service is completed.' },
-        { id: 'saq6-3', text: 'How do you resolve disputes or misunderstandings about service charges?' },
+        { id: 'pm3-q1', text: 'How well does the candidate manage relationships with vendors, negotiate pricing, and maintain OEM program compliance?' },
+        { id: 'pm3-q2', text: 'Evidence/KPIs: Vendor negotiation examples | OEM program participation | Cost savings achieved' },
+      ],
+    },
+    {
+      id: 'pm4',
+      name: 'Team Leadership',
+      weight: 10,
+      questions: [
+        { id: 'pm4-q1', text: 'How effectively can the candidate lead and develop parts counter staff and warehouse personnel?' },
+        { id: 'pm4-q2', text: 'Evidence/KPIs: Previous team size | Training programs implemented | Staff retention' },
+      ],
+    },
+    {
+      id: 'pm5',
+      name: 'Cross-Department Collaboration',
+      weight: 8,
+      questions: [
+        { id: 'pm5-q1', text: 'How well does the candidate work with Service, Body Shop, and Sales departments to support their parts needs?' },
+      ],
+    },
+    {
+      id: 'pm6',
+      name: 'Wholesale & Retail Sales',
+      weight: 10,
+      questions: [
+        { id: 'pm6-q1', text: 'What is the candidate\'s experience in growing wholesale accounts and retail parts sales?' },
+        { id: 'pm6-q2', text: 'Evidence/KPIs: Wholesale account growth | Retail counter sales | Customer acquisition strategies' },
+      ],
+    },
+    {
+      id: 'pm7',
+      name: 'Customer Service Excellence',
+      weight: 8,
+      questions: [
+        { id: 'pm7-q1', text: 'How does the candidate ensure excellent customer service at the parts counter and for internal customers?' },
+        { id: 'pm7-q2', text: 'Evidence/KPIs: Customer satisfaction measures | Response time standards' },
+      ],
+    },
+    {
+      id: 'pm8',
+      name: 'DMS & Technology Proficiency',
+      weight: 6,
+      questions: [
+        { id: 'pm8-q1', text: 'How proficient is the candidate with dealership management systems, parts ordering systems, and inventory software?' },
+        { id: 'pm8-q2', text: 'Evidence/KPIs: DMS systems used | Technology adoption examples' },
+      ],
+    },
+    {
+      id: 'pm9',
+      name: 'Process Improvement',
+      weight: 6,
+      questions: [
+        { id: 'pm9-q1', text: 'Does the candidate demonstrate ability to identify and implement process improvements?' },
+        { id: 'pm9-q2', text: 'Evidence/KPIs: Process improvements implemented | Efficiency gains achieved' },
+      ],
+    },
+    {
+      id: 'pm10',
+      name: 'Primary Residence Distance',
+      weight: 6,
+      questions: [
+        { id: 'pm10-q1', text: 'Is the candidate\'s primary residence a reasonable distance from the dealership?' },
+        { id: 'pm10-q2', text: 'Evidence/KPIs: Distance in miles | Estimated commute time | Relocation plans if applicable' },
+      ],
+    },
+    {
+      id: 'pm11',
+      name: 'References',
+      weight: 8,
+      questions: [
+        { id: 'pm11-q1', text: 'Are the candidate\'s professional references excellent?' },
+        { id: 'pm11-q2', text: 'Evidence/KPIs: # of references contacted | Reference quality | Key themes from feedback' },
+      ],
+    },
+    {
+      id: 'pm12',
+      name: 'Dealership Culture Alignment',
+      weight: 8,
+      questions: [
+        { id: 'pm12-q1', text: 'Does the candidate align with the dealership\'s culture, values, and way of doing business?' },
+        { id: 'pm12-q2', text: 'Evidence/KPIs: Cultural fit observations | Values alignment | Team dynamics compatibility' },
       ],
     },
   ],
-  'service-technicians': [
+  'office-clerk': [
     {
-      id: 'st1',
-      name: 'Technical Skills & Diagnostic Ability',
-      weight: 30,
+      id: 'oc1',
+      name: 'Administrative Experience',
+      weight: 14,
       questions: [
-        { id: 'stq1-1', text: 'How do you approach diagnosing complex vehicle problems systematically?' },
-        { id: 'stq1-2', text: 'Describe your experience with diagnostic equipment and tools.' },
-        { id: 'stq1-3', text: 'How do you stay current with new vehicle technologies and repair procedures?' },
+        { id: 'oc1-q1', text: 'What is the candidate\'s experience with general office administration and clerical duties?' },
+        { id: 'oc1-q2', text: 'Evidence/KPIs: Years of office experience | Dealership experience | Duties performed' },
       ],
     },
     {
-      id: 'st2',
-      name: 'Repair Quality & Attention to Detail',
-      weight: 25,
+      id: 'oc2',
+      name: 'Data Entry & Accuracy',
+      weight: 12,
       questions: [
-        { id: 'stq2-1', text: 'How do you ensure your repairs meet quality standards and manufacturer specifications?' },
-        { id: 'stq2-2', text: 'Describe your process for double-checking your work before returning vehicles to customers.' },
-        { id: 'stq2-3', text: 'How do you handle situations when you discover additional issues during a repair?' },
+        { id: 'oc2-q1', text: 'How accurate and efficient is the candidate with data entry and record keeping?' },
+        { id: 'oc2-q2', text: 'Evidence/KPIs: Typing speed | Error rate | Attention to detail examples' },
       ],
     },
     {
-      id: 'st3',
-      name: 'Efficiency & Time Management',
-      weight: 20,
-      questions: [
-        { id: 'stq3-1', text: 'How do you balance speed with quality when completing repairs?' },
-        { id: 'stq3-2', text: 'Describe your approach to managing multiple repair jobs simultaneously.' },
-        { id: 'stq3-3', text: 'How do you estimate repair times accurately for service advisors?' },
-      ],
-    },
-    {
-      id: 'st4',
-      name: 'Safety & Compliance',
+      id: 'oc3',
+      name: 'Computer & Software Skills',
       weight: 10,
       questions: [
-        { id: 'stq4-1', text: 'How do you ensure safety protocols are followed in the service bay?' },
-        { id: 'stq4-2', text: 'Describe your knowledge of environmental regulations for handling fluids and parts.' },
-        { id: 'stq4-3', text: 'How do you maintain a clean and organized work area?' },
+        { id: 'oc3-q1', text: 'What is the candidate\'s proficiency with office software and dealership systems?' },
+        { id: 'oc3-q2', text: 'Evidence/KPIs: MS Office proficiency | DMS experience | Software systems used' },
       ],
     },
     {
-      id: 'st5',
-      name: 'Communication & Documentation',
+      id: 'oc4',
+      name: 'Phone & Customer Interaction',
+      weight: 12,
+      questions: [
+        { id: 'oc4-q1', text: 'How effectively does the candidate handle phone calls and customer interactions?' },
+        { id: 'oc4-q2', text: 'Evidence/KPIs: Phone experience | Customer service examples' },
+      ],
+    },
+    {
+      id: 'oc5',
+      name: 'Written Communication',
+      weight: 8,
+      questions: [
+        { id: 'oc5-q1', text: 'Does the candidate demonstrate strong written communication skills?' },
+        { id: 'oc5-q2', text: 'Evidence/KPIs: Writing samples | Email professionalism' },
+      ],
+    },
+    {
+      id: 'oc6',
+      name: 'Organization & Time Management',
       weight: 10,
       questions: [
-        { id: 'stq5-1', text: 'How do you communicate technical findings and repair recommendations to service advisors?' },
-        { id: 'stq5-2', text: 'Describe your approach to documenting work performed and parts used.' },
-        { id: 'stq5-3', text: 'How do you explain complex repairs in terms that non-technical staff can understand?' },
+        { id: 'oc6-q1', text: 'How well does the candidate organize work and manage multiple priorities?' },
+        { id: 'oc6-q2', text: 'Evidence/KPIs: Organization methods | Multi-tasking ability' },
       ],
     },
     {
-      id: 'st6',
-      name: 'Problem-Solving & Continuous Learning',
+      id: 'oc7',
+      name: 'Reliability & Punctuality',
+      weight: 8,
+      questions: [
+        { id: 'oc7-q1', text: 'Does the candidate demonstrate reliability and consistent attendance?' },
+        { id: 'oc7-q2', text: 'Evidence/KPIs: Attendance record | Punctuality' },
+      ],
+    },
+    {
+      id: 'oc8',
+      name: 'Primary Residence Distance',
+      weight: 8,
+      questions: [
+        { id: 'oc8-q1', text: 'Is the candidate\'s primary residence a reasonable distance from the dealership?' },
+        { id: 'oc8-q2', text: 'Evidence/KPIs: Distance in miles | Estimated commute time' },
+      ],
+    },
+    {
+      id: 'oc9',
+      name: 'References',
+      weight: 9,
+      questions: [
+        { id: 'oc9-q1', text: 'Are the candidate\'s professional references excellent?' },
+        { id: 'oc9-q2', text: 'Evidence/KPIs: # of references contacted | Reference quality | Key themes from feedback' },
+      ],
+    },
+    {
+      id: 'oc10',
+      name: 'Dealership Culture Alignment',
+      weight: 9,
+      questions: [
+        { id: 'oc10-q1', text: 'Does the candidate align with the dealership\'s culture, values, and way of doing business?' },
+        { id: 'oc10-q2', text: 'Evidence/KPIs: Cultural fit observations | Values alignment | Team dynamics compatibility' },
+      ],
+    },
+  ],
+  'hr-manager': [
+    {
+      id: 'hrm1',
+      name: 'Employment Law & Compliance',
+      weight: 12,
+      questions: [
+        { id: 'hrm1-q1', text: 'How well does the candidate understand and apply employment laws, regulations, and HR compliance requirements?' },
+        { id: 'hrm1-q2', text: 'Evidence/KPIs: Compliance audit experience | Legal issues handled | Policy development examples' },
+      ],
+    },
+    {
+      id: 'hrm2',
+      name: 'HR Administration',
+      weight: 10,
+      questions: [
+        { id: 'hrm2-q1', text: 'What is the candidate\'s experience managing HR operations including payroll, benefits, and HRIS systems?' },
+        { id: 'hrm2-q2', text: 'Evidence/KPIs: HRIS systems used | Employee count managed | Benefits administration experience' },
+      ],
+    },
+    {
+      id: 'hrm3',
+      name: 'Policy Development & Implementation',
+      weight: 8,
+      questions: [
+        { id: 'hrm3-q1', text: 'Does the candidate demonstrate ability to develop, communicate, and enforce HR policies?' },
+        { id: 'hrm3-q2', text: 'Evidence/KPIs: Policies developed | Employee handbook experience | Policy rollout examples' },
+      ],
+    },
+    {
+      id: 'hrm4',
+      name: 'Recruiting & Talent Acquisition',
+      weight: 10,
+      questions: [
+        { id: 'hrm4-q1', text: 'How effective is the candidate at sourcing, attracting, and hiring quality candidates?' },
+        { id: 'hrm4-q2', text: 'Evidence/KPIs: Positions filled annually | Time-to-fill metrics | Quality of hire measures' },
+      ],
+    },
+    {
+      id: 'hrm5',
+      name: 'Training & Development',
+      weight: 8,
+      questions: [
+        { id: 'hrm5-q1', text: 'What is the candidate\'s experience in developing and implementing training programs?' },
+        { id: 'hrm5-q2', text: 'Evidence/KPIs: Training programs created | Development initiatives | ROI of training' },
+      ],
+    },
+    {
+      id: 'hrm6',
+      name: 'Performance Management',
+      weight: 8,
+      questions: [
+        { id: 'hrm6-q1', text: 'How well does the candidate understand and implement performance management systems?' },
+        { id: 'hrm6-q2', text: 'Evidence/KPIs: Performance systems implemented | Review process experience' },
+      ],
+    },
+    {
+      id: 'hrm7',
+      name: 'Employee Relations & Conflict Resolution',
+      weight: 10,
+      questions: [
+        { id: 'hrm7-q1', text: 'How effectively does the candidate handle employee relations issues, investigations, and conflict resolution?' },
+        { id: 'hrm7-q2', text: 'Evidence/KPIs: Investigations conducted | Conflict resolution examples | Grievance handling' },
+      ],
+    },
+    {
+      id: 'hrm8',
+      name: 'Culture & Engagement',
+      weight: 8,
+      questions: [
+        { id: 'hrm8-q1', text: 'What is the candidate\'s approach to building positive workplace culture and employee engagement?' },
+        { id: 'hrm8-q2', text: 'Evidence/KPIs: Engagement initiatives | Culture programs | Retention improvements' },
+      ],
+    },
+    {
+      id: 'hrm9',
+      name: 'Compensation & Benefits Strategy',
+      weight: 6,
+      questions: [
+        { id: 'hrm9-q1', text: 'Does the candidate demonstrate ability to develop competitive compensation and benefits programs?' },
+        { id: 'hrm9-q2', text: 'Evidence/KPIs: Comp structure experience | Benefits program design | Market analysis' },
+      ],
+    },
+    {
+      id: 'hrm10',
+      name: 'HR Metrics & Analytics',
+      weight: 4,
+      questions: [
+        { id: 'hrm10-q1', text: 'How well does the candidate use HR data and metrics to drive decisions?' },
+        { id: 'hrm10-q2', text: 'Evidence/KPIs: Metrics tracked | Analytics tools used | Data-driven decisions' },
+      ],
+    },
+    {
+      id: 'hrm11',
+      name: 'Primary Residence Distance',
       weight: 5,
       questions: [
-        { id: 'stq6-1', text: 'Tell me about a challenging repair you completed and how you solved it.' },
-        { id: 'stq6-2', text: 'How do you approach repairs you haven\'t encountered before?' },
-        { id: 'stq6-3', text: 'What resources do you use to stay updated on new repair techniques and technologies?' },
+        { id: 'hrm11-q1', text: 'Is the candidate\'s primary residence a reasonable distance from the dealership?' },
+        { id: 'hrm11-q2', text: 'Evidence/KPIs: Distance in miles | Estimated commute time | Relocation plans if applicable' },
+      ],
+    },
+    {
+      id: 'hrm12',
+      name: 'References',
+      weight: 6,
+      questions: [
+        { id: 'hrm12-q1', text: 'Are the candidate\'s professional references excellent?' },
+        { id: 'hrm12-q2', text: 'Evidence/KPIs: # of references contacted | Reference quality | Key themes from feedback' },
+      ],
+    },
+    {
+      id: 'hrm13',
+      name: 'Dealership Culture Alignment',
+      weight: 5,
+      questions: [
+        { id: 'hrm13-q1', text: 'Does the candidate align with the dealership\'s culture, values, and way of doing business?' },
+        { id: 'hrm13-q2', text: 'Evidence/KPIs: Cultural fit observations | Values alignment | Team dynamics compatibility' },
+      ],
+    },
+  ],
+  'finance-manager': [
+    {
+      id: 'fm1',
+      name: 'F&I Income Performance',
+      weight: 14,
+      questions: [
+        { id: 'fm1-q1', text: 'What is the candidate\'s track record in generating F&I income per vehicle retailed?' },
+        { id: 'fm1-q2', text: 'Evidence/KPIs: PVR achieved | Total F&I gross | Income vs target' },
+      ],
+    },
+    {
+      id: 'fm2',
+      name: 'Product Penetration',
+      weight: 12,
+      questions: [
+        { id: 'fm2-q1', text: 'How effectively does the candidate achieve penetration rates on F&I products?' },
+        { id: 'fm2-q2', text: 'Evidence/KPIs: VSC penetration % | GAP penetration % | Maintenance plan % | Overall product penetration' },
+      ],
+    },
+    {
+      id: 'fm3',
+      name: 'Lender Relationships & Financing',
+      weight: 10,
+      questions: [
+        { id: 'fm3-q1', text: 'Does the candidate demonstrate strong lender relationships and ability to secure financing approvals?' },
+        { id: 'fm3-q2', text: 'Evidence/KPIs: Lender relationships | Approval rate | Rate markup average | Subprime experience' },
+      ],
+    },
+    {
+      id: 'fm4',
+      name: 'Regulatory Compliance',
+      weight: 10,
+      questions: [
+        { id: 'fm4-q1', text: 'How well does the candidate understand and adhere to F&I compliance requirements (TILA, ECOA, FCRA, etc.)?' },
+        { id: 'fm4-q2', text: 'Evidence/KPIs: Compliance training | Audit results | Regulatory knowledge' },
+      ],
+    },
+    {
+      id: 'fm5',
+      name: 'Ethical Sales Practices',
+      weight: 8,
+      questions: [
+        { id: 'fm5-q1', text: 'Does the candidate demonstrate commitment to ethical, transparent F&I practices?' },
+        { id: 'fm5-q2', text: 'Evidence/KPIs: Customer complaint history | Chargeback rate | Ethical standards' },
+      ],
+    },
+    {
+      id: 'fm6',
+      name: 'Customer Satisfaction',
+      weight: 8,
+      questions: [
+        { id: 'fm6-q1', text: 'What is the candidate\'s approach to ensuring positive customer experience in the F&I office?' },
+        { id: 'fm6-q2', text: 'Evidence/KPIs: F&I-related CSI scores | Customer feedback | Transaction time' },
+      ],
+    },
+    {
+      id: 'fm7',
+      name: 'Menu Presentation Skills',
+      weight: 6,
+      questions: [
+        { id: 'fm7-q1', text: 'How effective is the candidate at presenting F&I products using menu selling techniques?' },
+        { id: 'fm7-q2', text: 'Evidence/KPIs: Menu selling experience | Presentation style' },
+      ],
+    },
+    {
+      id: 'fm8',
+      name: 'Deal Documentation & Funding',
+      weight: 6,
+      questions: [
+        { id: 'fm8-q1', text: 'How proficient is the candidate at completing accurate deal documentation and timely funding?' },
+        { id: 'fm8-q2', text: 'Evidence/KPIs: Funding time | Kickback rate | Documentation accuracy' },
+      ],
+    },
+    {
+      id: 'fm9',
+      name: 'DMS & Technology Skills',
+      weight: 4,
+      questions: [
+        { id: 'fm9-q1', text: 'What is the candidate\'s proficiency with DMS systems and F&I technology?' },
+        { id: 'fm9-q2', text: 'Evidence/KPIs: DMS systems used | E-contracting experience | Digital F&I tools' },
+      ],
+    },
+    {
+      id: 'fm10',
+      name: 'Primary Residence Distance',
+      weight: 6,
+      questions: [
+        { id: 'fm10-q1', text: 'Is the candidate\'s primary residence a reasonable distance from the dealership?' },
+        { id: 'fm10-q2', text: 'Evidence/KPIs: Distance in miles | Estimated commute time | Relocation plans if applicable' },
+      ],
+    },
+    {
+      id: 'fm11',
+      name: 'References',
+      weight: 8,
+      questions: [
+        { id: 'fm11-q1', text: 'Are the candidate\'s professional references excellent?' },
+        { id: 'fm11-q2', text: 'Evidence/KPIs: # of references contacted | Reference quality | Key themes from feedback' },
+      ],
+    },
+    {
+      id: 'fm12',
+      name: 'Dealership Culture Alignment',
+      weight: 8,
+      questions: [
+        { id: 'fm12-q1', text: 'Does the candidate align with the dealership\'s culture, values, and way of doing business?' },
+        { id: 'fm12-q2', text: 'Evidence/KPIs: Cultural fit observations | Values alignment | Team dynamics compatibility' },
+      ],
+    },
+  ],
+  'used-car-manager': [
+    {
+      id: 'ucm1',
+      name: 'Inventory Acquisition',
+      weight: 12,
+      questions: [
+        { id: 'ucm1-q1', text: 'How effective is the candidate at sourcing quality used vehicle inventory through trades, auctions, and other channels?' },
+        { id: 'ucm1-q2', text: 'Evidence/KPIs: Acquisition sources used | Trade appraisal accuracy | Auction buying experience' },
+      ],
+    },
+    {
+      id: 'ucm2',
+      name: 'Inventory Management',
+      weight: 10,
+      questions: [
+        { id: 'ucm2-q1', text: 'What is the candidate\'s approach to managing inventory levels, aging, and turn rates?' },
+        { id: 'ucm2-q2', text: 'Evidence/KPIs: Days supply target | Turn rate achieved | Aged inventory management' },
+      ],
+    },
+    {
+      id: 'ucm3',
+      name: 'Pricing & Merchandising',
+      weight: 10,
+      questions: [
+        { id: 'ucm3-q1', text: 'How effectively does the candidate price and merchandise used vehicles for maximum profitability?' },
+        { id: 'ucm3-q2', text: 'Evidence/KPIs: Pricing tools used | Market day supply awareness | Photo/description standards' },
+      ],
+    },
+    {
+      id: 'ucm4',
+      name: 'Used Vehicle Sales Performance',
+      weight: 12,
+      questions: [
+        { id: 'ucm4-q1', text: 'What is the candidate\'s track record in achieving used vehicle sales volume and gross profit targets?' },
+        { id: 'ucm4-q2', text: 'Evidence/KPIs: Units sold vs target | Front gross average | Total gross per unit' },
+      ],
+    },
+    {
+      id: 'ucm5',
+      name: 'Reconditioning Management',
+      weight: 8,
+      questions: [
+        { id: 'ucm5-q1', text: 'How well does the candidate manage the reconditioning process to control costs and speed to line?' },
+        { id: 'ucm5-q2', text: 'Evidence/KPIs: Recon cost per unit | Days to frontline | Recon process efficiency' },
+      ],
+    },
+    {
+      id: 'ucm6',
+      name: 'Sales Team Leadership',
+      weight: 10,
+      questions: [
+        { id: 'ucm6-q1', text: 'How effectively can the candidate lead and develop used car salespeople?' },
+        { id: 'ucm6-q2', text: 'Evidence/KPIs: Team size managed | Salesperson productivity | Training approach' },
+      ],
+    },
+    {
+      id: 'ucm7',
+      name: 'Appraisal & Desk Skills',
+      weight: 8,
+      questions: [
+        { id: 'ucm7-q1', text: 'How proficient is the candidate at appraising trades and working deals?' },
+        { id: 'ucm7-q2', text: 'Evidence/KPIs: Appraisal accuracy | Desking experience | Closing ratio' },
+      ],
+    },
+    {
+      id: 'ucm8',
+      name: 'Technology & Tools',
+      weight: 6,
+      questions: [
+        { id: 'ucm8-q1', text: 'What is the candidate\'s proficiency with inventory management tools and pricing software?' },
+        { id: 'ucm8-q2', text: 'Evidence/KPIs: vAuto/similar tools | Pricing software | Online merchandising' },
+      ],
+    },
+    {
+      id: 'ucm9',
+      name: 'Compliance & Documentation',
+      weight: 6,
+      questions: [
+        { id: 'ucm9-q1', text: 'Does the candidate understand used vehicle compliance requirements (title, disclosure, etc.)?' },
+        { id: 'ucm9-q2', text: 'Evidence/KPIs: Title processing | Disclosure requirements | Compliance knowledge' },
+      ],
+    },
+    {
+      id: 'ucm10',
+      name: 'Primary Residence Distance',
+      weight: 6,
+      questions: [
+        { id: 'ucm10-q1', text: 'Is the candidate\'s primary residence a reasonable distance from the dealership?' },
+        { id: 'ucm10-q2', text: 'Evidence/KPIs: Distance in miles | Estimated commute time | Relocation plans if applicable' },
+      ],
+    },
+    {
+      id: 'ucm11',
+      name: 'References',
+      weight: 6,
+      questions: [
+        { id: 'ucm11-q1', text: 'Are the candidate\'s professional references excellent?' },
+        { id: 'ucm11-q2', text: 'Evidence/KPIs: # of references contacted | Reference quality | Key themes from feedback' },
+      ],
+    },
+    {
+      id: 'ucm12',
+      name: 'Dealership Culture Alignment',
+      weight: 6,
+      questions: [
+        { id: 'ucm12-q1', text: 'Does the candidate align with the dealership\'s culture, values, and way of doing business?' },
+        { id: 'ucm12-q2', text: 'Evidence/KPIs: Cultural fit observations | Values alignment | Team dynamics compatibility' },
+      ],
+    },
+  ],
+  'body-shop-manager': [
+    {
+      id: 'bsm1',
+      name: 'Production Management',
+      weight: 12,
+      questions: [
+        { id: 'bsm1-q1', text: 'How effectively does the candidate manage body shop production, workflow, and cycle time?' },
+        { id: 'bsm1-q2', text: 'Evidence/KPIs: Cycle time | Touch time | Throughput | Keys-to-keys time' },
+      ],
+    },
+    {
+      id: 'bsm2',
+      name: 'Financial Performance',
+      weight: 10,
+      questions: [
+        { id: 'bsm2-q1', text: 'What is the candidate\'s track record in achieving gross profit and revenue targets?' },
+        { id: 'bsm2-q2', text: 'Evidence/KPIs: Gross profit % | Revenue vs target | Labor rate achieved' },
+      ],
+    },
+    {
+      id: 'bsm3',
+      name: 'Estimating & Supplements',
+      weight: 8,
+      questions: [
+        { id: 'bsm3-q1', text: 'How proficient is the candidate in estimating repairs and managing supplement processes?' },
+        { id: 'bsm3-q2', text: 'Evidence/KPIs: Estimate accuracy | Supplement capture | Estimating systems used' },
+      ],
+    },
+    {
+      id: 'bsm4',
+      name: 'Insurance Company Relations',
+      weight: 10,
+      questions: [
+        { id: 'bsm4-q1', text: 'How well does the candidate manage relationships with insurance companies and DRP programs?' },
+        { id: 'bsm4-q2', text: 'Evidence/KPIs: DRP programs | Insurance relationships | Approval rates' },
+      ],
+    },
+    {
+      id: 'bsm5',
+      name: 'Customer Satisfaction',
+      weight: 8,
+      questions: [
+        { id: 'bsm5-q1', text: 'What is the candidate\'s approach to ensuring customer satisfaction with repairs?' },
+        { id: 'bsm5-q2', text: 'Evidence/KPIs: CSI scores | Comeback rate | Customer communication' },
+      ],
+    },
+    {
+      id: 'bsm6',
+      name: 'Team Leadership',
+      weight: 10,
+      questions: [
+        { id: 'bsm6-q1', text: 'How effectively can the candidate lead body technicians, painters, and support staff?' },
+        { id: 'bsm6-q2', text: 'Evidence/KPIs: Team size managed | Technician productivity | Staff retention' },
+      ],
+    },
+    {
+      id: 'bsm7',
+      name: 'Quality Control',
+      weight: 8,
+      questions: [
+        { id: 'bsm7-q1', text: 'Does the candidate demonstrate strong commitment to repair quality and OEM procedures?' },
+        { id: 'bsm7-q2', text: 'Evidence/KPIs: Quality inspection process | Certifications held | OEM procedure adherence' },
+      ],
+    },
+    {
+      id: 'bsm8',
+      name: 'Safety & Environmental Compliance',
+      weight: 8,
+      questions: [
+        { id: 'bsm8-q1', text: 'How well does the candidate understand and enforce safety and environmental regulations?' },
+        { id: 'bsm8-q2', text: 'Evidence/KPIs: Safety record | EPA compliance | OSHA experience' },
+      ],
+    },
+    {
+      id: 'bsm9',
+      name: 'Certifications & Training',
+      weight: 6,
+      questions: [
+        { id: 'bsm9-q1', text: 'Does the candidate hold relevant certifications and commitment to ongoing training?' },
+        { id: 'bsm9-q2', text: 'Evidence/KPIs: I-CAR certifications | OEM certifications | Training programs' },
+      ],
+    },
+    {
+      id: 'bsm10',
+      name: 'Primary Residence Distance',
+      weight: 6,
+      questions: [
+        { id: 'bsm10-q1', text: 'Is the candidate\'s primary residence a reasonable distance from the dealership?' },
+        { id: 'bsm10-q2', text: 'Evidence/KPIs: Distance in miles | Estimated commute time | Relocation plans if applicable' },
+      ],
+    },
+    {
+      id: 'bsm11',
+      name: 'References',
+      weight: 7,
+      questions: [
+        { id: 'bsm11-q1', text: 'Are the candidate\'s professional references excellent?' },
+        { id: 'bsm11-q2', text: 'Evidence/KPIs: # of references contacted | Reference quality | Key themes from feedback' },
+      ],
+    },
+    {
+      id: 'bsm12',
+      name: 'Dealership Culture Alignment',
+      weight: 7,
+      questions: [
+        { id: 'bsm12-q1', text: 'Does the candidate align with the dealership\'s culture, values, and way of doing business?' },
+        { id: 'bsm12-q2', text: 'Evidence/KPIs: Cultural fit observations | Values alignment | Team dynamics compatibility' },
+      ],
+    },
+  ],
+  'automotive-technician': [
+    {
+      id: 'at1',
+      name: 'Technical Competency',
+      weight: 16,
+      questions: [
+        { id: 'atq1-1', text: 'What is the candidate\'s level of technical skill in diagnosing and repairing vehicles?' },
+        { id: 'atq1-2', text: 'Evidence/KPIs: Skill level (A/B/C tech) | Diagnostic capabilities | Repair quality' },
+      ],
+    },
+    {
+      id: 'at2',
+      name: 'Certifications & Training',
+      weight: 12,
+      questions: [
+        { id: 'atq2-1', text: 'Does the candidate hold relevant ASE certifications and manufacturer training?' },
+        { id: 'atq2-2', text: 'Evidence/KPIs: ASE certifications | OEM certifications | Training completed' },
+      ],
+    },
+    {
+      id: 'at3',
+      name: 'Specialty Skills',
+      weight: 8,
+      questions: [
+        { id: 'atq3-1', text: 'Does the candidate have specialty skills (electrical, diesel, hybrid/EV, transmission, etc.)?' },
+        { id: 'atq3-2', text: 'Evidence/KPIs: Specialty areas | Advanced diagnostic experience' },
+      ],
+    },
+    {
+      id: 'at4',
+      name: 'Productivity & Efficiency',
+      weight: 12,
+      questions: [
+        { id: 'atq4-1', text: 'What is the candidate\'s track record for productivity and flag hour performance?' },
+        { id: 'atq4-2', text: 'Evidence/KPIs: Flag hours per week | Efficiency % | Flat rate experience' },
+      ],
+    },
+    {
+      id: 'at5',
+      name: 'Quality of Work',
+      weight: 10,
+      questions: [
+        { id: 'atq5-1', text: 'Does the candidate demonstrate commitment to quality repairs with low comeback rates?' },
+        { id: 'atq5-2', text: 'Evidence/KPIs: Comeback rate | Quality inspection results | Attention to detail' },
+      ],
+    },
+    {
+      id: 'at6',
+      name: 'Work Ethic & Reliability',
+      weight: 10,
+      questions: [
+        { id: 'atq6-1', text: 'Does the candidate demonstrate strong work ethic, punctuality, and reliability?' },
+        { id: 'atq6-2', text: 'Evidence/KPIs: Attendance record | Work schedule flexibility | Overtime willingness' },
+      ],
+    },
+    {
+      id: 'at7',
+      name: 'Safety Practices',
+      weight: 6,
+      questions: [
+        { id: 'atq7-1', text: 'Does the candidate follow proper safety procedures and maintain a safe work area?' },
+        { id: 'atq7-2', text: 'Evidence/KPIs: Safety record | Safety training | Tool/equipment care' },
+      ],
+    },
+    {
+      id: 'at8',
+      name: 'Tools & Equipment',
+      weight: 6,
+      questions: [
+        { id: 'atq8-1', text: 'Does the candidate have adequate personal tools for the position?' },
+        { id: 'atq8-2', text: 'Evidence/KPIs: Tool inventory | Scan tool ownership | Tool investment' },
+      ],
+    },
+    {
+      id: 'at9',
+      name: 'Primary Residence Distance',
+      weight: 6,
+      questions: [
+        { id: 'atq9-1', text: 'Is the candidate\'s primary residence a reasonable distance from the dealership?' },
+        { id: 'atq9-2', text: 'Evidence/KPIs: Distance in miles | Estimated commute time' },
+      ],
+    },
+    {
+      id: 'at10',
+      name: 'References',
+      weight: 7,
+      questions: [
+        { id: 'atq10-1', text: 'Are the candidate\'s professional references excellent?' },
+        { id: 'atq10-2', text: 'Evidence/KPIs: # of references contacted | Reference quality | Key themes from feedback' },
+      ],
+    },
+    {
+      id: 'at11',
+      name: 'Dealership Culture Alignment',
+      weight: 7,
+      questions: [
+        { id: 'atq11-1', text: 'Does the candidate align with the dealership\'s culture, values, and way of doing business?' },
+        { id: 'atq11-2', text: 'Evidence/KPIs: Cultural fit observations | Values alignment | Team dynamics compatibility' },
+      ],
+    },
+  ],
+  'support-staff': [
+    {
+      id: 'ss1',
+      name: 'Relevant Experience',
+      weight: 14,
+      questions: [
+        { id: 'ss1-q1', text: 'What is the candidate\'s experience with the specific support role (porter, lot attendant, detailer, receptionist, etc.)?' },
+        { id: 'ss1-q2', text: 'Evidence/KPIs: Years of experience | Similar role experience | Dealership experience' },
+      ],
+    },
+    {
+      id: 'ss2',
+      name: 'Role-Specific Skills',
+      weight: 12,
+      questions: [
+        { id: 'ss2-q1', text: 'Does the candidate possess the specific skills needed for this support position?' },
+        { id: 'ss2-q2', text: 'Evidence/KPIs: Driving record (if applicable) | Physical capability | Specific skill requirements' },
+      ],
+    },
+    {
+      id: 'ss3',
+      name: 'Work Ethic',
+      weight: 14,
+      questions: [
+        { id: 'ss3-q1', text: 'Does the candidate demonstrate strong work ethic and willingness to work hard?' },
+        { id: 'ss3-q2', text: 'Evidence/KPIs: Work history stability | Effort examples' },
+      ],
+    },
+    {
+      id: 'ss4',
+      name: 'Reliability & Attendance',
+      weight: 12,
+      questions: [
+        { id: 'ss4-q1', text: 'Is the candidate reliable with consistent attendance and punctuality?' },
+        { id: 'ss4-q2', text: 'Evidence/KPIs: Attendance record | Transportation reliability' },
+      ],
+    },
+    {
+      id: 'ss5',
+      name: 'Flexibility & Adaptability',
+      weight: 10,
+      questions: [
+        { id: 'ss5-q1', text: 'Is the candidate flexible with schedule and willing to help where needed?' },
+        { id: 'ss5-q2', text: 'Evidence/KPIs: Schedule flexibility | Willingness to cross-train' },
+      ],
+    },
+    {
+      id: 'ss6',
+      name: 'Positive Attitude',
+      weight: 10,
+      questions: [
+        { id: 'ss6-q1', text: 'Does the candidate display a positive, can-do attitude?' },
+      ],
+    },
+    {
+      id: 'ss7',
+      name: 'Professional Appearance',
+      weight: 6,
+      questions: [
+        { id: 'ss7-q1', text: 'Does the candidate present appropriately for a customer-facing environment?' },
+      ],
+    },
+    {
+      id: 'ss8',
+      name: 'Primary Residence Distance',
+      weight: 7,
+      questions: [
+        { id: 'ss8-q1', text: 'Is the candidate\'s primary residence a reasonable distance from the dealership?' },
+        { id: 'ss8-q2', text: 'Evidence/KPIs: Distance in miles | Estimated commute time' },
+      ],
+    },
+    {
+      id: 'ss9',
+      name: 'References',
+      weight: 7,
+      questions: [
+        { id: 'ss9-q1', text: 'Are the candidate\'s professional references excellent?' },
+        { id: 'ss9-q2', text: 'Evidence/KPIs: # of references contacted | Reference quality | Key themes from feedback' },
+      ],
+    },
+    {
+      id: 'ss10',
+      name: 'Dealership Culture Alignment',
+      weight: 8,
+      questions: [
+        { id: 'ss10-q1', text: 'Does the candidate align with the dealership\'s culture, values, and way of doing business?' },
+        { id: 'ss10-q2', text: 'Evidence/KPIs: Cultural fit observations | Values alignment | Team dynamics compatibility' },
       ],
     },
   ],
@@ -489,17 +1641,24 @@ type Manager = {
 };
 
 export default function ScoreCandidatePage() {
-  const [selectedRole, setSelectedRole] = useState('mid-level');
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [selectedRole, setSelectedRole] = useState('c-level-manager');
   const [selectedCandidate, setSelectedCandidate] = useState('');
   const [selectedManager, setSelectedManager] = useState('');
   const [selectedStage, setSelectedStage] = useState('');
   const [scores, setScores] = useState<Record<string, number>>({});
+  const [criterionComments, setCriterionComments] = useState<Record<string, string>>({});
+  const [additionalNotes, setAdditionalNotes] = useState('');
   const [expandedCriteria, setExpandedCriteria] = useState<Record<string, boolean>>({});
   const [showPrintView, setShowPrintView] = useState(false);
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [managers, setManagers] = useState<Manager[]>([]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [candidateSearch, setCandidateSearch] = useState('');
+  const [showCandidateDropdown, setShowCandidateDropdown] = useState(false);
+  const [interviewerRecommendation, setInterviewerRecommendation] = useState('');
 
   const currentCriteria = criteriaData[selectedRole] || [];
   const selectedRoleData = roles.find(r => r.id === selectedRole);
@@ -509,6 +1668,32 @@ export default function ScoreCandidatePage() {
     loadCandidates();
     loadManagers();
   }, []);
+
+  // Auto-fill from query parameters
+  useEffect(() => {
+    if (candidates.length > 0 && searchParams) {
+      const candidateId = searchParams.get('candidateId');
+      const role = searchParams.get('role');
+      const stage = searchParams.get('stage');
+
+      if (candidateId && !selectedCandidate) {
+        setSelectedCandidate(candidateId);
+        const candidate = candidates.find(c => c.id.toString() === candidateId);
+        if (candidate) {
+          setCandidateSearch(candidate.name);
+          setShowCandidateDropdown(false);
+        }
+      }
+
+      if (role && !selectedRole) {
+        setSelectedRole(role);
+      }
+
+      if (stage && !selectedStage) {
+        setSelectedStage(stage);
+      }
+    }
+  }, [candidates, searchParams, selectedCandidate, selectedRole, selectedStage]);
 
   async function loadCandidates() {
     try {
@@ -533,6 +1718,8 @@ export default function ScoreCandidatePage() {
       const token = getToken();
       if (!token) return;
 
+      const allManagers: Manager[] = [];
+
       // Try to get managers from admin endpoint
       const res = await fetch(`${API_BASE}/admin/managers`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -541,11 +1728,10 @@ export default function ScoreCandidatePage() {
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
         // Combine approved and pending managers
-        const allManagers = [
+        allManagers.push(
           ...(data.managers || []),
           ...(data.pending || [])
-        ];
-        setManagers(allManagers);
+        );
       } else {
         // If not admin, try to get current user as manager
         const userRes = await fetch(`${API_BASE}/auth/me`, {
@@ -553,14 +1739,47 @@ export default function ScoreCandidatePage() {
         });
         const userData = await userRes.json().catch(() => ({}));
         if (userRes.ok && (userData.role === 'manager' || userData.role === 'hiring_manager')) {
-          setManagers([{
+          allManagers.push({
             id: userData.id || 0,
             email: userData.email || '',
             full_name: userData.full_name || null,
             role: userData.role || 'manager'
-          }]);
+          });
         }
       }
+
+      // Also fetch admins from /admin/users endpoint
+      try {
+        const usersRes = await fetch(`${API_BASE}/admin/users`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        
+        if (usersRes.ok) {
+          const usersData = await usersRes.json();
+          // Filter for admins
+          const admins = (usersData.users || []).filter((u: any) => {
+            const isAdmin = u.role === 'admin';
+            const isApproved = u.is_approved !== false || u.is_approved === undefined;
+            return isAdmin && isApproved;
+          }).map((u: any) => ({
+            id: u.id,
+            email: u.email || '',
+            full_name: u.full_name || null,
+            role: 'admin'
+          }));
+
+          // Add admins that aren't already in the list (check by email)
+          admins.forEach((admin: Manager) => {
+            if (!allManagers.find(m => m.email === admin.email)) {
+              allManagers.push(admin);
+            }
+          });
+        }
+      } catch (usersErr) {
+        console.error('Failed to load admins:', usersErr);
+      }
+
+      setManagers(allManagers);
     } catch (err) {
       console.error('Failed to load managers:', err);
     }
@@ -631,11 +1850,55 @@ export default function ScoreCandidatePage() {
       const manager = managers.find(m => m.id.toString() === selectedManager);
 
       // Create notes with interview details
-      const interviewNotes = `Interview Stage: ${selectedStage}\nHiring Manager: ${manager?.full_name || manager?.email || 'Unknown'}\nRole: ${selectedRoleData?.name || selectedRole}\n\nScores:\n${currentCriteria.map(c => {
+      const criterionNotes = currentCriteria.map(c => {
         const score = scores[c.id] || 0;
         const weighted = calculateWeighted(c.id);
-        return `${c.name}: ${score}/10 (Weighted: ${weighted.toFixed(2)})`;
-      }).join('\n')}\n\nTotal Weighted Score: ${totalWeighted.toFixed(2)}/10 (${scoreOutOf100}/100)`;
+        const comment = criterionComments[c.id] || '';
+        return `${c.name}: ${score}/10 (Weighted: ${weighted.toFixed(2)})${comment ? `\n  Comments: ${comment}` : ''}`;
+      }).join('\n');
+
+      const recommendationText = interviewerRecommendation === 'hire' ? 'Hire' : interviewerRecommendation === 'next-stage' ? 'Next Stage' : interviewerRecommendation === 'no-hire' ? 'No Hire' : interviewerRecommendation === 'undecided' ? 'Undecided' : 'Not specified';
+      
+      // Create structured interview notes with clear formatting
+      // This format is designed to work with the backend once it supports multiple interviews
+      const newInterviewNotes = `Interview Stage: ${selectedStage}
+Hiring Manager: ${manager?.full_name || manager?.email || 'Unknown'}
+Role: ${selectedRoleData?.name || selectedRole}
+Interviewer Recommendation: ${recommendationText}
+
+Scores:
+${criterionNotes}
+
+Total Weighted Score: ${totalWeighted.toFixed(2)}/10 (${scoreOutOf100}/100)${additionalNotes ? `
+
+Additional Notes:
+${additionalNotes}` : ''}`;
+
+      // Fetch current candidate to get existing notes
+      const candidateRes = await fetch(`${API_BASE}/candidates/${selectedCandidate}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      
+      if (!candidateRes.ok) {
+        toast.error('Failed to fetch candidate data');
+        return;
+      }
+      
+      const candidateData = await candidateRes.json().catch(() => ({}));
+      const existingNotes = candidateData.notes || '';
+      
+      // Append new interview notes to existing notes
+      // Use a clear separator to distinguish between multiple interviews
+      // Format: [existing notes]\n\n--- INTERVIEW ---\n\n[new interview notes]
+      let updatedNotes: string;
+      if (existingNotes && existingNotes.trim()) {
+        // Ensure proper separation between interviews
+        const trimmedExisting = existingNotes.trim();
+        // Use a clear separator that's easy to parse
+        updatedNotes = `${trimmedExisting}\n\n--- INTERVIEW ---\n\n${newInterviewNotes}`;
+      } else {
+        updatedNotes = newInterviewNotes;
+      }
 
       // Update candidate with score and notes
       const res = await fetch(`${API_BASE}/candidates/${selectedCandidate}`, {
@@ -646,22 +1909,49 @@ export default function ScoreCandidatePage() {
         },
         body: JSON.stringify({
           score: scoreOutOf100,
-          notes: interviewNotes,
+          notes: updatedNotes,
         }),
       });
 
       const data = await res.json().catch(() => ({}));
+      
+      // Debug: Check what backend saved
+      console.log('=== BACKEND SAVE RESPONSE ===');
+      console.log('Status:', res.status);
+      console.log('Response data:', data);
+      if (data.candidate && data.candidate.notes) {
+        console.log('Saved notes length:', data.candidate.notes.length);
+        console.log('Saved notes preview (first 500 chars):', data.candidate.notes.substring(0, 500));
+        console.log('Saved notes preview (last 500 chars):', data.candidate.notes.substring(Math.max(0, data.candidate.notes.length - 500)));
+      } else if (data.notes) {
+        console.log('Saved notes length:', data.notes.length);
+        console.log('Saved notes preview (first 500 chars):', data.notes.substring(0, 500));
+      } else {
+        console.log('⚠️ No notes field in response!');
+      }
+      
       if (!res.ok) {
-        throw new Error(data.error || 'Failed to submit scores');
+        throw new Error(data.error || data.message || 'Failed to submit scores');
       }
 
       toast.success('Scores submitted successfully!');
       
+      // Redirect back to candidate detail page if candidateId was provided
+      const candidateIdParam = searchParams?.get('candidateId') || selectedCandidate;
+      if (candidateIdParam) {
+        // Use window.location to force a full page reload
+        window.location.href = `/candidates/${candidateIdParam}`;
+        return;
+      }
+      
       // Reset form
       setScores({});
+      setCriterionComments({});
+      setAdditionalNotes('');
       setSelectedCandidate('');
       setSelectedManager('');
       setSelectedStage('');
+      setInterviewerRecommendation('');
       
       // Reload candidates to get updated score
       await loadCandidates();
@@ -676,9 +1966,12 @@ export default function ScoreCandidatePage() {
   const handleReset = () => {
     if (confirm('Are you sure you want to reset all scores?')) {
       setScores({});
+      setCriterionComments({});
+      setAdditionalNotes('');
       setSelectedCandidate('');
       setSelectedManager('');
       setSelectedStage('');
+      setInterviewerRecommendation('');
     }
   };
 
@@ -719,25 +2012,7 @@ export default function ScoreCandidatePage() {
             </div>
           </div>
 
-          {/* Role Selection Tabs */}
-          <div className="flex items-center gap-3 mb-6 overflow-x-auto pb-2 scrollbar-hide">
-            {roles.map(role => (
-              <button
-                key={role.id}
-                onClick={() => setSelectedRole(role.id)}
-                className="px-5 py-2.5 rounded-full text-sm font-semibold transition-all whitespace-nowrap"
-                style={{
-                  backgroundColor: selectedRole === role.id ? '#4D6DBE' : '#FFFFFF',
-                  color: selectedRole === role.id ? '#FFFFFF' : '#374151',
-                  border: selectedRole === role.id ? 'none' : '1px solid #E5E7EB',
-                }}
-              >
-                {role.name}
-              </button>
-            ))}
-          </div>
-
-          {/* Candidate, Hiring Manager, and Interview Stage Selection */}
+          {/* Candidate, Role, Interview Stage, and Hiring Manager Selection - Top */}
           {(() => {
             const selectedCandidateObj = candidates.find(c => c.id.toString() === selectedCandidate);
             if (selectedCandidate && selectedCandidateObj && selectedCandidateObj.score !== null && selectedCandidateObj.score !== undefined) {
@@ -754,26 +2029,99 @@ export default function ScoreCandidatePage() {
             }
             return null;
           })()}
-          <div className="grid grid-cols-3 gap-4 mb-6">
-            <div>
+          <div className="grid grid-cols-4 gap-4 mb-6">
+            <div className="relative">
               <label className="block text-sm font-bold mb-2" style={{ color: '#232E40' }}>
                 Candidate:
               </label>
-              <select
-                value={selectedCandidate}
-                onChange={(e) => setSelectedCandidate(e.target.value)}
+              <div className="relative">
+                <input
+                  type="text"
+                  value={candidateSearch || (selectedCandidate ? candidates.find(c => c.id.toString() === selectedCandidate)?.name || '' : '')}
+                  onChange={(e) => {
+                    setCandidateSearch(e.target.value);
+                    setShowCandidateDropdown(true);
+                    if (!e.target.value) {
+                      setSelectedCandidate('');
+                    }
+                  }}
+                  onFocus={() => setShowCandidateDropdown(true)}
                 className="w-full px-4 py-2.5 rounded-lg text-sm transition-all focus:outline-none focus:ring-2 focus:ring-blue-500"
                 style={{
                   border: '1px solid #D1D5DB',
                   color: '#374151',
                   backgroundColor: '#FFFFFF',
                 }}
+                  placeholder="Search candidates..."
                 disabled={loading}
+                />
+                {showCandidateDropdown && (
+                  <div 
+                    className="absolute z-50 w-full mt-1 bg-white border rounded-lg shadow-lg max-h-60 overflow-y-auto"
+                    style={{
+                      border: '1px solid #D1D5DB',
+                    }}
+                  >
+                    {candidates
+                      .filter(candidate => {
+                        if (!candidateSearch) return true;
+                        const searchLower = candidateSearch.toLowerCase();
+                        return candidate.name.toLowerCase().includes(searchLower) || 
+                               candidate.position.toLowerCase().includes(searchLower);
+                      })
+                      .map(candidate => (
+                        <div
+                          key={candidate.id}
+                          onClick={() => {
+                            setSelectedCandidate(candidate.id.toString());
+                            setCandidateSearch('');
+                            setShowCandidateDropdown(false);
+                          }}
+                          className="px-4 py-2 hover:bg-blue-50 cursor-pointer transition-colors"
+                          style={{
+                            color: '#374151',
+                          }}
+                        >
+                          <div className="font-medium">{candidate.name}</div>
+                        </div>
+                      ))}
+                    {candidates.filter(candidate => {
+                      if (!candidateSearch) return true;
+                      const searchLower = candidateSearch.toLowerCase();
+                      return candidate.name.toLowerCase().includes(searchLower) || 
+                             candidate.position.toLowerCase().includes(searchLower);
+                    }).length === 0 && (
+                      <div className="px-4 py-2 text-sm" style={{ color: '#6B7280' }}>
+                        No candidates found
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+              {showCandidateDropdown && (
+                <div 
+                  className="fixed inset-0 z-40" 
+                  onClick={() => setShowCandidateDropdown(false)}
+                />
+              )}
+            </div>
+            <div>
+              <label className="block text-sm font-bold mb-2" style={{ color: '#232E40' }}>
+                Role:
+              </label>
+              <select
+                value={selectedRole}
+                onChange={(e) => setSelectedRole(e.target.value)}
+                className="w-full px-4 py-2.5 rounded-lg text-sm transition-all focus:outline-none focus:ring-2 focus:ring-blue-500"
+                style={{
+                  border: '1px solid #D1D5DB',
+                  color: '#374151',
+                  backgroundColor: '#FFFFFF',
+                }}
               >
-                <option value="">Please choose...</option>
-                {candidates.map(candidate => (
-                  <option key={candidate.id} value={candidate.id.toString()}>
-                    {candidate.name} - {candidate.position} {candidate.score !== null && candidate.score !== undefined ? `(Score: ${candidate.score})` : ''}
+                {roles.map(role => (
+                  <option key={role.id} value={role.id}>
+                    {role.name}
                   </option>
                 ))}
               </select>
@@ -805,33 +2153,55 @@ export default function ScoreCandidatePage() {
               <label className="block text-sm font-bold mb-2" style={{ color: '#232E40' }}>
                 Interview Stage:
               </label>
-              <select
-                value={selectedStage}
-                onChange={(e) => setSelectedStage(e.target.value)}
-                className="w-full px-4 py-2.5 rounded-lg text-sm transition-all focus:outline-none focus:ring-2 focus:ring-blue-500"
+              <div className="flex gap-2">
+                {[1, 2, 3, 4, 5].map((num) => (
+                  <button
+                    key={num}
+                    type="button"
+                    onClick={() => setSelectedStage(num.toString())}
+                    className="w-10 h-10 rounded-full text-xs font-semibold transition-all focus:outline-none focus:ring-2 focus:ring-blue-500"
                 style={{
-                  border: '1px solid #D1D5DB',
-                  color: '#374151',
-                  backgroundColor: '#FFFFFF',
-                }}
-              >
-                <option value="">Please choose...</option>
-                <option value="first">First Interview</option>
-                <option value="second">Second Interview</option>
-                <option value="third">Third Interview</option>
-                <option value="final">Final Interview</option>
-                <option value="panel">Panel Interview</option>
-                <option value="technical">Technical Interview</option>
-              </select>
+                      border: selectedStage === num.toString() ? '2px solid #4D6DBE' : '1px solid #D1D5DB',
+                      color: selectedStage === num.toString() ? '#FFFFFF' : '#374151',
+                      backgroundColor: selectedStage === num.toString() ? '#4D6DBE' : '#FFFFFF',
+                    }}
+                  >
+                    {num}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 
-          {/* Scoring Scale */}
-          <div className="mb-6 p-4 rounded-lg" style={{ backgroundColor: '#F3F4F6', border: '1px solid #E5E7EB' }}>
-            <p className="text-sm font-semibold mb-1" style={{ color: '#232E40' }}>Scoring Scale:</p>
-            <p className="text-sm" style={{ color: '#6B7280' }}>
-              below 6.0 = Poor, 6.1 to 6.9 = Average, 7.0 to 8.0 = Good, 8.1 to 10 = Excellent
-            </p>
+          {/* Print Scorecard Banner */}
+          <div className="mb-6 p-4 rounded-xl flex items-center justify-between" style={{ 
+            backgroundColor: '#EEF2FF', 
+            border: '1px solid #C7D2FE' 
+          }}>
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg" style={{ backgroundColor: '#4D6DBE' }}>
+                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                </svg>
+              </div>
+              <div>
+                <p className="text-sm font-semibold" style={{ color: '#232E40' }}>Need a printable scorecard?</p>
+                <p className="text-xs" style={{ color: '#6B7280' }}>Print the interview scorecard to use during in-person interviews</p>
+              </div>
+            </div>
+            <button
+              onClick={handlePreviewPDF}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all hover:opacity-90"
+              style={{
+                backgroundColor: '#4D6DBE',
+                color: '#FFFFFF',
+              }}
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+              </svg>
+              Print Scorecard
+            </button>
           </div>
 
           {/* Scoring Table */}
@@ -839,16 +2209,17 @@ export default function ScoreCandidatePage() {
             <table className="w-full">
               <thead>
                 <tr style={{ backgroundColor: '#4D6DBE' }}>
-                  <th className="py-4 px-6 text-left text-sm font-bold text-white">CRITERION</th>
-                  <th className="py-4 px-6 text-right text-sm font-bold text-white">WEIGHT %</th>
-                  <th className="py-4 px-6 text-center text-sm font-bold text-white">RAW SCORE (out of 10)</th>
-                  <th className="py-4 px-6 text-right text-sm font-bold text-white">WEIGHTED</th>
+                  <th className="py-4 px-6 text-left text-xs font-bold text-white">CRITERION</th>
+                  <th className="py-4 px-6 text-right text-xs font-bold text-white">WEIGHT %</th>
+                  <th className="py-4 px-6 text-center text-xs font-bold text-white">RAW SCORE (out of 10)</th>
+                  <th className="py-4 px-6 text-right text-xs font-bold text-white">WEIGHTED</th>
+                  <th className="py-4 px-6 text-left text-xs font-bold text-white">COMMENTS</th>
                 </tr>
               </thead>
               <tbody>
                 {currentCriteria.length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="py-8 px-6 text-center text-sm" style={{ color: '#6B7280' }}>
+                    <td colSpan={5} className="py-8 px-6 text-center text-sm" style={{ color: '#6B7280' }}>
                       No criteria defined for this role.
                     </td>
                   </tr>
@@ -860,26 +2231,19 @@ export default function ScoreCandidatePage() {
                         style={{ borderBottom: '1px solid #F3F4F6' }}
                       >
                         <td className="py-3 px-6">
-                          <div className="flex items-center gap-3">
-                            {criterion.questions.length > 0 && (
-                              <button
-                                onClick={() => toggleExpand(criterion.id)}
-                                className="p-1.5 hover:bg-gray-200 rounded-lg transition-all duration-200"
-                                style={{ color: '#6B7280' }}
-                              >
-                                <svg
-                                  className={`w-5 h-5 transition-transform duration-200 ${expandedCriteria[criterion.id] ? 'rotate-90' : ''}`}
-                                  fill="none"
-                                  stroke="currentColor"
-                                  viewBox="0 0 24 24"
-                                >
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                                </svg>
-                              </button>
-                            )}
-                            <span className="text-sm font-semibold" style={{ color: '#232E40' }}>
+                          <div>
+                            <span className="text-sm font-semibold block mb-1" style={{ color: '#232E40' }}>
                               {criterion.name}
                             </span>
+                            {criterion.questions.length > 0 && (
+                              <div className="space-y-0.5 mt-1">
+                                {criterion.questions.map((question) => (
+                                  <p key={question.id} className="text-xs leading-tight break-words" style={{ color: '#6B7280', maxWidth: '800px' }}>
+                                    • {question.text}
+                                  </p>
+                                ))}
+                              </div>
+                            )}
                           </div>
                         </td>
                         <td className="py-3 px-6 text-right">
@@ -912,20 +2276,21 @@ export default function ScoreCandidatePage() {
                             {calculateWeighted(criterion.id).toFixed(2)}
                           </span>
                         </td>
-                      </tr>
-                      {expandedCriteria[criterion.id] && criterion.questions.length > 0 && (
-                        <tr>
-                          <td colSpan={4} className="px-6 py-3" style={{ backgroundColor: '#F9FAFB' }}>
-                            <ul className="list-disc list-inside space-y-1 ml-6">
-                              {criterion.questions.map((question) => (
-                                <li key={question.id} className="text-sm" style={{ color: '#374151' }}>
-                                  {question.text}
-                                </li>
-                              ))}
-                            </ul>
+                        <td className="py-3 px-6">
+                          <textarea
+                            value={criterionComments[criterion.id] || ''}
+                            onChange={(e) => setCriterionComments(prev => ({ ...prev, [criterion.id]: e.target.value }))}
+                            className="w-full px-3 py-2 text-sm rounded-lg border resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            style={{
+                              border: '1px solid #D1D5DB',
+                              color: '#374151',
+                              backgroundColor: '#FFFFFF',
+                            }}
+                            rows={2}
+                            placeholder="Add comments..."
+                          />
                           </td>
                         </tr>
-                      )}
                     </React.Fragment>
                   ))
                 )}
@@ -933,41 +2298,61 @@ export default function ScoreCandidatePage() {
             </table>
           </div>
 
-          {/* Print Scorecard Banner */}
-          <div className="mt-4 mb-4 p-4 rounded-xl flex items-center justify-between" style={{ 
-            backgroundColor: '#EEF2FF', 
-            border: '1px solid #C7D2FE' 
-          }}>
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg" style={{ backgroundColor: '#4D6DBE' }}>
-                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-                </svg>
+          {/* Additional Notes Section */}
+          <div className="mt-8 mb-6">
+            <label className="block text-sm font-bold mb-2" style={{ color: '#232E40' }}>
+              Additional Notes:
+            </label>
+            <textarea
+              value={additionalNotes}
+              onChange={(e) => setAdditionalNotes(e.target.value)}
+              className="w-full px-4 py-3 rounded-lg text-sm border resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+              style={{
+                border: '1px solid #D1D5DB',
+                color: '#374151',
+                backgroundColor: '#FFFFFF',
+              }}
+              rows={4}
+              placeholder="Add any additional notes or observations about the candidate..."
+            />
               </div>
-              <div>
-                <p className="text-sm font-semibold" style={{ color: '#232E40' }}>Need a printable scorecard?</p>
-                <p className="text-xs" style={{ color: '#6B7280' }}>Print the interview scorecard to use during in-person interviews</p>
+
+          {/* Hiring Recommendation Guide */}
+          <div className="mb-6 p-4 rounded-lg" style={{ backgroundColor: '#FAFAFA', border: '1px solid #E5E7EB' }}>
+            <p className="text-sm font-semibold mb-4" style={{ color: '#232E40' }}>Hiring Recommendation Guide</p>
+            <div className="space-y-0">
+              <div className="flex items-center gap-4 py-3" style={{ borderBottom: '1px solid #E5E7EB' }}>
+                <span className="text-sm font-bold whitespace-nowrap px-3 py-1 rounded" style={{ color: '#047857', backgroundColor: '#6EE7B7', minWidth: '90px' }}>90-100</span>
+                <span className="text-sm font-semibold" style={{ color: '#232E40' }}>Likely Game Changer</span>
+                <span className="text-sm" style={{ color: '#6B7280' }}>— Exceptional talent; could transform the department's performance</span>
+              </div>
+              <div className="flex items-center gap-4 py-3" style={{ borderBottom: '1px solid #E5E7EB' }}>
+                <span className="text-sm font-bold whitespace-nowrap px-3 py-1 rounded" style={{ color: '#065F46', backgroundColor: '#A7F3D0', minWidth: '90px' }}>80-89</span>
+                <span className="text-sm font-semibold" style={{ color: '#232E40' }}>Strong Performer</span>
+                <span className="text-sm" style={{ color: '#6B7280' }}>— Proven performer; consistently delivers results with minimal oversight</span>
+            </div>
+              <div className="flex items-center gap-4 py-3" style={{ borderBottom: '1px solid #E5E7EB' }}>
+                <span className="text-sm font-bold whitespace-nowrap px-3 py-1 rounded" style={{ color: '#1E40AF', backgroundColor: '#BFDBFE', minWidth: '90px' }}>70-79</span>
+                <span className="text-sm font-semibold" style={{ color: '#232E40' }}>High Potential</span>
+                <span className="text-sm" style={{ color: '#6B7280' }}>— Strong potential, particularly with excellent support and development</span>
+              </div>
+              <div className="flex items-center gap-4 py-3" style={{ borderBottom: '1px solid #E5E7EB' }}>
+                <span className="text-sm font-bold whitespace-nowrap px-3 py-1 rounded" style={{ color: '#92400E', backgroundColor: '#FDE68A', minWidth: '90px' }}>60-69</span>
+                <span className="text-sm font-semibold" style={{ color: '#232E40' }}>Average Candidate</span>
+                <span className="text-sm" style={{ color: '#6B7280' }}>— Won't move the needle; meets basic expectations but lacks standout qualities</span>
+              </div>
+              <div className="flex items-center gap-4 py-3">
+                <span className="text-sm font-bold whitespace-nowrap px-3 py-1 rounded" style={{ color: '#991B1B', backgroundColor: '#FECACA', minWidth: '90px' }}>59 - 00</span>
+                <span className="text-sm font-semibold" style={{ color: '#232E40' }}>Do Not Hire</span>
+                <span className="text-sm" style={{ color: '#6B7280' }}>— Does not meet minimum requirements; significant concerns or gaps</span>
               </div>
             </div>
-            <button
-              onClick={handlePreviewPDF}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all hover:opacity-90"
-              style={{
-                backgroundColor: '#4D6DBE',
-                color: '#FFFFFF',
-              }}
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-              </svg>
-              Print Scorecard
-            </button>
           </div>
 
           {/* Total Weight & Action Buttons */}
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
-              <span className="text-base font-semibold" style={{ color: '#232E40' }}>Total Weight:</span>
+              <span className="text-base font-semibold" style={{ color: '#232E40' }}>Sum Score:</span>
               <span
                 className="px-4 py-1.5 rounded-full text-base font-bold"
                 style={{
@@ -975,10 +2360,33 @@ export default function ScoreCandidatePage() {
                   color: '#FFFFFF',
                 }}
               >
-                {totalWeighted.toFixed(2)}
+                {Math.round(totalWeighted * 10)}/100
               </span>
             </div>
             <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3">
+                <label className="text-sm font-bold whitespace-nowrap" style={{ color: '#232E40' }}>
+                  Interviewer Recommendation:
+                </label>
+                <select
+                  value={interviewerRecommendation}
+                  onChange={(e) => setInterviewerRecommendation(e.target.value)}
+                  className="px-4 py-2.5 rounded-lg text-sm transition-all focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  style={{
+                    border: '1px solid #D1D5DB',
+                    color: '#374151',
+                    backgroundColor: '#FFFFFF',
+                    minWidth: '180px',
+                  }}
+                  disabled={submitting}
+                >
+                  <option value="">Please choose...</option>
+                  <option value="hire">Hire</option>
+                  <option value="next-stage">Next Stage</option>
+                  <option value="no-hire">No Hire</option>
+                  <option value="undecided">Undecided</option>
+                </select>
+              </div>
               <button
                 onClick={handleReset}
                 className="px-6 py-2.5 rounded-lg text-sm font-semibold transition-all hover:bg-gray-50"
@@ -992,8 +2400,8 @@ export default function ScoreCandidatePage() {
               </button>
               <button
                 onClick={handleSubmit}
-                disabled={!selectedCandidate || !selectedManager || !selectedStage || submitting}
-                className="px-6 py-2.5 rounded-lg text-sm font-semibold transition-all hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={!selectedCandidate || !selectedManager || !selectedStage || !interviewerRecommendation || submitting}
+                className="px-8 py-2.5 rounded-lg text-sm font-semibold transition-all hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
                 style={{
                   backgroundColor: '#10B981',
                   color: '#FFFFFF',
@@ -1163,7 +2571,14 @@ export default function ScoreCandidatePage() {
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center' }}>
                   <label style={{ fontWeight: 'bold', minWidth: '70px', marginRight: '5px', fontSize: '8px' }}>Interview Stage:</label>
-                  <div style={{ flex: 1, borderBottom: '1px solid #000', height: '15px' }}></div>
+                  <div style={{ flex: 1, display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    {[1, 2, 3, 4, 5].map((num) => (
+                      <div key={num} style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+                        <div style={{ width: '14px', height: '14px', border: '1px solid #000', borderRadius: '50%', background: 'white' }}></div>
+                        <span style={{ fontSize: '8px' }}>{num}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
 
@@ -1214,119 +2629,119 @@ export default function ScoreCandidatePage() {
                 </div>
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '15px' }}>
+              {/* Scoring Table */}
+              <div style={{ marginBottom: '20px', border: '1px solid #000' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+                  <thead>
+                    <tr style={{ backgroundColor: '#f0f0f0' }}>
+                      <th style={{ padding: '8px', textAlign: 'left', fontSize: '9px', fontWeight: 'bold', color: '#000', border: '1px solid #000', width: '30%' }}>CRITERION</th>
+                      <th style={{ padding: '8px', textAlign: 'right', fontSize: '9px', fontWeight: 'bold', color: '#000', border: '1px solid #000', width: '8%' }}>WEIGHT %</th>
+                      <th style={{ padding: '8px', textAlign: 'center', fontSize: '9px', fontWeight: 'bold', color: '#000', border: '1px solid #000', width: '12%' }}>RAW SCORE (out of 10)</th>
+                      <th style={{ padding: '8px', textAlign: 'right', fontSize: '9px', fontWeight: 'bold', color: '#000', border: '1px solid #000', width: '10%' }}>WEIGHTED</th>
+                      <th style={{ padding: '8px', textAlign: 'left', fontSize: '9px', fontWeight: 'bold', color: '#000', border: '1px solid #000', width: '40%' }}>COMMENTS</th>
+                    </tr>
+                  </thead>
+                  <tbody>
                 {currentCriteria.map((criterion) => (
-                  <div key={criterion.id} className="criterion-section" style={{
-                    border: '1px solid #000',
-                    marginBottom: '8px'
-                  }}>
-                    <div style={{
-                      background: '#f0f0f0',
-                      padding: '4px 8px',
-                      fontWeight: 'bold',
-                      fontSize: '10px',
-                      borderBottom: '1px solid #000',
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center'
-                    }}>
-                      <span>{criterion.name}</span>
-                      <span style={{ fontSize: '9px' }}>Weight: {criterion.weight}%</span>
+                      <tr key={criterion.id} style={{ borderBottom: '1px solid #ccc' }}>
+                        <td style={{ padding: '8px', border: '1px solid #ccc', verticalAlign: 'top' }}>
+                          <div style={{ fontWeight: 'bold', fontSize: '9px', marginBottom: '4px' }}>{criterion.name}</div>
+                          {criterion.questions.length > 0 && (
+                            <div style={{ fontSize: '10px', lineHeight: 1.4, color: '#555' }}>
+                              {criterion.questions.map((question, idx) => (
+                                <div key={question.id} style={{ marginTop: idx > 0 ? '3px' : '0' }}>
+                                  • {question.text}
                     </div>
-                    <div style={{
-                      display: 'grid',
-                      gridTemplateColumns: '2fr 0.8fr 1fr',
-                      gap: '8px',
-                      padding: '6px 8px',
-                      alignItems: 'start'
-                    }}>
-                      <div style={{ borderRight: '1px solid #ccc', paddingRight: '6px' }}>
-                        <div style={{ fontSize: '8px', lineHeight: 1.3 }}>
-                          {criterion.questions.length > 0 ? (
-                            criterion.questions.map((question) => (
-                              <div key={question.id} style={{
-                                marginBottom: '4px',
-                                padding: '2px 0',
-                                borderBottom: '1px dotted #ccc',
-                                display: 'flex',
-                                alignItems: 'flex-start',
-                                gap: '4px'
-                              }}>
-                                <div style={{
-                                  width: '10px',
-                                  height: '10px',
-                                  border: '1px solid #000',
-                                  background: 'white',
-                                  marginTop: '1px',
-                                  flexShrink: 0
-                                }}></div>
-                                <div style={{ flex: 1, fontSize: '8px', lineHeight: 1.3 }}>{question.text}</div>
-                              </div>
-                            ))
-                          ) : (
-                            <div style={{
-                              marginBottom: '4px',
-                              padding: '2px 0',
-                              borderBottom: '1px dotted #ccc',
-                              display: 'flex',
-                              alignItems: 'flex-start',
-                              gap: '4px'
-                            }}>
-                              <div style={{
-                                width: '10px',
-                                height: '10px',
-                                border: '1px solid #000',
-                                background: 'white',
-                                marginTop: '1px',
-                                flexShrink: 0
-                              }}></div>
-                              <div style={{ flex: 1, fontSize: '8px', lineHeight: 1.3 }}>No questions defined</div>
+                              ))}
                             </div>
                           )}
+                        </td>
+                        <td style={{ padding: '8px', textAlign: 'right', border: '1px solid #ccc', verticalAlign: 'top' }}>
+                          <span style={{ fontSize: '9px', fontWeight: 'bold' }}>{criterion.weight}%</span>
+                        </td>
+                        <td style={{ padding: '8px', textAlign: 'center', border: '1px solid #ccc', verticalAlign: 'top' }}>
+                          <div style={{ width: '40px', height: '20px', border: '1px solid #000', background: 'white', margin: '0 auto' }}></div>
+                        </td>
+                        <td style={{ padding: '8px', textAlign: 'right', border: '1px solid #ccc', verticalAlign: 'top' }}>
+                          <div style={{ width: '50px', height: '20px', border: '1px solid #000', background: 'white', margin: '0 auto' }}></div>
+                        </td>
+                        <td style={{ padding: '8px', border: '1px solid #ccc', verticalAlign: 'top' }}>
+                          <div style={{ minHeight: '100px', padding: '4px' }}>
+                            {Array.from({ length: 6 }).map((_, i) => (
+                              <div key={i} style={{ height: '14px', borderBottom: '1px solid #ccc', marginBottom: '2px' }}></div>
+                            ))}
                         </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
                       </div>
-                      <div style={{ textAlign: 'center', borderRight: '1px solid #ccc', padding: '0 8px' }}>
-                        <div style={{ fontSize: '8px', fontWeight: 'bold', marginBottom: '4px' }}>Score (1-10)</div>
-                        <div style={{ width: '25px', height: '20px', border: '1px solid #000', background: 'white', margin: '0 auto' }}></div>
+
+              {/* Additional Notes Section */}
+              <div style={{ marginBottom: '20px' }}>
+                <div style={{ fontSize: '10px', fontWeight: 'bold', marginBottom: '6px' }}>Additional Notes:</div>
+                <div style={{ border: '1px solid #000', minHeight: '150px', padding: '8px' }}></div>
                       </div>
-                      <div style={{ paddingLeft: '6px' }}>
-                        <div style={{ fontSize: '8px', fontWeight: 'bold', marginBottom: '4px' }}>Notes</div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                          {Array.from({ length: 5 }).map((_, i) => (
-                            <div key={i} style={{ height: '12px', borderBottom: '1px solid #ccc' }}></div>
-                          ))}
+
+              {/* Hiring Recommendation Guide */}
+              <div style={{ marginBottom: '20px', padding: '10px', border: '1px solid #000', backgroundColor: '#f9f9f9' }}>
+                <div style={{ fontSize: '10px', fontWeight: 'bold', marginBottom: '8px' }}>Hiring Recommendation Guide</div>
+                <div style={{ fontSize: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '4px 0', borderBottom: '1px solid #ddd' }}>
+                    <span style={{ fontWeight: 'bold', padding: '2px 6px', border: '1px solid #000', minWidth: '60px', textAlign: 'center' }}>90-100</span>
+                    <span style={{ fontWeight: 'bold' }}>Likely Game Changer</span>
+                    <span style={{ color: '#000' }}>— Exceptional talent; could transform the department's performance</span>
                         </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '4px 0', borderBottom: '1px solid #ddd' }}>
+                    <span style={{ fontWeight: 'bold', padding: '2px 6px', border: '1px solid #000', minWidth: '60px', textAlign: 'center' }}>80-89</span>
+                    <span style={{ fontWeight: 'bold' }}>Strong Performer</span>
+                    <span style={{ color: '#000' }}>— Proven performer; consistently delivers results with minimal oversight</span>
                       </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '4px 0', borderBottom: '1px solid #ddd' }}>
+                    <span style={{ fontWeight: 'bold', padding: '2px 6px', border: '1px solid #000', minWidth: '60px', textAlign: 'center' }}>70-79</span>
+                    <span style={{ fontWeight: 'bold' }}>High Potential</span>
+                    <span style={{ color: '#000' }}>— Strong potential, particularly with excellent support and development</span>
                     </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '4px 0', borderBottom: '1px solid #ddd' }}>
+                    <span style={{ fontWeight: 'bold', padding: '2px 6px', border: '1px solid #000', minWidth: '60px', textAlign: 'center' }}>60-69</span>
+                    <span style={{ fontWeight: 'bold' }}>Average Candidate</span>
+                    <span style={{ color: '#000' }}>— Won't move the needle; meets basic expectations but lacks standout qualities</span>
                   </div>
-                ))}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '4px 0' }}>
+                    <span style={{ fontWeight: 'bold', padding: '2px 6px', border: '1px solid #000', minWidth: '60px', textAlign: 'center' }}>59-00</span>
+                    <span style={{ fontWeight: 'bold' }}>Do Not Hire</span>
+                    <span style={{ color: '#000' }}>— Does not meet minimum requirements; significant concerns or gaps</span>
+                  </div>
+                </div>
               </div>
 
-              <div style={{ border: '2px solid #000', padding: '10px', marginTop: '10px' }}>
-                <div style={{ fontSize: '12px', fontWeight: 'bold', marginBottom: '15px', textAlign: 'center' }}>INTERVIEW OUTCOME</div>
-                <div style={{ marginBottom: '15px' }}>
-                  <div style={{ fontSize: '9px', fontWeight: 'bold', marginBottom: '4px' }}>Recommendation:</div>
-                  <div style={{ display: 'flex', gap: '20px', fontSize: '8px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+              {/* Sum Score and Interviewer Recommendation */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '20px', padding: '10px', border: '1px solid #000' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <span style={{ fontSize: '10px', fontWeight: 'bold' }}>Sum Score:</span>
+                  <div style={{ width: '60px', height: '25px', border: '1px solid #000', background: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: 'bold' }}></div>
+                  <span style={{ fontSize: '10px' }}>/ 100</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <span style={{ fontSize: '10px', fontWeight: 'bold' }}>Interviewer Recommendation:</span>
+                  <div style={{ display: 'flex', gap: '15px', fontSize: '9px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                       <div style={{ width: '12px', height: '12px', border: '1px solid #000', background: 'white' }}></div>
                       <span>Hire</span>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                       <div style={{ width: '12px', height: '12px', border: '1px solid #000', background: 'white' }}></div>
                       <span>Next Stage</span>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                       <div style={{ width: '12px', height: '12px', border: '1px solid #000', background: 'white' }}></div>
                       <span>No Hire</span>
                     </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <div style={{ width: '12px', height: '12px', border: '1px solid #000', background: 'white' }}></div>
+                      <span>Undecided</span>
                   </div>
-                </div>
-                <div style={{ marginTop: '10px' }}>
-                  <div style={{ fontSize: '9px', fontWeight: 'bold', marginBottom: '3px' }}>Comments & Next Steps:</div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
-                    {Array.from({ length: 4 }).map((_, i) => (
-                      <div key={i} style={{ height: '12px', borderBottom: '1px solid #ccc' }}></div>
-                    ))}
                   </div>
                 </div>
               </div>
@@ -1337,3 +2752,4 @@ export default function ScoreCandidatePage() {
     </RequireAuth>
   );
 }
+

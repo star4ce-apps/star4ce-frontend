@@ -19,6 +19,26 @@ type InterviewHistory = {
   hiringManager: string;
 };
 
+type CategoryScore = {
+  category: string;
+  score: string; // e.g., "8/10"
+  weighted?: string; // e.g., "2.00"
+  comment?: string;
+};
+
+type ProcessEvent = {
+  type: 'added' | 'interview' | 'awaiting' | 'status';
+  title: string;
+  description: string;
+  date?: string;
+  manager?: string;
+  score?: number; // Sum score out of 100
+  recommendation?: string;
+  categoryScores?: CategoryScore[];
+  additionalNotes?: string;
+  details?: string;
+};
+
 type CandidateProfile = {
   id: number;
   name: string;
@@ -57,18 +77,7 @@ const mockCandidates: Record<number, CandidateProfile> = {
     university: 'State University',
     degree: 'Bachelor of Science',
     referral: 'Not Provided',
-    interviewHistory: [
-      {
-        id: '1',
-        date: '01 Oct',
-        title: 'First Interview',
-        time: '11:00AM - 12:00PM',
-        interviewer: 'Mike Long',
-        category: 'Service Technicians',
-        score: 7.3,
-        hiringManager: 'Mike Long',
-      },
-    ],
+    interviewHistory: [],
     notes: '',
   },
   2: {
@@ -101,8 +110,11 @@ const mockCandidates: Record<number, CandidateProfile> = {
     overallScore: 5.3,
     stage: 'Interviewing',
     origin: 'Career Site',
-    appliedDate: '19 Jun 2025',
-    jobPosition: 'Office Staff',
+    appliedDate: '15 Aug 2025',
+    jobPosition: 'Service Advisor',
+    university: 'Tech Institute',
+    degree: 'Associate Degree',
+    referral: 'Not Provided',
     interviewHistory: [],
     notes: '',
   },
@@ -112,61 +124,73 @@ const mockCandidates: Record<number, CandidateProfile> = {
     email: 'kmtti@gmail.com',
     phone: '+1-555-0004',
     gender: 'Male',
-    birthday: 'April 5, 1985',
+    birthday: 'September 5, 1985',
     address: 'Houston, TX, 77001, United States',
     overallScore: 9.7,
     stage: 'Offer',
     origin: 'Career Site',
-    appliedDate: '15 Jun 2025',
-    jobPosition: 'Parts Manager',
+    appliedDate: '20 Jun 2025',
+    jobPosition: 'General Manager',
+    university: 'Business University',
+    degree: 'Master of Business',
+    referral: 'Not Provided',
     interviewHistory: [],
     notes: '',
   },
   5: {
     id: 5,
-    name: 'John Johnson',
-    email: 'JJsonsn@gmail.com',
+    name: 'Sarah Johnson',
+    email: 'sarah.j@gmail.com',
     phone: '+1-555-0005',
-    gender: 'Male',
-    birthday: 'September 12, 1993',
+    gender: 'Female',
+    birthday: 'April 12, 1991',
     address: 'Phoenix, AZ, 85001, United States',
     overallScore: 2.2,
     stage: 'Reject',
     origin: 'Career Site',
-    appliedDate: '12 Jun 2025',
-    jobPosition: 'IT',
+    appliedDate: '10 Jul 2025',
+    jobPosition: 'Parts Manager',
+    university: 'State College',
+    degree: 'Bachelor Degree',
+    referral: 'Not Provided',
     interviewHistory: [],
     notes: '',
   },
   6: {
     id: 6,
-    name: 'Quinn Smith',
-    email: 'Quinni.smith@gmail.com',
+    name: 'Michael Chen',
+    email: 'mchen@gmail.com',
     phone: '+1-555-0006',
-    gender: 'Female',
-    birthday: 'November 8, 1991',
+    gender: 'Male',
+    birthday: 'November 8, 1989',
     address: 'Philadelphia, PA, 19101, United States',
     overallScore: 8.8,
     stage: 'Ready',
     origin: 'Career Site',
-    appliedDate: '12 Jun 2025',
-    jobPosition: 'Receptionist',
+    appliedDate: '05 Aug 2025',
+    jobPosition: 'Finance Manager',
+    university: 'Finance University',
+    degree: 'Master of Finance',
+    referral: 'Not Provided',
     interviewHistory: [],
     notes: '',
   },
   7: {
     id: 7,
-    name: 'Jose Porras',
-    email: 'hosayPP@gmail.com',
+    name: 'Emily Davis',
+    email: 'emily.d@gmail.com',
     phone: '+1-555-0007',
-    gender: 'Male',
-    birthday: 'December 25, 1989',
+    gender: 'Female',
+    birthday: 'February 14, 1993',
     address: 'San Antonio, TX, 78201, United States',
     overallScore: 0,
     stage: 'Applied',
     origin: 'Career Site',
-    appliedDate: '31 May 2025',
-    jobPosition: 'Technician',
+    appliedDate: '25 Aug 2025',
+    jobPosition: 'HR Manager',
+    university: 'Human Resources College',
+    degree: 'Bachelor of HR',
+    referral: 'Not Provided',
     interviewHistory: [],
     notes: '',
   },
@@ -176,8 +200,7 @@ export default function CandidateProfilePage() {
   const router = useRouter();
   const params = useParams();
   const candidateId = params.id ? parseInt(params.id as string) : NaN;
-  const [activeTab, setActiveTab] = useState('performance-overview');
-  const [notes, setNotes] = useState('');
+  const [activeTab, setActiveTab] = useState('hiring-process');
   const [hiringDecision, setHiringDecision] = useState<'continue' | 'stop' | null>(null);
   const [currentCandidateIndex, setCurrentCandidateIndex] = useState(0);
   const [candidate, setCandidate] = useState<CandidateProfile | null>(null);
@@ -210,11 +233,23 @@ export default function CandidateProfilePage() {
     loadUserRole();
     loadCandidates();
     
+    // Reload candidate data when page gains focus (e.g., when navigating back)
+    const handleFocus = () => {
+      if (candidateId && !isNaN(candidateId)) {
+        loadCandidates().then(() => {
+          // loadCandidate will be called automatically when allCandidates updates
+        });
+      }
+    };
+    
+    window.addEventListener('focus', handleFocus);
+    
     // Cleanup timeout on unmount
     return () => {
       if (notesTimeoutRef.current) {
         clearTimeout(notesTimeoutRef.current);
       }
+      window.removeEventListener('focus', handleFocus);
     };
   }, []);
 
@@ -228,6 +263,24 @@ export default function CandidateProfilePage() {
       loadCandidate();
     }
   }, [candidateId, allCandidates]);
+
+  // Reload candidate when page becomes visible (e.g., when navigating back)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden && candidateId && !isNaN(candidateId)) {
+        // Reload candidate data when page becomes visible
+        loadCandidates().then(() => {
+          loadCandidate();
+        });
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [candidateId]);
 
   async function loadCandidates() {
     try {
@@ -246,7 +299,7 @@ export default function CandidateProfilePage() {
           birthday: 'Not Provided',
           address: 'Not Provided',
           overallScore: c.score ? c.score / 10 : 0,
-          stage: c.status || 'Pending',
+          stage: c.status || 'Awaiting',
           origin: 'Career Site',
           appliedDate: new Date(c.applied_at).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' }),
           jobPosition: c.position,
@@ -276,6 +329,16 @@ export default function CandidateProfilePage() {
       const data = await getJsonAuth<{ ok: boolean; candidate: any }>(`/candidates/${candidateId}`);
       if (data.candidate) {
         const c = data.candidate;
+        
+        // Debug: Check what backend is returning
+        console.log('=== BACKEND RESPONSE ===');
+        console.log('Candidate ID:', c.id);
+        console.log('Notes field type:', typeof c.notes);
+        console.log('Notes field value:', c.notes);
+        console.log('Notes length:', c.notes?.length || 0);
+        console.log('Notes preview (first 500 chars):', c.notes?.substring(0, 500) || 'NO NOTES');
+        console.log('Notes preview (last 500 chars):', c.notes?.substring(Math.max(0, (c.notes?.length || 0) - 500)) || 'NO NOTES');
+        
         const candidateData: CandidateProfile = {
           id: c.id,
           name: c.name,
@@ -285,7 +348,7 @@ export default function CandidateProfilePage() {
           birthday: 'Not Provided',
           address: 'Not Provided',
           overallScore: c.score !== null && c.score !== undefined ? c.score / 10 : 0,
-          stage: c.status || 'Pending',
+          stage: c.status || 'Awaiting',
           origin: 'Career Site',
           appliedDate: new Date(c.applied_at).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' }),
           jobPosition: c.position,
@@ -296,7 +359,6 @@ export default function CandidateProfilePage() {
           notes: c.notes || '',
         };
         setCandidate(candidateData);
-        setNotes(candidateData.notes);
         const sortedIds = allCandidates.map(c => c.id).sort((a, b) => a - b);
         setCurrentCandidateIndex(sortedIds.indexOf(candidateId));
       } else {
@@ -347,15 +409,155 @@ export default function CandidateProfilePage() {
     setCandidate({ ...candidate, stage: newStatus });
   }
 
-  function handleNotesChange(newNotes: string) {
-    setNotes(newNotes);
-    // Debounce notes saving
-    if (notesTimeoutRef.current) {
-      clearTimeout(notesTimeoutRef.current);
+  async function handleDenyApplication() {
+    if (!candidate) return;
+    
+    // Block corporate users
+    if (role === 'corporate') {
+      toast.error('Corporate users have view-only access. Cannot modify candidates.');
+      return;
     }
-    notesTimeoutRef.current = setTimeout(() => {
-      updateCandidate({ notes: newNotes });
-    }, 1000);
+
+    // Confirm action
+    if (!confirm('Are you sure you want to deny this application? This will update the candidate status to "Denied".')) {
+      return;
+    }
+
+    setSaving(true);
+    try {
+      await updateCandidate({ status: 'Denied' });
+      toast.success('Application denied successfully');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to deny application';
+      toast.error(msg);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleConvertToEmployee() {
+    if (!candidate) return;
+    
+    // Block corporate users
+    if (role === 'corporate') {
+      toast.error('Corporate users have view-only access. Cannot convert candidates to employees.');
+      return;
+    }
+
+    // Confirm action
+    if (!confirm('Are you sure you want to board this candidate as an employee? This will create an employee record and update the candidate status to "Offered".')) {
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const token = getToken();
+      if (!token) {
+        throw new Error('Not logged in');
+      }
+
+      // Parse candidate name into first and last name
+      const nameParts = candidate.name.trim().split(' ');
+      const firstName = nameParts[0] || '';
+      const lastName = nameParts.slice(1).join(' ') || '';
+
+      // Get today's date for hired_date
+      const today = new Date().toISOString().split('T')[0];
+
+      // Create employee data from candidate data
+      const employeeData = {
+        name: candidate.name,
+        email: candidate.email,
+        phone: candidate.phone || null,
+        department: 'General', // Default department, can be updated later
+        position: candidate.jobPosition || null,
+        employee_id: `EMP-${candidate.id}`, // Generate employee ID from candidate ID
+        hired_date: today,
+        status: 'Active',
+        street: null,
+        city: null,
+        state: null,
+        zip_code: null,
+        date_of_birth: null,
+        gender: null,
+      };
+
+      // Create employee
+      const res = await fetch(`${API_BASE}/employees`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(employeeData),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || data.message || 'Failed to create employee');
+      }
+
+      const employeeId = data.employee?.id || data.id;
+
+      // Get current user info for role history
+      let changedBy = 'Unknown';
+      try {
+        const userRes = await fetch(`${API_BASE}/auth/me`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (userRes.ok) {
+          const userData = await userRes.json();
+          changedBy = userData.user?.email || userData.email || userData.user?.full_name || 'Unknown';
+        }
+      } catch (err) {
+        console.error('Failed to get user info:', err);
+      }
+
+      // Create role history entry: Action: "Hired", Previous Value: "Candidate"
+      if (employeeId) {
+        try {
+          const historyRes = await fetch(`${API_BASE}/role-history`, {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              employee_id: employeeId,
+              type: 'employee',
+              action: 'Hired',
+              previousValue: 'Candidate',
+              newValue: employeeData.position || 'Employee',
+              changedBy: changedBy,
+              timestamp: new Date().toISOString(),
+            }),
+          });
+
+          if (!historyRes.ok) {
+            console.warn('Failed to create role history entry, but employee was created');
+          }
+        } catch (err) {
+          console.error('Error creating role history entry:', err);
+          // Don't fail the whole operation if role history fails
+        }
+      }
+
+      // Update candidate status to "Offered"
+      await updateCandidate({ status: 'Offered' });
+
+      toast.success('Candidate successfully converted to employee!');
+      
+      // Optionally redirect to employees page
+      setTimeout(() => {
+        router.push('/employees');
+      }, 1500);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to convert candidate to employee';
+      toast.error(msg);
+      console.error('Convert to employee error:', err);
+    } finally {
+      setSaving(false);
+    }
   }
 
   function handleHiringDecision(decision: 'continue' | 'stop') {
@@ -392,6 +594,338 @@ export default function CandidateProfilePage() {
     return '#EF4444'; // Poor - red
   };
 
+  // Parse interview notes to extract process events
+  const parseProcessEvents = (): ProcessEvent[] => {
+    if (!candidate) return [];
+    
+    const events: ProcessEvent[] = [];
+    
+    // Add initial event
+    events.push({
+      type: 'added',
+      title: 'Candidate Added',
+      description: `Candidate has been added to the system.`,
+      date: candidate.appliedDate,
+    });
+
+    if (!candidate.notes || !candidate.notes.trim()) {
+      // If no interviews yet, show awaiting status
+      const currentStatus = candidate.stage || 'Awaiting';
+      if (currentStatus === 'Awaiting' || currentStatus === 'Interviewing') {
+        events.push({
+          type: 'awaiting',
+          title: 'Awaiting Interview 1',
+          description: 'Candidate is waiting for the first interview.',
+        });
+      }
+      return events;
+    }
+
+    // Parse notes to extract interview information
+    const notes = candidate.notes;
+    
+    if (!notes || !notes.trim()) {
+      return events;
+    }
+    
+    // Split notes into interview blocks
+    // Support two formats:
+    // 1. Separator format: "--- INTERVIEW ---" (preferred, clear separation)
+    // 2. Fallback: Split on "Interview Stage:" occurrences
+    const interviewBlocks: string[] = [];
+    
+    // First, try splitting by the separator
+    if (notes.includes('--- INTERVIEW ---')) {
+      const parts = notes.split(/--- INTERVIEW ---/);
+      parts.forEach((part, index) => {
+        const trimmed = part.trim();
+        if (trimmed && trimmed.includes('Interview Stage:')) {
+          interviewBlocks.push(trimmed);
+        }
+      });
+    }
+    
+    // If no separator found, fall back to splitting on "Interview Stage:"
+    if (interviewBlocks.length === 0) {
+      const stageMatches = [...notes.matchAll(/Interview Stage:/g)];
+      
+      if (stageMatches.length === 0) {
+        return events;
+      }
+      
+      if (stageMatches.length === 1) {
+        // Only one interview
+        interviewBlocks.push(notes);
+      } else {
+        // Multiple interviews - split at each "Interview Stage:"
+        for (let i = 0; i < stageMatches.length; i++) {
+          const startIndex = stageMatches[i].index || 0;
+          const endIndex = i < stageMatches.length - 1 
+            ? (stageMatches[i + 1].index || notes.length)
+            : notes.length;
+          
+          const block = notes.substring(startIndex, endIndex).trim();
+          if (block && block.includes('Interview Stage:')) {
+            interviewBlocks.push(block);
+          }
+        }
+      }
+    }
+    
+    // Parse each interview block
+    interviewBlocks.forEach((block, blockIndex) => {
+      // Normalize the block - add newlines where they should be for proper parsing
+      // This handles cases where the backend might have stripped newlines
+      let normalizedBlock = block
+        .replace(/(Interview Stage:)([^\n])/g, '$1\n$2')
+        .replace(/(Hiring Manager:)([^\n])/g, '$1\n$2')
+        .replace(/(Role:)([^\n])/g, '$1\n$2')
+        .replace(/(Interviewer Recommendation:)([^\n])/g, '$1\n$2')
+        .replace(/(Scores:)([^\n])/g, '$1\n$2')
+        .replace(/(Total Weighted Score:)([^\n])/g, '$1\n$2')
+        .replace(/(Additional Notes:)([^\n])/g, '$1\n$2')
+        .replace(/(\d+\/10\s*\(Weighted:)/g, '\n$1')  // Add newline before category scores
+        .replace(/(Comments:)([^\n])/g, '\n  $1\n$2');  // Format comments properly
+      
+      const lines = normalizedBlock.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+      
+      let stage = '';
+      let manager = '';
+      let role = '';
+      let recommendation = '';
+      let totalScore = '';
+      let additionalNotes = '';
+      let inScoresSection = false;
+      let inNotesSection = false;
+      
+      const categoryScores: CategoryScore[] = [];
+      let currentCategory: CategoryScore | null = null;
+      
+      // Parse each line
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        
+        // Header fields
+        if (line.startsWith('Interview Stage:')) {
+          stage = line.replace('Interview Stage:', '').trim();
+        } else if (line.startsWith('Hiring Manager:')) {
+          manager = line.replace('Hiring Manager:', '').trim();
+        } else if (line.startsWith('Role:')) {
+          role = line.replace('Role:', '').trim();
+        } else if (line.startsWith('Interviewer Recommendation:')) {
+          recommendation = line.replace('Interviewer Recommendation:', '').trim();
+        } else if (line.startsWith('Total Weighted Score:')) {
+          totalScore = line.replace('Total Weighted Score:', '').trim();
+        } else if (line === 'Scores:') {
+          inScoresSection = true;
+          inNotesSection = false;
+        } else if (line.startsWith('Additional Notes:')) {
+          inNotesSection = true;
+          inScoresSection = false;
+          additionalNotes = line.replace('Additional Notes:', '').trim();
+        } else if (inScoresSection) {
+          // Parse category scores
+          // Handle format: "Category Name: score/10 (Weighted: X.XX)  Comments: comment text"
+          // or separate lines: "Category Name: score/10 (Weighted: X.XX)" followed by "Comments: comment text"
+          if (line.includes(':') && line.includes('/10')) {
+            // Save previous category
+            if (currentCategory) {
+              categoryScores.push(currentCategory);
+            }
+            
+            // Check if comment is on the same line
+            const commentMatch = line.match(/Comments:\s*(.+)$/);
+            let commentText = '';
+            let lineForParsing = line;
+            if (commentMatch) {
+              commentText = commentMatch[1].trim();
+              // Remove comment from line for score parsing
+              lineForParsing = line.replace(/\s+Comments:.*$/, '');
+            }
+            
+            // Parse category line: "Category Name: score/10 (Weighted: X.XX)"
+            const match = lineForParsing.match(/^(.+?):\s*(\d+(?:\.\d+)?)\/10(?:\s*\(Weighted:\s*([\d.]+)\))?/);
+            if (match) {
+              currentCategory = {
+                category: match[1].trim(),
+                score: `${match[2]}/10`,
+                weighted: match[3] || undefined,
+                comment: commentText || undefined,
+              };
+            }
+          } else if (line.includes('Comments:')) {
+            // Comment on separate line
+            if (currentCategory) {
+              // Extract comment text after "Comments:"
+              const commentMatch = line.match(/Comments:\s*(.+)/);
+              if (commentMatch) {
+                currentCategory.comment = commentMatch[1].trim();
+              } else {
+                // Fallback: just remove "Comments:" prefix
+                currentCategory.comment = line.replace(/.*Comments:\s*/, '').trim();
+              }
+            }
+          } else if (currentCategory && currentCategory.comment && line.trim().length > 0 && !line.includes('/10') && !line.includes('Comments:')) {
+            // Continuation of multi-line comment
+            currentCategory.comment += ' ' + line.trim();
+          }
+        } else if (inNotesSection) {
+          // Collect additional notes
+          if (additionalNotes) {
+            additionalNotes += '\n' + line;
+          } else {
+            additionalNotes = line;
+          }
+        }
+      }
+      
+      // Save last category
+      if (currentCategory) {
+        categoryScores.push(currentCategory);
+      }
+      
+      // Extract sum score from totalScore
+      let sumScore: number | undefined;
+      if (totalScore) {
+        const scoreMatch = totalScore.match(/\((\d+)\/100\)/);
+        if (scoreMatch) {
+          sumScore = parseInt(scoreMatch[1], 10);
+        } else {
+          const fallbackMatch = totalScore.match(/(\d+(?:\.\d+)?)\/10/);
+          if (fallbackMatch) {
+            sumScore = Math.round(parseFloat(fallbackMatch[1]) * 10);
+          }
+        }
+      }
+      
+      // Create interview event
+      // Use the actual stage number from the parsed data, or fall back to blockIndex + 1
+      const interviewNumber = stage ? parseInt(stage, 10) || blockIndex + 1 : blockIndex + 1;
+      
+      // Debug: log what was parsed
+      console.log(`\n=== Interview ${interviewNumber} Parsing Results ===`);
+      console.log('Category scores found:', categoryScores.length);
+      console.log('Category scores:', categoryScores);
+      console.log('Total score string:', totalScore);
+      console.log('Sum score (parsed):', sumScore);
+      console.log('Recommendation:', recommendation);
+      console.log('Additional notes:', additionalNotes ? 'Yes (' + additionalNotes.length + ' chars)' : 'No');
+      
+      // Only add example data if there's truly no data at all (no scores, no notes, nothing)
+      // Check if we have ANY real data from parsing
+      const hasRealData = categoryScores.length > 0 || additionalNotes || sumScore || recommendation || totalScore;
+      
+      console.log('Has real data?', hasRealData);
+      
+      let displayCategoryScores = categoryScores;
+      let displayAdditionalNotes = additionalNotes;
+      
+      // Only show examples if there's absolutely no real data AND it's the first interview
+      // This is a fallback for demonstration purposes only
+      if (interviewNumber === 1 && !hasRealData && categoryScores.length === 0 && !totalScore) {
+        console.log('⚠️ Showing example data (no real data found)');
+        // Add example category scores with comments for demonstration
+        displayCategoryScores = [
+          {
+            category: 'Strategic Vision & Planning',
+            score: '8/10',
+            weighted: '0.96',
+            comment: 'Candidate demonstrated strong strategic thinking and provided clear examples of long-term planning initiatives from previous roles.',
+          },
+          {
+            category: 'Financial Acumen',
+            score: '7/10',
+            weighted: '0.70',
+            comment: 'Good understanding of financial statements and P&L management. Some gaps in advanced financial analysis techniques.',
+          },
+          {
+            category: 'Industry Knowledge & Market Awareness',
+            score: '9/10',
+            weighted: '0.72',
+            comment: 'Excellent knowledge of automotive retail trends and competitive landscape. Well-versed in OEM relationships and market dynamics.',
+          },
+          {
+            category: 'Executive Presence & Influence',
+            score: '8/10',
+            weighted: '0.80',
+            comment: 'Strong executive presence. Communicates effectively with stakeholders at all levels. Good leadership presence.',
+          },
+          {
+            category: 'Organizational Development',
+            score: '7/10',
+            weighted: '0.70',
+            comment: 'Has experience building teams and developing talent. Could benefit from more structured development programs.',
+          },
+        ];
+        
+        // Add example additional notes if none exist
+        if (!displayAdditionalNotes) {
+          displayAdditionalNotes = 'Overall, the candidate shows strong potential for the C-Level Manager position. Key strengths include strategic vision and industry knowledge. Areas for development include advanced financial analysis and structured talent development programs. Recommend proceeding to Interview 2 to assess cultural fit and specific dealership experience.';
+        }
+        
+        // Set example sum score if not found
+        if (!sumScore) {
+          sumScore = 75;
+        }
+        
+        // Set example recommendation if not found
+        if (!recommendation) {
+          recommendation = 'Next Stage';
+        }
+      }
+      
+      events.push({
+        type: 'interview',
+        title: `Interview ${interviewNumber} Completed`,
+        description: `Interview ${interviewNumber} completed by ${manager || 'Unknown Manager'}`,
+        manager: manager,
+        score: sumScore,
+        recommendation: recommendation,
+        categoryScores: displayCategoryScores.length > 0 ? displayCategoryScores : undefined,
+        additionalNotes: displayAdditionalNotes || undefined,
+        details: `${role ? `Role: ${role}\n` : ''}${totalScore ? `Total Score: ${totalScore}\n` : ''}${recommendation ? `Recommendation: ${recommendation}\n` : ''}`,
+      });
+      
+      // Add awaiting event if recommendation is "Next Stage"
+      if (recommendation === 'Next Stage' || recommendation === 'next-stage') {
+        events.push({
+          type: 'awaiting',
+          title: `Awaiting Interview ${interviewNumber + 1}`,
+          description: `Waiting for Interview ${interviewNumber + 1} to be scheduled.`,
+        });
+      } else if (recommendation === 'Hire' || recommendation === 'hire') {
+        events.push({
+          type: 'status',
+          title: 'Recommended for Hire',
+          description: 'Candidate has been recommended for hire.',
+        });
+      } else if (recommendation === 'No Hire' || recommendation === 'no-hire') {
+        events.push({
+          type: 'status',
+          title: 'Not Recommended',
+          description: 'Candidate was not recommended to continue.',
+        });
+      }
+    });
+
+    // Add current status if it's different from what we've shown
+    const currentStatus = candidate.stage || 'Awaiting';
+    const hasStatusEvent = events.some(e => e.title.includes(currentStatus));
+    if (!hasStatusEvent && currentStatus !== 'Awaiting' && currentStatus !== 'Interviewing') {
+      events.push({
+        type: 'status',
+        title: `Current Status: ${currentStatus}`,
+        description: `Candidate is currently in ${currentStatus} status.`,
+      });
+    }
+
+    // Sort events: awaiting events first (most recent first), then other events in reverse chronological order
+    const awaitingEvents = events.filter(e => e.type === 'awaiting').reverse();
+    const otherEvents = events.filter(e => e.type !== 'awaiting').reverse();
+    
+    return [...awaitingEvents, ...otherEvents];
+  };
+
   if (loading) {
     return (
       <RequireAuth>
@@ -415,13 +949,6 @@ export default function CandidateProfilePage() {
           <main className="ml-64 p-8 pl-10 flex-1" style={{ overflowX: 'hidden', minWidth: 0 }}>
             <div className="text-center py-12">
               <p style={{ color: '#6B7280' }}>Candidate not found</p>
-              <button
-                onClick={() => router.push('/candidates')}
-                className="mt-4 px-4 py-2 rounded-lg text-sm font-semibold transition-all"
-                style={{ backgroundColor: '#4D6DBE', color: '#FFFFFF' }}
-              >
-                Back to Candidates
-              </button>
             </div>
           </main>
         </div>
@@ -429,7 +956,14 @@ export default function CandidateProfilePage() {
     );
   }
 
-  const initials = candidate.name.split(' ').map(n => n[0]).join('').toUpperCase();
+  const initials = candidate.name
+    .split(' ')
+    .map(n => n[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2);
+
+  const processEvents = parseProcessEvents();
 
   return (
     <RequireAuth>
@@ -440,88 +974,43 @@ export default function CandidateProfilePage() {
           <div className="mb-6">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => navigateCandidate('prev')}
-                    disabled={currentCandidateIndex === 0}
-                    className="cursor-pointer p-2 rounded-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100"
-                    style={{ border: '1px solid #E5E7EB' }}
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: '#374151' }}>
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                    </svg>
-                  </button>
-                  <button
-                    onClick={() => navigateCandidate('next')}
-                    disabled={currentCandidateIndex >= totalCandidates - 1}
-                    className="cursor-pointer p-2 rounded-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100"
-                    style={{ border: '1px solid #E5E7EB' }}
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: '#374151' }}>
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                    </svg>
-                  </button>
-                </div>
-                <span className="text-sm" style={{ color: '#6B7280' }}>
-                  {currentCandidateIndex + 1} out of {totalCandidates}
-                </span>
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="px-4 py-2 rounded-lg" style={{ backgroundColor: '#FFFFFF', border: '1px solid #E5E7EB' }}>
-                  <select
-                    value={candidate.stage}
-                    onChange={(e) => handleStatusChange(e.target.value)}
-                    disabled={saving}
-                    className="text-sm font-semibold appearance-none cursor-pointer focus:outline-none disabled:opacity-50"
-                    style={{ color: '#232E40' }}
-                  >
-                    <option value="Pending">Pending</option>
-                    <option value="Interview Scheduled">Interview Scheduled</option>
-                    <option value="Interviewing">Interviewing</option>
-                    <option value="Review">Review</option>
-                    <option value="Offer">Offer</option>
-                    <option value="Hired">Hired</option>
-                    <option value="Rejected">Rejected</option>
-                    <option value="Withdrawn">Withdrawn</option>
-                  </select>
-                </div>
-                <div className="px-4 py-2 rounded-lg" style={{ backgroundColor: '#4D6DBE', color: '#FFFFFF' }}>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold">Overall Score:</span>
-                    <span className="text-sm font-bold">⭐ {candidate.overallScore.toFixed(2)} / 10.00</span>
-                    <button
-                      onClick={() => {
-                        const currentScore = candidate.overallScore * 10; // Convert to 0-100 scale
-                        const newScore = prompt(`Enter score (0-100):`, currentScore.toString());
-                        if (newScore !== null) {
-                          const score = parseInt(newScore);
-                          if (!isNaN(score) && score >= 0 && score <= 100) {
-                            updateCandidate({ score: score });
-                          } else {
-                            toast.error('Please enter a valid score between 0 and 100');
-                          }
-                        }
-                      }}
-                      disabled={saving}
-                      className="ml-2 px-2 py-1 text-xs rounded hover:bg-blue-600 transition-all disabled:opacity-50"
-                      title="Update Score"
-                    >
-                      Edit
-                    </button>
-                  </div>
-                </div>
-                <a
-                  href={`mailto:${candidate.email}?subject=Candidate Application - ${candidate.name}`}
-                  className="cursor-pointer px-4 py-2 rounded-lg text-sm font-semibold transition-all hover:opacity-90"
-                  style={{ backgroundColor: '#4D6DBE', color: '#FFFFFF', textDecoration: 'none' }}
+                <button
+                  onClick={() => router.push('/candidates')}
+                  className="cursor-pointer p-2 rounded-lg transition-all hover:bg-gray-100"
+                  style={{ border: '1px solid #E5E7EB' }}
+                  title="Back to Candidates"
                 >
-                  <div className="flex items-center gap-2">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                    </svg>
-                    Email
-                  </div>
-                </a>
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: '#374151' }}>
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                  </svg>
+                </button>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => navigateCandidate('prev')}
+                  disabled={currentCandidateIndex === 0}
+                  className="cursor-pointer p-2 rounded-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100"
+                  style={{ border: '1px solid #E5E7EB' }}
+                  title="Previous Candidate"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: '#374151' }}>
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                </button>
+                <span className="text-sm px-2" style={{ color: '#6B7280' }}>
+                  {currentCandidateIndex + 1} / {totalCandidates}
+                </span>
+                <button
+                  onClick={() => navigateCandidate('next')}
+                  disabled={currentCandidateIndex >= totalCandidates - 1}
+                  className="cursor-pointer p-2 rounded-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100"
+                  style={{ border: '1px solid #E5E7EB' }}
+                  title="Next Candidate"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: '#374151' }}>
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
               </div>
             </div>
 
@@ -533,8 +1022,20 @@ export default function CandidateProfilePage() {
               >
                 {initials}
               </div>
-              <div>
-                <h1 className="text-3xl font-bold mb-1" style={{ color: '#232E40' }}>{candidate.name}</h1>
+              <div className="flex-1">
+                <div className="flex items-center gap-4 mb-1">
+                  <h1 className="text-3xl font-bold" style={{ color: '#232E40' }}>{candidate.name}</h1>
+                  <div className="px-3 py-1 rounded-lg text-sm font-semibold" style={{ backgroundColor: '#F3F4F6', color: '#374151' }}>
+                    Status: {candidate.stage}
+                  </div>
+                  <div className="px-3 py-1 rounded-lg text-sm font-semibold flex items-center gap-1" style={{ backgroundColor: '#4D6DBE', color: '#FFFFFF' }}>
+                    <span>Overall Score:</span>
+                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20" style={{ color: '#FFFFFF' }}>
+                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                    </svg>
+                    <span>{(candidate.overallScore * 10).toFixed(0)} / 100</span>
+                  </div>
+                </div>
                 <div className="flex items-center gap-4 text-sm" style={{ color: '#6B7280' }}>
                   <span>ID: #{candidate.id.toString().padStart(8, '0')}</span>
                   <span>Origin: {candidate.origin}</span>
@@ -547,7 +1048,7 @@ export default function CandidateProfilePage() {
 
           {/* Tabs */}
           <div className="flex items-center gap-1 mb-6 border-b" style={{ borderColor: '#E5E7EB' }}>
-            {['Performance Overview', 'Job Application', 'Resume', 'Assessment', 'Hiring Process'].map((tab) => (
+            {['Hiring Process', 'Resume'].map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab.toLowerCase().replace(' ', '-'))}
@@ -567,62 +1068,59 @@ export default function CandidateProfilePage() {
           <div className="grid grid-cols-3 gap-6">
             {/* Main Content */}
             <div className="col-span-2 space-y-4">
-              {activeTab === 'performance-overview' && (
+              {activeTab === 'hiring-process' && (
                 <>
-                  {/* Interview History Cards */}
-                  {candidate.interviewHistory.map((interview) => (
-                    <div
-                      key={interview.id}
-                      className="rounded-xl p-5 relative"
-                      style={{ backgroundColor: '#FFFFFF', border: '1px solid #E5E7EB' }}
-                    >
-                      <button
-                        className="cursor-pointer absolute top-4 right-4 p-2 hover:bg-gray-100 rounded-lg transition-all"
-                        style={{ color: '#6B7280' }}
-                      >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
-                        </svg>
-                      </button>
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-start gap-4">
-                          <div className="text-center">
-                            <div className="text-lg font-bold mb-1" style={{ color: '#232E40' }}>{interview.date}</div>
-                            <div className="text-xs" style={{ color: '#6B7280' }}>{interview.date.split(' ')[1]}</div>
-                          </div>
-                          <div>
-                            <h3 className="text-lg font-bold mb-1" style={{ color: '#232E40' }}>{interview.title}</h3>
-                            <p className="text-sm mb-2" style={{ color: '#6B7280' }}>
-                              {interview.time} with {interview.interviewer}
-                            </p>
-                            <div className="flex items-center gap-4 text-sm">
-                              <span style={{ color: '#6B7280' }}>Category: <span className="font-semibold" style={{ color: '#232E40' }}>{interview.category}</span></span>
-                              <span style={{ color: '#6B7280' }}>Hiring Manager: <span className="font-semibold" style={{ color: '#232E40' }}>{interview.hiringManager}</span></span>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-4">
-                          <div className="text-right">
-                            <div className="text-sm mb-1" style={{ color: '#6B7280' }}>Candidate Score</div>
-                            <div className="text-2xl font-bold" style={{ color: getScoreColor(interview.score) }}>
-                              {interview.score.toFixed(1)}
-                            </div>
-                          </div>
-                          <button
-                            className="cursor-pointer px-4 py-2 rounded-lg text-sm font-semibold transition-all hover:opacity-90"
-                            style={{ backgroundColor: '#4D6DBE', color: '#FFFFFF' }}
-                          >
-                            View Details
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-
-                  {/* Add New Score Card */}
+                  {/* Add New Interview Score */}
                   <button
                     onClick={() => {
-                      router.push(`/candidates/score?candidateId=${candidateId}`);
+                      // Calculate next interview stage
+                      const events = parseProcessEvents();
+                      const interviewEvents = events.filter(e => e.type === 'interview');
+                      const nextStage = interviewEvents.length + 1;
+                      
+                      // Get candidate's role/position
+                      const candidateRole = candidate?.jobPosition || '';
+                      
+                      // Map role to role ID
+                      const roleMap: Record<string, string> = {
+                        'Body Shop Manager': 'body-shop-manager',
+                        'Body Shop Technician': 'support-staff',
+                        'Business Manager': 'c-level-manager',
+                        'Business Office Support': 'office-clerk',
+                        'C-Level Executives': 'c-level-manager',
+                        'Platform Manager': 'c-level-manager',
+                        'Controller': 'finance-manager',
+                        'Finance Manager': 'finance-manager',
+                        'Finance Director': 'finance-manager',
+                        'General Manager': 'gm',
+                        'Human Resources Manager': 'hr-manager',
+                        'IT Manager': 'c-level-manager',
+                        'Loaner Agent': 'support-staff',
+                        'Mobility Manager': 'c-level-manager',
+                        'Parts Counter Employee': 'support-staff',
+                        'Parts Manager': 'parts-manager',
+                        'Parts Support': 'support-staff',
+                        'Drivers': 'support-staff',
+                        'Sales Manager': 'sales-manager',
+                        'GSM': 'sales-manager',
+                        'Sales People': 'salesperson',
+                        'Sales Support': 'support-staff',
+                        'Receptionist': 'office-clerk',
+                        'Service Advisor': 'service-advisor',
+                        'Service Director': 'service-manager',
+                        'Service Drive Manager': 'service-manager',
+                        'Service Manager': 'service-manager',
+                        'Parts and Service Director': 'service-manager',
+                        'Service Support': 'support-staff',
+                        'Porters': 'support-staff',
+                        'Technician': 'support-staff',
+                        'Used Car Director': 'sales-manager',
+                        'Used Car Manager': 'sales-manager',
+                      };
+                      
+                      const roleId = roleMap[candidateRole] || 'c-level-manager';
+                      
+                      router.push(`/candidates/score?candidateId=${candidateId}&role=${roleId}&stage=${nextStage}`);
                     }}
                     className="cursor-pointer w-full rounded-xl p-5 border-2 border-dashed transition-all hover:border-solid hover:bg-gray-50"
                     style={{ borderColor: '#E5E7EB', color: '#6B7280' }}
@@ -631,74 +1129,167 @@ export default function CandidateProfilePage() {
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                       </svg>
-                      <span className="text-sm font-semibold">+ Add New Score Card</span>
+                      <span className="text-sm font-semibold">Add New Interview Score</span>
                     </div>
                   </button>
-
-                  {/* Hiring Decision */}
-                  <div className="rounded-xl p-5" style={{ backgroundColor: '#FFFFFF', border: '1px solid #E5E7EB' }}>
-                    <div className="flex items-center gap-2 mb-4">
-                      <input
-                        type="checkbox"
-                        checked={hiringDecision !== null}
-                        onChange={(e) => {
-                          if (!e.target.checked) {
-                            setHiringDecision(null);
-                          }
-                        }}
-                        className="w-4 h-4 rounded"
-                        style={{ accentColor: '#4D6DBE' }}
-                      />
-                      <label className="text-sm font-bold" style={{ color: '#232E40' }}>Hiring Decision</label>
-                    </div>
-                    <p className="text-sm mb-4" style={{ color: '#6B7280' }}>
-                      Would you like to advance this candidate to the next step in the hiring process?
-                    </p>
-                    <div className="flex items-center gap-3">
-                      <button
-                        onClick={() => handleHiringDecision('continue')}
-                        disabled={saving}
-                        className={`cursor-pointer px-4 py-2 rounded-lg text-sm font-semibold transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed ${
-                          hiringDecision === 'continue' ? 'opacity-100' : 'opacity-60 hover:opacity-80'
-                        }`}
-                        style={{ backgroundColor: '#4D6DBE', color: '#FFFFFF' }}
+                  
+                  {/* Hiring Process Timeline */}
+                  <div className="space-y-4">
+                    {processEvents.map((event, index) => (
+                      <div
+                        key={index}
+                        className="rounded-xl p-5 relative"
+                        style={{ backgroundColor: '#FFFFFF', border: '1px solid #E5E7EB' }}
                       >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                        </svg>
-                        Continue Process
-                      </button>
-                      <button
-                        onClick={() => handleHiringDecision('stop')}
-                        disabled={saving}
-                        className={`cursor-pointer px-4 py-2 rounded-lg text-sm font-semibold transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed ${
-                          hiringDecision === 'stop' ? 'opacity-100' : 'opacity-60 hover:opacity-80'
-                        }`}
-                        style={{ backgroundColor: '#FFFFFF', color: '#374151', border: '1px solid #E5E7EB' }}
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                        Stop Process
-                      </button>
-                    </div>
-                    {hiringDecision === 'continue' && (
-                      <div className="mt-4 p-3 rounded-lg" style={{ backgroundColor: '#DBEAFE', color: '#1E40AF' }}>
-                        <div className="flex items-center gap-2 text-sm font-semibold">
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                          </svg>
-                          Candidate approved to continue hiring process
+                        <div className="flex items-start gap-4">
+                          <div className="flex-shrink-0">
+                            <div
+                              className="w-10 h-10 rounded-full flex items-center justify-center"
+                              style={{
+                                backgroundColor:
+                                  event.type === 'added' ? '#10B981' :
+                                  event.type === 'interview' ? '#3B82F6' :
+                                  event.type === 'awaiting' ? '#F59E0B' :
+                                  '#6B7280',
+                              }}
+                            >
+                              {event.type === 'added' && (
+                                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                </svg>
+                              )}
+                              {event.type === 'interview' && (
+                                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                              )}
+                              {event.type === 'awaiting' && (
+                                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                              )}
+                              {event.type === 'status' && (
+                                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex-1">
+                            <h3 className="text-base font-bold mb-1" style={{ color: '#232E40' }}>{event.title}</h3>
+                            <p className="text-sm mb-2" style={{ color: '#6B7280' }}>{event.description}</p>
+                            {event.manager && (
+                              <p className="text-sm mb-1" style={{ color: '#6B7280' }}>
+                                <span className="font-semibold" style={{ color: '#232E40' }}>Manager:</span> {event.manager}
+                              </p>
+                            )}
+                            
+                            {/* Sum Score - Only show for interview events */}
+                            {event.type === 'interview' && event.score !== undefined && (
+                              <div className="mt-4 mb-3 p-3 rounded-lg" style={{ backgroundColor: '#EFF6FF', border: '1px solid #BFDBFE' }}>
+                                <p className="text-sm font-bold" style={{ color: '#232E40' }}>
+                                  <span>Sum Score: </span>
+                                  <span style={{ color: getScoreColor(event.score / 10), fontWeight: 'bold', fontSize: '1rem' }}>
+                                    {event.score}/100
+                                  </span>
+                                </p>
+                              </div>
+                            )}
+                            
+                            {/* Category Scores - Only show for interview events */}
+                            {event.type === 'interview' && event.categoryScores && event.categoryScores.length > 0 && (
+                              <div className="mt-4 mb-3">
+                                <h4 className="text-sm font-bold mb-3" style={{ color: '#232E40' }}>Category Scores:</h4>
+                                <div className="space-y-2.5">
+                                  {event.categoryScores.map((catScore, idx) => (
+                                    <div key={idx} className="p-3 rounded-lg" style={{ backgroundColor: '#F9FAFB', border: '1px solid #E5E7EB' }}>
+                                      <div className="flex items-center justify-between mb-1.5">
+                                        <span className="text-sm font-semibold" style={{ color: '#232E40' }}>{catScore.category}</span>
+                                        <span className="text-sm font-bold" style={{ color: '#4D6DBE' }}>{catScore.score}</span>
+                                      </div>
+                                      {catScore.comment && (
+                                        <p className="text-xs mt-1.5 pt-1.5 border-t" style={{ borderColor: '#E5E7EB', color: '#6B7280' }}>
+                                          <span className="font-semibold" style={{ color: '#374151' }}>Comments: </span>
+                                          <span>{catScore.comment}</span>
+                                        </p>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                            
+                            {/* Interviewer Recommendation - Only show for interview events */}
+                            {event.type === 'interview' && event.recommendation && (
+                              <div className="mt-3 mb-2">
+                                <p className="text-sm" style={{ color: '#6B7280' }}>
+                                  <span className="font-semibold" style={{ color: '#232E40' }}>Interviewer Recommendation: </span>
+                                  <span className="font-bold" style={{ 
+                                    color: event.recommendation === 'Hire' ? '#10B981' : 
+                                           event.recommendation === 'Next Stage' ? '#3B82F6' : 
+                                           event.recommendation === 'No Hire' ? '#EF4444' : '#6B7280'
+                                  }}>
+                                    {event.recommendation}
+                                  </span>
+                                </p>
+                              </div>
+                            )}
+                            
+                            {/* Additional Notes - Only show for interview events */}
+                            {event.type === 'interview' && event.additionalNotes && (
+                              <div className="mt-4 mb-2">
+                                <h4 className="text-sm font-bold mb-2" style={{ color: '#232E40' }}>Additional Notes:</h4>
+                                <div className="p-3 rounded-lg text-sm whitespace-pre-wrap" style={{ backgroundColor: '#F9FAFB', color: '#374151', border: '1px solid #E5E7EB' }}>
+                                  {event.additionalNotes}
+                                </div>
+                              </div>
+                            )}
+                            
+                            {event.date && (
+                              <p className="text-xs mt-2" style={{ color: '#9CA3AF' }}>{event.date}</p>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    )}
+                    ))}
                   </div>
                 </>
               )}
 
-              {activeTab !== 'performance-overview' && (
-                <div className="rounded-xl p-8 text-center" style={{ backgroundColor: '#FFFFFF', border: '1px solid #E5E7EB' }}>
-                  <p style={{ color: '#6B7280' }}>Content for {activeTab} tab coming soon</p>
+              {activeTab === 'resume' && (
+                <div className="rounded-xl" style={{ backgroundColor: '#FFFFFF', border: '1px solid #E5E7EB' }}>
+                  <div className="p-8">
+                    <div className="mb-4">
+                      <h3 className="text-base font-bold" style={{ color: '#232E40' }}>Resume Preview</h3>
+                      <p className="text-sm" style={{ color: '#6B7280' }}>
+                        Supported formats: PDF, DOC, DOCX.
+                      </p>
+                    </div>
+                    {candidate.resumeUrl ? (
+                      <div className="w-full h-[600px] border border-gray-300 rounded-lg overflow-hidden">
+                        {candidate.resumeUrl.endsWith('.pdf') ? (
+                          <iframe src={candidate.resumeUrl} className="w-full h-full" title="Resume Preview"></iframe>
+                        ) : (
+                          <div className="flex items-center justify-center h-full bg-gray-50 text-gray-500">
+                            <p>Preview not available for this file type. Download to view.</p>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="p-8 text-center flex flex-col items-center justify-center h-full">
+                        <svg className="w-16 h-16 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: '#9CA3AF' }}>
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                        </svg>
+                        <p className="text-sm font-semibold mb-2" style={{ color: '#6B7280' }}>No Resume Uploaded</p>
+                        <p className="text-xs" style={{ color: '#9CA3AF' }}>
+                          This candidate has not uploaded a resume yet.
+                        </p>
+                        <p className="text-xs mt-2" style={{ color: '#9CA3AF' }}>
+                          Supported formats: PDF, DOC, DOCX
+                        </p>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
@@ -770,43 +1361,46 @@ export default function CandidateProfilePage() {
                 </div>
               </div>
 
-              {/* Notes */}
-              <div className="rounded-xl p-5" style={{ backgroundColor: '#FFFFFF', border: '1px solid #E5E7EB' }}>
-                <h3 className="text-sm font-bold mb-4" style={{ color: '#232E40' }}>Notes</h3>
-                <textarea
-                  value={notes}
-                  onChange={(e) => handleNotesChange(e.target.value)}
-                  placeholder="Write note..."
-                  disabled={saving}
-                  className="w-full px-3 py-2 text-sm rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none disabled:opacity-50"
-                  style={{
-                    border: '1px solid #D1D5DB',
-                    color: '#374151',
-                    backgroundColor: '#FFFFFF',
-                    minHeight: '100px',
-                  }}
-                />
-                {saving && (
-                  <p className="text-xs mt-2" style={{ color: '#6B7280' }}>Saving...</p>
-                )}
-                <div className="flex items-center gap-2 mt-3">
-                  <button className="cursor-pointer p-2 hover:bg-gray-100 rounded-lg transition-all" style={{ color: '#6B7280' }}>
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                  </button>
-                  <button className="cursor-pointer p-2 hover:bg-gray-100 rounded-lg transition-all" style={{ color: '#6B7280' }}>
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
-                    </svg>
-                  </button>
-                  <button className="cursor-pointer p-2 hover:bg-gray-100 rounded-lg transition-all" style={{ color: '#6B7280' }}>
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-                    </svg>
-                  </button>
+              {/* Hiring Decision Actions */}
+              {role !== 'corporate' && (
+                <div className="rounded-xl p-5" style={{ backgroundColor: '#FFFFFF', border: '1px solid #E5E7EB' }}>
+                  <h3 className="text-sm font-bold mb-4" style={{ color: '#232E40' }}>Hiring Decision</h3>
+                  <div className="space-y-3">
+                    <button
+                      onClick={handleConvertToEmployee}
+                      disabled={saving}
+                      className="cursor-pointer w-full bg-[#10B981] text-white py-2.5 rounded-lg font-semibold hover:bg-[#059669] transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    >
+                      {saving ? (
+                        <>
+                          <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          <span>Processing...</span>
+                        </>
+                      ) : (
+                        <>
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          <span>Board as Employee</span>
+                        </>
+                      )}
+                    </button>
+                    <button
+                      onClick={handleDenyApplication}
+                      disabled={saving}
+                      className="cursor-pointer w-full bg-[#EF4444] text-white py-2.5 rounded-lg font-semibold hover:bg-[#DC2626] transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                      <span>Deny Application</span>
+                    </button>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           </div>
         </main>
@@ -814,4 +1408,3 @@ export default function CandidateProfilePage() {
     </RequireAuth>
   );
 }
-

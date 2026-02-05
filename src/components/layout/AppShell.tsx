@@ -9,6 +9,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   
   // Dashboard pages have their own layout, so skip TopNav/Footer
+  // Note: /admin-register should show TopNav (it's a registration page, not a dashboard)
   const isDashboardPage = pathname?.startsWith('/dashboard') || 
                           pathname?.startsWith('/employees') ||
                           pathname?.startsWith('/analytics') ||
@@ -18,7 +19,8 @@ export default function AppShell({ children }: { children: ReactNode }) {
                           pathname?.startsWith('/users') ||
                           pathname?.startsWith('/support') ||
                           pathname?.startsWith('/surveys') ||
-                          pathname?.startsWith('/access-codes');
+                          pathname?.startsWith('/access-codes') ||
+                          (pathname?.startsWith('/admin') && !pathname?.startsWith('/admin-register'));
   
   // Survey page should not have footer and should not have padding
   const isSurveyPage = pathname === '/survey';
