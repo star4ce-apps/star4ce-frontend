@@ -57,6 +57,23 @@ type Manager = {
   is_approved?: boolean;
 };
 
+// Helper function to get display name from user data
+function getUserDisplayName(user: { first_name?: string | null; last_name?: string | null; full_name?: string | null; email?: string }): string {
+  // Try full_name first (backward compatibility)
+  if (user.full_name) {
+    return user.full_name;
+  }
+  // Combine first_name and last_name
+  const firstName = user.first_name || '';
+  const lastName = user.last_name || '';
+  const combined = [firstName, lastName].filter(Boolean).join(' ').trim();
+  if (combined) {
+    return combined;
+  }
+  // Fallback to email
+  return user.email?.split('@')[0] || user.email || 'Unknown';
+}
+
 export default function TerminationPage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [exitRecords, setExitRecords] = useState<ExitRecord[]>([]);
@@ -150,7 +167,7 @@ export default function TerminationPage() {
             return isAdmin && isApproved && sameDealership;
           }).map((u: any) => ({
             id: u.id,
-            name: u.full_name || u.email?.split('@')[0] || u.email || '',
+            name: getUserDisplayName(u),
             email: u.email || '',
             role: 'admin',
             is_approved: u.is_approved !== false,
@@ -182,7 +199,7 @@ export default function TerminationPage() {
               if (currentUserFromList) {
                 allUsers.push({
                   id: currentUserFromList.id,
-                  name: currentUserFromList.full_name || currentUserEmail.split('@')[0] || currentUserEmail,
+                  name: getUserDisplayName(currentUserFromList),
                   email: currentUserEmail,
                   role: 'admin',
                   is_approved: currentUserFromList.is_approved !== false,
@@ -274,9 +291,18 @@ export default function TerminationPage() {
       try {
         data = await getJsonAuth('/terminations');
       } catch (e: any) {
-        // If endpoint doesn't exist (404), try role history with termination/resignation filter
-        if (e.message?.includes('404') || e.message?.includes('Failed')) {
-          data = await getJsonAuth('/role-history?limit=500');
+        // If endpoint doesn't exist (404) or user doesn't have permission (403), try role history
+        const errorMsg = e.message || '';
+        if (errorMsg.includes('404') || errorMsg.includes('403') || errorMsg.includes('Failed') || errorMsg.includes('only admins')) {
+          // Fall back to role history endpoint which managers can access
+          try {
+            data = await getJsonAuth('/role-history?limit=500');
+          } catch (roleHistoryErr) {
+            // If role history also fails, just set empty records
+            console.log('Could not load exit records:', roleHistoryErr);
+            setExitRecords([]);
+            return;
+          }
         } else {
           throw e;
         }
@@ -385,9 +411,16 @@ export default function TerminationPage() {
       try {
         // Try dedicated exit/termination endpoint
         await postJsonAuth('/terminations', exitData);
-      } catch (err) {
-        // If endpoint doesn't exist, the record will be tracked via role history
-        console.log('Exit endpoint not available, using role history');
+      } catch (err: any) {
+        // If user doesn't have permission (403) or endpoint doesn't exist (404), show error
+        const errorMsg = err?.message || '';
+        if (errorMsg.includes('403') || errorMsg.includes('only admins')) {
+          throw new Error('Only admins can create termination records. Please contact an admin.');
+        }
+        // If endpoint doesn't exist (404), the record will be tracked via role history
+        if (!errorMsg.includes('404')) {
+          console.log('Exit endpoint not available, using role history');
+        }
       }
 
       // Reload data
