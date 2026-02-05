@@ -248,16 +248,57 @@ function DashboardContent() {
         // Build date range query params
         const rangeParam = `?start_date=${startDate}&end_date=${endDate}`;
 
-        // Fetch all data in parallel using getJsonAuth (includes X-Dealership-Id header for corporate)
-        const [summaryData, terminatedQuitData, roleBreakdownData, surveyFeedbackData, turnoverData] = await Promise.all([
-          getJsonAuth(`/analytics/summary${rangeParam}`),
-          getJsonAuth(`/analytics/terminated-quit${rangeParam}`),
-          getJsonAuth(`/analytics/role-breakdown${rangeParam}`),
-          getJsonAuth(`/analytics/survey-feedback${rangeParam}`),
-          getJsonAuth(`/analytics/turnover-time-series${rangeParam}`),
+        // Fetch all data in parallel using Promise.allSettled to handle permission errors gracefully
+        // This allows individual endpoints to fail without breaking the entire dashboard
+        const results = await Promise.allSettled([
+          getJsonAuth(`/analytics/summary${rangeParam}`).catch(err => {
+            // Handle permission errors silently
+            const errorMsg = err?.message || '';
+            if (errorMsg.includes('403') || errorMsg.includes('forbidden') || errorMsg.includes('insufficient role')) {
+              return { ok: false };
+            }
+            throw err;
+          }),
+          getJsonAuth(`/analytics/terminated-quit${rangeParam}`).catch(err => {
+            const errorMsg = err?.message || '';
+            if (errorMsg.includes('403') || errorMsg.includes('forbidden') || errorMsg.includes('insufficient role')) {
+              return { ok: false };
+            }
+            throw err;
+          }),
+          getJsonAuth(`/analytics/role-breakdown${rangeParam}`).catch(err => {
+            const errorMsg = err?.message || '';
+            if (errorMsg.includes('403') || errorMsg.includes('forbidden') || errorMsg.includes('insufficient role')) {
+              return { ok: false };
+            }
+            throw err;
+          }),
+          getJsonAuth(`/analytics/survey-feedback${rangeParam}`).catch(err => {
+            const errorMsg = err?.message || '';
+            if (errorMsg.includes('403') || errorMsg.includes('forbidden') || errorMsg.includes('insufficient role')) {
+              return { ok: false };
+            }
+            throw err;
+          }),
+          getJsonAuth(`/analytics/turnover-time-series${rangeParam}`).catch(err => {
+            const errorMsg = err?.message || '';
+            if (errorMsg.includes('403') || errorMsg.includes('forbidden') || errorMsg.includes('insufficient role')) {
+              return { ok: false };
+            }
+            throw err;
+          }),
         ]);
 
-        setAnalytics(summaryData as AnalyticsSummary);
+        // Extract results, handling both fulfilled and rejected promises
+        const summaryData = results[0].status === 'fulfilled' ? results[0].value : { ok: false };
+        const terminatedQuitData = results[1].status === 'fulfilled' ? results[1].value : { ok: false };
+        const roleBreakdownData = results[2].status === 'fulfilled' ? results[2].value : { ok: false };
+        const surveyFeedbackData = results[3].status === 'fulfilled' ? results[3].value : { ok: false };
+        const turnoverData = results[4].status === 'fulfilled' ? results[4].value : { ok: false };
+
+        if (summaryData.ok) {
+          setAnalytics(summaryData as AnalyticsSummary);
+        }
 
         // Process terminated/quit data
         if (terminatedQuitData.ok) {
@@ -277,26 +318,47 @@ function DashboardContent() {
 
         // Process role breakdown
         if (roleBreakdownData.ok && roleBreakdownData.breakdown) {
-          setRoleBreakdown(roleBreakdownData.breakdown);
+          // Ensure breakdown is an array
+          const breakdown = Array.isArray(roleBreakdownData.breakdown) 
+            ? roleBreakdownData.breakdown 
+            : [];
+          setRoleBreakdown(breakdown);
+        } else {
+          // Ensure roleBreakdown is always an array, even on error
+          setRoleBreakdown([]);
         }
 
         // Process survey feedback
         if (surveyFeedbackData.ok && surveyFeedbackData.feedback) {
-          const feedback = surveyFeedbackData.feedback.map((item: { name: string; value: number }) => ({
+          const feedbackArray = Array.isArray(surveyFeedbackData.feedback) 
+            ? surveyFeedbackData.feedback 
+            : [];
+          const feedback = feedbackArray.map((item: { name: string; value: number }) => ({
             name: item.name,
             value: item.value,
             color: feedbackColors[item.name] || '#6b7280',
           }));
           setSurveyFeedback(feedback);
+        } else {
+          setSurveyFeedback([]);
         }
 
         // Process turnover time series
         if (turnoverData.ok && turnoverData.time_series) {
-          setTurnoverTimeSeries(turnoverData.time_series);
+          const timeSeries = Array.isArray(turnoverData.time_series) 
+            ? turnoverData.time_series 
+            : [];
+          setTurnoverTimeSeries(timeSeries);
+        } else {
+          setTurnoverTimeSeries([]);
         }
       } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : 'Failed to load analytics';
-        setAnalyticsError(msg);
+        // Only set error for non-permission related errors
+        const errorMsg = err instanceof Error ? err.message : 'Failed to load analytics';
+        // Don't show error for permission issues - they're handled gracefully above
+        if (!errorMsg.includes('403') && !errorMsg.includes('forbidden') && !errorMsg.includes('insufficient role')) {
+          setAnalyticsError(errorMsg);
+        }
       } finally {
         setAnalyticsLoading(false);
         setDataLoading(false);
@@ -312,24 +374,26 @@ function DashboardContent() {
     : 0;
 
   // Get terminated breakdown by role
+  // Ensure roleBreakdown is always an array before calling filter
+  const safeRoleBreakdown = Array.isArray(roleBreakdown) ? roleBreakdown : [];
   const terminatedBreakdownData = currentChart === 'terminated'
-    ? roleBreakdown
+    ? safeRoleBreakdown
         .filter(r => r.terminated > 0)
         .map((r, idx) => ({
           name: r.role,
           value: r.terminated,
-          percentage: roleBreakdown.reduce((sum, role) => sum + role.terminated, 0) > 0
-            ? Math.round((r.terminated / roleBreakdown.reduce((sum, role) => sum + role.terminated, 0)) * 100 * 10) / 10
+          percentage: safeRoleBreakdown.reduce((sum, role) => sum + role.terminated, 0) > 0
+            ? Math.round((r.terminated / safeRoleBreakdown.reduce((sum, role) => sum + role.terminated, 0)) * 100 * 10) / 10
             : 0,
           color: roleColors[idx % roleColors.length],
         }))
-    : roleBreakdown
+    : safeRoleBreakdown
         .filter(r => r.quit > 0)
         .map((r, idx) => ({
           name: r.role,
           value: r.quit,
-          percentage: roleBreakdown.reduce((sum, role) => sum + role.quit, 0) > 0
-            ? Math.round((r.quit / roleBreakdown.reduce((sum, role) => sum + role.quit, 0)) * 100 * 10) / 10
+          percentage: safeRoleBreakdown.reduce((sum, role) => sum + role.quit, 0) > 0
+            ? Math.round((r.quit / safeRoleBreakdown.reduce((sum, role) => sum + role.quit, 0)) * 100 * 10) / 10
             : 0,
           color: roleColors[idx % roleColors.length],
         }));
