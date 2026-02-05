@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { API_BASE } from '@/lib/auth';
 import toast from 'react-hot-toast';
+import Logo from '@/components/Logo';
 
 export default function SurveyPage() {
   const search = useSearchParams();
@@ -24,6 +25,7 @@ export default function SurveyPage() {
   const [validatingCode, setValidatingCode] = useState(false); // for "Start Survey"
   const [codeError, setCodeError] = useState<string | null>(null);
   const [disclaimerAccepted, setDisclaimerAccepted] = useState(false);
+  const [showDisclaimerModal, setShowDisclaimerModal] = useState(false);
 
   // Calculate progress percentage
   const getProgress = () => {
@@ -35,6 +37,19 @@ export default function SurveyPage() {
     if (currentStep === 5) return 100;
     return 0;
   };
+
+  // Prevent body scrolling when survey page is mounted
+  useEffect(() => {
+    // Disable body scroll
+    document.body.style.overflow = 'hidden';
+    document.documentElement.style.overflow = 'hidden';
+    
+    // Cleanup: re-enable scroll when component unmounts
+    return () => {
+      document.body.style.overflow = '';
+      document.documentElement.style.overflow = '';
+    };
+  }, []);
 
   // Prefill access code from URL: /survey?code=XXXXX
   useEffect(() => {
@@ -267,8 +282,12 @@ export default function SurveyPage() {
 
   return (
     <div
-      className="fixed inset-0 flex items-start justify-center overflow-y-auto pt-32 md:pt-40"
+      className="fixed flex items-center justify-center overflow-hidden"
       style={{
+        top: '110px',
+        left: 0,
+        right: 0,
+        bottom: 0,
         backgroundImage: 'url(/images/header.jpg)',
         backgroundSize: 'cover',
         backgroundPosition: 'center',
@@ -283,8 +302,8 @@ export default function SurveyPage() {
       />
 
       {/* Survey Modal */}
-      <div className="relative z-[2000] w-full max-w-2xl mx-5 mb-8">
-        <div className="bg-white rounded-lg shadow-2xl overflow-hidden flex min-h-[500px] isolate">
+      <div className="relative z-[2000] w-full max-w-2xl mx-4 max-h-[95vh]">
+        <div className="bg-white rounded-lg shadow-2xl overflow-hidden flex max-h-[95vh] isolate">
           {/* Left Section - Gradient Blue Sidebar */}
           <div
             className="w-1/4 hidden md:block"
@@ -295,21 +314,17 @@ export default function SurveyPage() {
           ></div>
 
           {/* Right Section - Form */}
-          <div className="bg-[#E6E6E6] flex-1 p-10 md:p-12 flex flex-col justify-center overflow-hidden">
+          <div className="bg-[#E6E6E6] flex-1 p-6 md:p-8 flex flex-col justify-center overflow-hidden max-h-[95vh]">
             {/* Logo */}
-            <div className="text-center mb-8">
+            <div className="text-center mb-4">
               <Link href="/" className="inline-block">
-                <img
-                  src="/images/Logo 4.png"
-                  alt="Star4ce"
-                  className="h-12 md:h-16 mx-auto"
-                />
+                <Logo size="lg" className="justify-center" />
               </Link>
             </div>
 
             {/* Progress Bar - Only show after intro */}
             {currentStep > 0 && currentStep < 5 && (
-              <div className="mb-8">
+              <div className="mb-6">
                 <div className="flex justify-between items-center mb-2">
                   <span className="text-sm text-gray-600">Progress</span>
                   <span className="text-sm font-medium text-gray-700">{getProgress()}%</span>
@@ -325,7 +340,7 @@ export default function SurveyPage() {
 
             {/* Progress Dots - Only show after intro */}
             {currentStep > 0 && (
-              <div className="flex justify-center items-center gap-2 mb-10">
+              <div className="flex justify-center items-center gap-2 mb-6">
                 {[1, 2, 3, 4].map((step) => {
                   const currentDisplayStep = currentStep === 4 ? 4 : currentStep;
                   return (
@@ -354,10 +369,10 @@ export default function SurveyPage() {
 
             {/* Step 0: Introduction */}
             {currentStep === 0 && (
-              <div className="space-y-8">
-                <div className="text-center space-y-4">
+              <div className="space-y-6">
+                <div className="text-center space-y-3">
                   <h2 className="text-xl font-bold text-[#0B2E65]">Welcome to the Survey</h2>
-                  <div className="text-gray-700 space-y-3 text-center text-sm">
+                  <div className="text-gray-700 space-y-2 text-center text-sm">
                     <p>
                       This survey helps us understand your experience and improve our workplace.
                       We value your honest feedback and it will be used to make positive changes.
@@ -375,7 +390,7 @@ export default function SurveyPage() {
                   <input
                     type="text"
                     placeholder="Enter your access code"
-                    className="w-full px-3 py-2 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none"
+                    className="w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none"
                     value={accessCode}
                     onChange={(e) => {
                       setAccessCode(e.target.value);
@@ -383,11 +398,11 @@ export default function SurveyPage() {
                     }}
                     required
                   />
-                  <p className="text-xs text-gray-600 mt-1">
+                  <p className="text-sm text-gray-600 mt-1.5">
                     This code links your response to your designated dealership.
                   </p>
                   {codeError && (
-                    <p className="text-xs text-red-600 mt-2">
+                    <p className="text-sm text-red-600 mt-2">
                       {codeError}
                     </p>
                   )}
@@ -395,29 +410,27 @@ export default function SurveyPage() {
 
                 {/* Survey Disclaimer */}
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
-                  <h3 className="text-sm font-semibold text-[#0B2E65]">Survey Disclaimer</h3>
-                  <div className="text-xs text-gray-700 space-y-2 max-h-[200px] overflow-y-auto pr-2">
-                    <p>
-                      By participating in this survey, you acknowledge that:
-                    </p>
-                    <ul className="list-disc list-inside space-y-1 ml-2">
-                      <li>Your responses are anonymous and will be used for internal analysis and improvement purposes</li>
-                      <li>You understand the purpose of this survey and agree to provide honest and accurate feedback</li>
-                      <li>Your participation is voluntary and you may choose not to answer any question</li>
-                      <li>The information collected will be used to improve workplace conditions and employee experience</li>
-                      <li>You have read and understood the terms and conditions of this survey</li>
-                    </ul>
-                  </div>
+                  <h3 className="text-sm font-semibold text-[#0B2E65]">Employee Survey Disclaimer</h3>
+                  <p className="text-sm text-gray-700">
+                    This survey is conducted by Star4ce LLC on behalf of your company. Your responses are aggregated and used for research and analysis purposes to improve workplace conditions. Participation is voluntary and your feedback is highly valued.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setShowDisclaimerModal(true)}
+                    className="text-sm text-[#0B2E65] hover:text-[#2c5aa0] underline font-medium transition-colors text-left"
+                  >
+                    Read More
+                  </button>
                   <label className="flex items-start gap-3 cursor-pointer group">
                     <input
                       type="checkbox"
                       checked={disclaimerAccepted}
                       onChange={(e) => setDisclaimerAccepted(e.target.checked)}
-                      className="mt-1 w-4 h-4 text-[#0B2E65] border-gray-300 rounded focus:ring-[#0B2E65] cursor-pointer"
+                      className="mt-0.5 w-4 h-4 text-[#0B2E65] border-gray-300 rounded focus:ring-[#0B2E65] cursor-pointer"
                       required
                     />
                     <span className="text-sm text-gray-700 group-hover:text-[#0B2E65] transition-colors">
-                      I have read and agree to the survey disclaimer and terms above
+                      I have read and agree to the survey disclaimer and terms
                     </span>
                   </label>
                 </div>
@@ -439,7 +452,7 @@ export default function SurveyPage() {
                   e.preventDefault();
                   nextStep();
                 }}
-                className="space-y-8"
+                className="space-y-6"
               >
                 <div>
                   <label className="block text-gray-700 text-sm font-medium mb-4">
@@ -473,7 +486,7 @@ export default function SurveyPage() {
                     What is your role?
                   </label>
                   <select
-                    className="cursor-pointer w-full px-3 py-2 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none"
+                    className="cursor-pointer w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none"
                     value={role}
                     onChange={(e) => setRole(e.target.value)}
                     required
@@ -512,15 +525,15 @@ export default function SurveyPage() {
                   e.preventDefault();
                   nextStep();
                 }}
-                className="space-y-6"
+                className="space-y-4"
               >
-                <div className="space-y-6 max-h-[400px] overflow-y-auto pr-2">
+                <div className="space-y-5 pr-2 max-h-[50vh] overflow-y-auto">
                   {satisfactionQuestions.map((question, index) => (
                     <div key={index}>
                       <label className="block text-gray-700 text-sm font-medium mb-3">
                         {question}
                       </label>
-                      <div className="space-y-3">
+                      <div className="space-y-2">
                         {['Very Satisfied', 'Satisfied', 'Neutral', 'Dissatisfied', 'Very Dissatisfied'].map(
                           (option) => (
                             <label key={option} className="flex items-center gap-2 cursor-pointer">
@@ -547,17 +560,17 @@ export default function SurveyPage() {
                   ))}
                 </div>
 
-                <div className="flex gap-3">
+                <div className="flex gap-3 pt-3">
                   <button
                     type="button"
                     onClick={prevStep}
-                    className="cursor-pointer flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
+                    className="cursor-pointer flex-1 bg-gray-200 text-gray-700 py-2.5 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
                   >
                     Back
                   </button>
                   <button
                     type="submit"
-                    className="cursor-pointer flex-1 bg-[#0B2E65] text-white py-2 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-colors"
+                    className="cursor-pointer flex-1 bg-[#0B2E65] text-white py-2.5 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-colors"
                   >
                     Next
                   </button>
@@ -572,19 +585,19 @@ export default function SurveyPage() {
                   e.preventDefault();
                   nextStep();
                 }}
-                className="space-y-6"
+                className="space-y-4"
               >
-                <div className="space-y-8 max-h-[400px] overflow-y-auto pr-2">
+                <div className="space-y-5 pr-2 max-h-[50vh] overflow-y-auto">
                   {/* Newly Hired Questions */}
                   {employeeStatus === 'newly-hired' && (
                     <>
-                      <h3 className="text-lg font-semibold text-[#0B2E65]">Training & Onboarding</h3>
+                      <h3 className="text-base font-semibold text-[#0B2E65] mb-3">Training & Onboarding</h3>
                       {trainingQuestions.map((question, index) => (
                         <div key={index}>
                           <label className="block text-gray-700 text-sm font-medium mb-3">
                             {question}
                           </label>
-                          <div className="space-y-3">
+                          <div className="space-y-2">
                             {['Excellent', 'Good', 'Fair', 'Poor', 'Very Poor'].map((option) => (
                               <label key={option} className="flex items-center gap-2 cursor-pointer">
                                 <input
@@ -613,12 +626,12 @@ export default function SurveyPage() {
                   {/* Termination Questions */}
                   {employeeStatus === 'termination' && (
                     <>
-                      <h3 className="text-lg font-semibold text-[#0B2E65]">Termination Details</h3>
+                      <h3 className="text-base font-semibold text-[#0B2E65] mb-3">Termination Details</h3>
                       <div>
                         <label className="block text-gray-700 text-sm font-medium mb-3">
                           What was the primary reason for termination?
                         </label>
-                        <div className="space-y-3">
+                        <div className="space-y-2">
                           {terminationReasons.map((reason) => (
                             <label key={reason} className="flex items-center gap-2 cursor-pointer">
                               <input
@@ -653,12 +666,12 @@ export default function SurveyPage() {
                   {/* Leave Questions */}
                   {employeeStatus === 'leave' && (
                     <>
-                      <h3 className="text-lg font-semibold text-[#0B2E65]">Leave Details</h3>
+                      <h3 className="text-base font-semibold text-[#0B2E65] mb-3">Leave Details</h3>
                       <div>
                         <label className="block text-gray-700 text-sm font-medium mb-3">
                           What was the primary reason for leave?
                         </label>
-                        <div className="space-y-3">
+                        <div className="space-y-2">
                           {leaveReasons.map((reason) => (
                             <label key={reason} className="flex items-center gap-2 cursor-pointer">
                               <input
@@ -679,7 +692,7 @@ export default function SurveyPage() {
                             <input
                               type="text"
                               placeholder="Please specify"
-                              className="w-full px-3 py-2 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none"
+                              className="w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none"
                               value={leaveOther}
                               onChange={(e) => setLeaveOther(e.target.value)}
                               required
@@ -698,17 +711,17 @@ export default function SurveyPage() {
                   )}
                 </div>
 
-                <div className="flex gap-3">
+                <div className="flex gap-3 pt-3">
                   <button
                     type="button"
                     onClick={prevStep}
-                    className="cursor-pointer flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
+                    className="cursor-pointer flex-1 bg-gray-200 text-gray-700 py-2.5 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
                   >
                     Back
                   </button>
                   <button
                     type="submit"
-                    className="cursor-pointer flex-1 bg-[#0B2E65] text-white py-2 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-colors"
+                    className="cursor-pointer flex-1 bg-[#0B2E65] text-white py-2.5 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-colors"
                   >
                     Next
                   </button>
@@ -718,31 +731,31 @@ export default function SurveyPage() {
 
             {/* Step 4: Additional Feedback */}
             {currentStep === 4 && (
-              <form onSubmit={handleSubmit} className="space-y-6">
+              <form onSubmit={handleSubmit} className="space-y-5">
                 <div>
                   <label className="block text-gray-700 text-sm font-medium mb-3">
                     Additional Feedback
                   </label>
                   <textarea
                     placeholder="Please share any additional thoughts, comments, or suggestions..."
-                    className="w-full px-3 py-2 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none min-h-[200px] resize-none"
+                    className="w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none min-h-[150px] resize-none"
                     value={additionalFeedback}
                     onChange={(e) => setAdditionalFeedback(e.target.value)}
                   />
                 </div>
 
-                <div className="flex gap-3">
+                <div className="flex gap-3 pt-3">
                   <button
                     type="button"
                     onClick={prevStep}
-                    className="cursor-pointer flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
+                    className="cursor-pointer flex-1 bg-gray-200 text-gray-700 py-2.5 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
                   >
                     Back
                   </button>
                   <button
                     type="submit"
                     disabled={loading}
-                    className="cursor-pointer flex-1 bg-[#0B2E65] text-white py-2 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                    className="cursor-pointer flex-1 bg-[#0B2E65] text-white py-2.5 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     {loading ? 'Submitting...' : 'Submit Survey'}
                   </button>
@@ -752,7 +765,7 @@ export default function SurveyPage() {
 
             {/* Step 5: Success Page */}
             {currentStep === 5 && (
-              <div className="space-y-8 text-center">
+              <div className="space-y-6 text-center">
                 <div className="space-y-4">
                   <div className="mx-auto w-16 h-16 bg-[#0B2E65]/10 rounded-full flex items-center justify-center">
                     <svg
@@ -781,6 +794,115 @@ export default function SurveyPage() {
           </div>
         </div>
       </div>
+
+      {/* Disclaimer Modal */}
+      {showDisclaimerModal && (
+        <div className="fixed inset-0 z-[3000] flex items-center justify-center p-4">
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={() => setShowDisclaimerModal(false)}
+          />
+          
+          {/* Modal - Smaller and contained */}
+          <div className="relative bg-white rounded-lg shadow-2xl max-w-md w-full max-h-[70vh] overflow-hidden flex flex-col z-10 m-4">
+            {/* Header */}
+            <div className="bg-[#0B2E65] text-white px-4 py-2 flex items-center justify-between flex-shrink-0">
+              <h2 className="text-base font-bold">Employee Survey Disclaimer</h2>
+              <button
+                onClick={() => setShowDisclaimerModal(false)}
+                className="text-white hover:text-gray-200 transition-colors text-xl leading-none w-6 h-6 flex items-center justify-center"
+                aria-label="Close"
+              >
+                ×
+              </button>
+            </div>
+            
+            {/* Content - Scrollable */}
+            <div className="p-4 overflow-y-auto flex-1 min-h-0">
+              <div className="text-gray-700 space-y-3 text-xs">
+                <div>
+                  <p className="text-xs text-gray-500 mb-3">Last Updated: December 21, 2025</p>
+                </div>
+                
+                <div>
+                  <h3 className="font-semibold text-[#0B2E65] text-sm mb-2">Introduction</h3>
+                  <p className="mb-2">
+                    This survey is being conducted by Star4ce LLC on behalf of your company. We are a third-party vendor and are in no way associated with any entity within your company's organization. The purpose of this survey is to gather valuable feedback from you to help improve the workplace environment, company policies, and overall employee satisfaction.
+                  </p>
+                  <p>
+                    Your participation is highly valued and will help make your company a better place to work. Your personal feedback, including thoughts on how to make it a better place to work, is highly recommended.
+                  </p>
+                </div>
+
+                <div>
+                  <h3 className="font-semibold text-[#0B2E65] text-sm mb-2">Confidentiality and Anonymity</h3>
+                  <p className="mb-2">We are committed to protecting the confidentiality of your responses. Here's how we handle your data:</p>
+                  <ul className="list-disc list-inside space-y-1.5 ml-2">
+                    <li>
+                      <strong>Aggregated Data:</strong> All survey responses are combined and reported in a summary format. This means your individual answers are grouped with others to identify trends.
+                    </li>
+                    <li>
+                      <strong>Individual Comments:</strong> Your personal written feedback on how to improve the workplace will be shared with your company's management.
+                    </li>
+                    <li>
+                      <strong>Anonymity:</strong> We take your anonymity seriously. While we require an email address to send you a unique survey access code, we do not store your email or any other personally identifiable information with your survey responses. Although we take every precaution to ensure your anonymity, we cannot offer an absolute guarantee.
+                    </li>
+                    <li>
+                      <strong>Security:</strong> We have implemented robust security measures to protect all the data we collect.
+                    </li>
+                  </ul>
+                </div>
+
+                <div>
+                  <h3 className="font-semibold text-[#0B2E65] text-sm mb-2">Data Usage</h3>
+                  <p>
+                    The information you provide will be used for research and analysis purposes only. The aggregated results of the survey will be used by your company to identify areas of strength and opportunities for improvement. The data will not be used for any disciplinary action or to evaluate individual employee performance.
+                  </p>
+                </div>
+
+                <div>
+                  <h3 className="font-semibold text-[#0B2E65] text-sm mb-2">Voluntary Participation</h3>
+                  <p>
+                    Your participation in this survey is completely voluntary. You may choose not to participate, or you may stop at any time. Refusal to participate will not have any negative impact on your employment status, and there will be no penalty for not completing the survey.
+                  </p>
+                </div>
+
+                <div>
+                  <h3 className="font-semibold text-[#0B2E65] text-sm mb-2">No Guarantee of Action</h3>
+                  <p>
+                    While the feedback you provide is important, your company is not obligated to act on any of the suggestions or feedback provided in this survey. The results of the survey will be considered as part of a broader strategy for continuous improvement, but they do not constitute a promise of any specific changes or actions.
+                  </p>
+                </div>
+
+                <div>
+                  <h3 className="font-semibold text-[#0B2E65] text-sm mb-2">Limitation of Liability</h3>
+                  <p>
+                    By participating in this survey, you agree that Star4ce LLC will not be held liable for any claims, damages, or losses arising from your participation in the survey or from the use of the survey results. Star4ce LLC assumes no responsibility for the use or misuse of the information provided. You participate at your own risk, and you agree to waive any and all claims against Star4ce LLC and any employee contracted or employed by Star4ce LLC related to this survey.
+                  </p>
+                </div>
+
+                <div>
+                  <h3 className="font-semibold text-[#0B2E65] text-sm mb-2">Governing Law</h3>
+                  <p>
+                    This disclaimer and any dispute arising out of your participation in the survey shall be governed by and construed in accordance with the laws of the State of California, without regard to its conflict of law provisions.
+                  </p>
+                </div>
+              </div>
+            </div>
+            
+            {/* Footer */}
+            <div className="bg-gray-50 px-4 py-2 flex justify-end border-t border-gray-200 flex-shrink-0">
+              <button
+                onClick={() => setShowDisclaimerModal(false)}
+                className="cursor-pointer bg-[#0B2E65] text-white px-4 py-1.5 rounded-lg text-sm font-semibold hover:bg-[#2c5aa0] transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { loginApi, saveSession } from '@/lib/auth';
+import Logo from '@/components/Logo';
 
 export default function LoginForm() {
   const search = useSearchParams();
@@ -70,28 +71,41 @@ export default function LoginForm() {
     }
   }
 
+  // Prevent body scrolling when login page is mounted
+  useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    document.documentElement.style.overflow = 'hidden';
+    
+    return () => {
+      document.body.style.overflow = '';
+      document.documentElement.style.overflow = '';
+    };
+  }, []);
+
   return (
     <div 
-      className="min-h-screen flex items-center justify-center py-12 px-4"
+      className="fixed flex items-center justify-center overflow-hidden"
       style={{
+        top: '110px',
+        left: 0,
+        right: 0,
+        bottom: 0,
         backgroundImage: 'url(/images/header.jpg)',
         backgroundSize: 'cover',
         backgroundPosition: 'center',
-        backgroundAttachment: 'fixed',
-        paddingTop: '140px', // Add padding to account for navbar
       }}
     >
       {/* Blurred background overlay */}
       <div 
-        className="fixed inset-0 backdrop-blur-sm z-0"
+        className="absolute inset-0 backdrop-blur-sm z-0"
         style={{
           backgroundColor: 'rgba(9, 21, 39, 0.7)',
         }}
       />
 
       {/* Login Modal */}
-      <div className="relative z-10 w-full max-w-2xl mx-5 my-8">
-        <div className="bg-white rounded-lg shadow-2xl overflow-hidden flex min-h-[500px] isolate">
+      <div className="relative z-10 w-full max-w-2xl mx-4 max-h-[95vh]">
+        <div className="bg-white rounded-lg shadow-2xl overflow-hidden flex max-h-[95vh] isolate">
           {/* Left Section - Gradient Blue Sidebar */}
           <div 
             className="w-1/4 hidden md:block"
@@ -102,54 +116,50 @@ export default function LoginForm() {
           ></div>
 
           {/* Right Section - Form */}
-          <div className="bg-[#E6E6E6] flex-1 p-10 md:p-12 flex flex-col justify-center overflow-hidden">
+          <div className="bg-[#E6E6E6] flex-1 p-6 md:p-8 flex flex-col justify-center overflow-hidden max-h-[95vh]">
             {/* Logo and Tagline */}
-            <div className="text-center mb-10">
+            <div className="text-center mb-6">
               <Link href="/" className="inline-block">
-                <img 
-                  src="/images/Logo 4.png" 
-                  alt="Star4ce" 
-                  className="h-12 md:h-16 mx-auto mb-4"
-                />
+                <Logo size="lg" className="justify-center mb-4" />
               </Link>
-              <p className="text-gray-700 text-lg font-medium">
+              <p className="text-gray-700 text-base font-medium">
                 Your Journey of Excellence Starts Here.
               </p>
             </div>
 
             {/* Success Messages */}
             {(successMessage || subscriptionSuccess) && (
-              <div className="mb-4 rounded-lg bg-green-50 border border-green-200 px-3 py-2 text-sm text-green-800">
+              <div className="mb-4 rounded-lg bg-green-50 border border-green-200 px-3 py-2 text-green-800">
                 {successMessage || '🎉 Thank you for subscribing! Your admin account has been created. You may now log in.'}
               </div>
             )}
             
             {/* Error Messages */}
             {error && (
-              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700">
                 {error}
                 {error.includes('invalid credentials') && (
-                  <div className="mt-2 text-xs text-red-600">
+                  <div className="mt-2 text-red-600">
                     Please check your email and password. If you haven't verified your email, check your inbox for a verification code.
                   </div>
                 )}
               </div>
             )}
             {expired && !subscriptionSuccess && (
-              <div className="mb-4 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-sm text-amber-800">
+              <div className="mb-4 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-amber-800">
                 Your session expired. Please sign in again.
               </div>
             )}
 
             {/* Login Form */}
-            <form onSubmit={handleSubmit} className="space-y-6">
+            <form onSubmit={handleSubmit} className="space-y-5">
               {/* Username/Email Field */}
               <div>
                 <input
                   type="email"
                   placeholder="Email"
                   autoComplete="email"
-                  className="w-full px-4 py-3 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none"
+                  className="w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none"
                   value={email}
                   onChange={e => setEmail(e.target.value)}
                   required
@@ -162,7 +172,7 @@ export default function LoginForm() {
                   type="password"
                   placeholder="Password"
                   autoComplete="current-password"
-                  className="w-full px-4 py-3 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none"
+                  className="w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none"
                   value={password}
                   onChange={e => setPassword(e.target.value)}
                   required
@@ -171,7 +181,7 @@ export default function LoginForm() {
 
               {/* Forgot Password Link */}
               <div className="text-right">
-                <Link href="/forgot" className="text-[#0B2E65] text-sm hover:underline">
+                <Link href="/forgot" className="text-[#0B2E65] hover:underline">
                   Forgot your login information?
                 </Link>
               </div>
@@ -180,13 +190,13 @@ export default function LoginForm() {
               <button
                 type="submit"
                 disabled={loading}
-                className="cursor-pointer w-full bg-[#0B2E65] text-white py-3 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                className="cursor-pointer w-full bg-[#0B2E65] text-white py-2.5 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 {loading ? 'Signing in...' : 'Sign in'}
               </button>
 
               {/* Register Link */}
-              <div className="text-center text-sm text-gray-700">
+              <div className="text-center text-gray-700">
                 Don't have an account?{' '}
                 <Link href="/register" className="text-[#0B2E65] hover:underline font-medium">
                   Register

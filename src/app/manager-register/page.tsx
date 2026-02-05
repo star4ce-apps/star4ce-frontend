@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { API_BASE } from '@/lib/auth';
 import toast from 'react-hot-toast';
+import Logo from '@/components/Logo';
 
 type Dealership = {
   id: number;
@@ -29,7 +30,8 @@ function ManagerRegisterContent() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [fullName, setFullName] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [dealershipId, setDealershipId] = useState<number | null>(null);
   const [dealerships, setDealerships] = useState<Dealership[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -39,6 +41,17 @@ function ManagerRegisterContent() {
   const [error, setError] = useState('');
   const [inviteInfo, setInviteInfo] = useState<InviteInfo | null>(null);
   const [isInviteMode, setIsInviteMode] = useState(false);
+
+  // Prevent body scrolling when manager registration page is mounted
+  useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    document.documentElement.style.overflow = 'hidden';
+    
+    return () => {
+      document.body.style.overflow = '';
+      document.documentElement.style.overflow = '';
+    };
+  }, []);
 
   useEffect(() => {
     if (inviteToken) {
@@ -124,11 +137,12 @@ function ManagerRegisterContent() {
         const res = await fetch(`${API_BASE}/auth/register-manager-invite`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            token: inviteToken,
-            password,
-            full_name: fullName.trim() || null,
-          }),
+            body: JSON.stringify({
+              token: inviteToken,
+              password,
+              first_name: firstName.trim() || null,
+              last_name: lastName.trim() || null,
+            }),
         });
 
         const data = await res.json();
@@ -177,26 +191,28 @@ function ManagerRegisterContent() {
 
   return (
     <div 
-      className="min-h-screen flex items-center justify-center py-12 px-4"
+      className="fixed flex items-center justify-center overflow-hidden"
       style={{
+        top: '110px',
+        left: 0,
+        right: 0,
+        bottom: 0,
         backgroundImage: 'url(/images/header.jpg)',
         backgroundSize: 'cover',
         backgroundPosition: 'center',
-        backgroundAttachment: 'fixed',
-        paddingTop: '140px', // Add padding to account for navbar
       }}
     >
       {/* Blurred background overlay */}
       <div 
-        className="fixed inset-0 backdrop-blur-sm z-0"
+        className="absolute inset-0 backdrop-blur-sm z-0"
         style={{
           backgroundColor: 'rgba(9, 21, 39, 0.7)',
         }}
       />
 
       {/* Register Modal */}
-      <div className="relative z-10 w-full max-w-2xl mx-5 my-8">
-        <div className="bg-white rounded-lg shadow-2xl overflow-hidden flex min-h-[500px] isolate">
+      <div className="relative z-10 w-full max-w-2xl mx-4 max-h-[95vh]">
+        <div className="bg-white rounded-lg shadow-2xl overflow-hidden flex max-h-[95vh] isolate">
           {/* Left Section - Gradient Blue Sidebar */}
           <div 
             className="w-1/4 hidden md:block"
@@ -207,27 +223,39 @@ function ManagerRegisterContent() {
           ></div>
 
           {/* Right Section - Form */}
-          <div className="bg-[#E6E6E6] flex-1 p-10 md:p-12 flex flex-col justify-center overflow-y-auto max-h-[calc(90vh-140px)]">
+          <div className="bg-[#E6E6E6] flex-1 p-6 md:p-8 flex flex-col justify-center overflow-y-auto max-h-[95vh] relative">
+            {/* Back Button */}
+            <Link
+              href="/register"
+              className="absolute top-4 left-4 text-[#0B2E65] hover:text-[#2c5aa0] transition-colors"
+              aria-label="Back to Registration Options"
+            >
+              <svg
+                className="w-6 h-6"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+            </Link>
+
             {/* Logo and Tagline */}
-            <div className="text-center mb-8">
+            <div className="text-center mb-6">
               <Link href="/" className="inline-block">
-                <img 
-                  src="/images/Logo 4.png" 
-                  alt="Star4ce" 
-                  className="h-12 md:h-16 mx-auto mb-4"
-                />
+                <Logo size="md" className="justify-center mb-4" />
               </Link>
-              <p className="text-gray-700 text-lg font-medium mb-2">
+              <p className="text-gray-700 text-base font-medium mb-2">
                 Manager Registration
               </p>
-              <p className="text-gray-600 text-sm">
+              <p className="text-gray-600">
                 Create your account and request access to a dealership
               </p>
             </div>
 
             {/* Error Messages */}
             {error && (
-              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700">
                 {error}
               </div>
             )}
@@ -237,7 +265,7 @@ function ManagerRegisterContent() {
               {/* Loading Invite */}
               {loadingInvite && (
                 <div className="text-center py-4">
-                  <p className="text-sm text-gray-600">Validating invitation...</p>
+                  <p className="text-gray-600">Validating invitation...</p>
                 </div>
               )}
 
@@ -247,7 +275,7 @@ function ManagerRegisterContent() {
                   type="email"
                   placeholder="Email"
                   autoComplete="email"
-                  className="w-full px-4 py-3 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none"
+                  className="w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
@@ -255,17 +283,29 @@ function ManagerRegisterContent() {
                 />
               </div>
 
-              {/* Full Name Field (for invite mode) */}
+              {/* First Name and Last Name Fields (for invite mode) */}
               {isInviteMode && (
-                <div>
-                  <input
-                    type="text"
-                    placeholder="Full Name (Optional)"
-                    autoComplete="name"
-                    className="w-full px-4 py-3 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none"
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                  />
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <input
+                      type="text"
+                      placeholder="First Name (Optional)"
+                      autoComplete="given-name"
+                      className="w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none"
+                      value={firstName}
+                      onChange={(e) => setFirstName(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <input
+                      type="text"
+                      placeholder="Last Name (Optional)"
+                      autoComplete="family-name"
+                      className="w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none"
+                      value={lastName}
+                      onChange={(e) => setLastName(e.target.value)}
+                    />
+                  </div>
                 </div>
               )}
 
@@ -275,7 +315,7 @@ function ManagerRegisterContent() {
                   type="password"
                   placeholder="Password (min 8 chars, letters & numbers)"
                   autoComplete="new-password"
-                  className="w-full px-4 py-3 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none"
+                  className="w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
@@ -289,7 +329,7 @@ function ManagerRegisterContent() {
                   type="password"
                   placeholder="Confirm Password"
                   autoComplete="new-password"
-                  className="w-full px-4 py-3 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none"
+                  className="w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   required
@@ -300,12 +340,12 @@ function ManagerRegisterContent() {
               {/* Dealership Selection (only for non-invite mode) */}
               {!isInviteMode && (
               <div>
-                <label className="block text-sm font-medium mb-2 text-gray-700">
+                <label className="block font-medium mb-2 text-gray-700">
                   Select Dealership *
                 </label>
                 {loadingDealerships ? (
-                  <div className="w-full px-4 py-3 rounded-lg border border-gray-300 bg-white text-center">
-                    <p className="text-sm text-gray-600">Loading dealerships...</p>
+                  <div className="w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-center">
+                    <p className="text-gray-600">Loading dealerships...</p>
                   </div>
                 ) : (
                   <>
@@ -316,7 +356,7 @@ function ManagerRegisterContent() {
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         placeholder="Search dealerships by name, city, or state..."
-                        className="w-full px-4 py-2 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none text-sm"
+                        className="w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none"
                       />
                     </div>
 
@@ -324,7 +364,7 @@ function ManagerRegisterContent() {
                     <div className="max-h-48 overflow-y-auto rounded-lg border border-gray-300 bg-white">
                       {filteredDealerships.length === 0 ? (
                         <div className="p-4 text-center">
-                          <p className="text-sm text-gray-500">
+                          <p className="text-gray-500">
                             {searchQuery ? 'No dealerships found matching your search.' : 'No dealerships available.'}
                           </p>
                         </div>
@@ -336,7 +376,7 @@ function ManagerRegisterContent() {
                               key={dealership.id}
                               type="button"
                               onClick={() => setDealershipId(dealership.id)}
-                              className={`cursor-pointer w-full text-left px-4 py-3 border-b transition-colors ${
+                              className={`cursor-pointer w-full text-left px-3 py-2.5 border-b transition-colors ${
                                 isSelected
                                   ? 'bg-[#0B2E65] text-white'
                                   : 'hover:bg-gray-50 text-gray-900'
@@ -356,7 +396,7 @@ function ManagerRegisterContent() {
                                   </p>
                                   {(dealership.city || dealership.state) && (
                                     <p 
-                                      className="text-xs mt-1"
+                                      className="mt-1"
                                       style={{ color: isSelected ? '#E0E7FF' : '#6B7280' }}
                                     >
                                       {[dealership.city, dealership.state].filter(Boolean).join(', ')}
@@ -386,15 +426,17 @@ function ManagerRegisterContent() {
 
               {/* Info Box */}
               {isInviteMode ? (
-                <div className="rounded-lg bg-green-50 border border-green-200 p-3">
-                  <p className="text-xs text-green-800">
-                    <strong>Invited Account:</strong> Your account will be automatically approved and you'll have immediate access once you complete registration.
+                <div className="rounded-lg bg-blue-50 border border-blue-200 p-4 space-y-3">
+                  <h3 className="text-sm font-semibold text-[#0B2E65]">Invited Account:</h3>
+                  <p className="text-sm text-gray-700">
+                    Your account will be automatically approved and you'll have immediate access once you complete registration.
                   </p>
                 </div>
               ) : (
-                <div className="rounded-lg bg-blue-50 border border-blue-200 p-3">
-                  <p className="text-xs text-blue-800">
-                    <strong>Note:</strong> After registration, verify your email. Your account will be pending admin approval. 
+                <div className="rounded-lg bg-blue-50 border border-blue-200 p-4 space-y-3">
+                  <h3 className="text-sm font-semibold text-[#0B2E65]">Note:</h3>
+                  <p className="text-sm text-gray-700">
+                    After registration, verify your email. Your account will be pending admin approval. 
                     Once approved, you can request admin status or subscribe to become an admin.
                   </p>
                 </div>
@@ -404,13 +446,13 @@ function ManagerRegisterContent() {
               <button
                 type="submit"
                 disabled={loading || loadingInvite || (!isInviteMode && !dealershipId)}
-                className="cursor-pointer w-full bg-[#0B2E65] text-white py-3 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                className="cursor-pointer w-full bg-[#0B2E65] text-white py-2.5 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 {loading ? 'Registering...' : isInviteMode ? 'Create Account' : 'Register as Manager'}
               </button>
 
               {/* Login Link */}
-              <div className="text-center text-sm text-gray-700">
+              <div className="text-center text-gray-700">
                 Already have an account?{' '}
                 <Link href="/login" className="text-[#0B2E65] hover:underline font-medium">
                   Sign in

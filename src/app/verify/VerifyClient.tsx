@@ -217,11 +217,7 @@ export default function VerifyPage() {
             {/* Logo and Title */}
             <div className="text-center mb-6">
               <Link href="/" className="inline-block">
-                <img
-                  src="/images/Logo 4.png"
-                  alt="Star4ce"
-                  className="h-12 md:h-16 mx-auto mb-4"
-                />
+                <Logo size="lg" className="justify-center mb-4" />
               </Link>
               <p className="text-gray-700 text-lg font-medium">
                 Verify your email to activate your account.
