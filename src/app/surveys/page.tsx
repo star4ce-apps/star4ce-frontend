@@ -156,12 +156,22 @@ export default function SurveysPage() {
         });
         setFeedback(mappedFeedback);
       }
-    } catch (error) {
-      console.error('Failed to fetch survey data:', error);
-      // Set empty data on error
-      setOverallSatisfaction([]);
-      setDepartments([]);
-      setFeedback([]);
+    } catch (error: any) {
+      // Handle permission errors gracefully (403 - insufficient role)
+      const errorMsg = error?.message || '';
+      if (errorMsg.includes('403') || errorMsg.includes('forbidden') || errorMsg.includes('insufficient role')) {
+        // User doesn't have permission - silently set empty data
+        // This is expected for managers who don't have access to survey analytics
+        setOverallSatisfaction([]);
+        setDepartments([]);
+        setFeedback([]);
+      } else {
+        // Other errors - log but still set empty data
+        console.error('Failed to fetch survey data:', error);
+        setOverallSatisfaction([]);
+        setDepartments([]);
+        setFeedback([]);
+      }
     } finally {
       setLoading(false);
     }
