@@ -252,8 +252,9 @@ export default function HubSidebar() {
     { label: 'Our Performance', href: '/analytics', icon: <PerformanceIcon /> },
     { label: 'Survey', href: '/surveys', icon: <SurveyIcon /> },
     { label: 'Access Codes', href: '/access-codes', icon: <AccessCodeIcon /> },
-    { label: 'Dealership Standings', href: '/standings', icon: <StandingsIcon /> },
+    // Only show Dealership Standings to corporate users
     ...(role === 'corporate' ? [
+      { label: 'Dealership Standings', href: '/standings', icon: <StandingsIcon /> },
       { label: 'Select Dealership', href: '/corporate/select-dealership', icon: <DealershipIcon /> },
       { label: 'Dealership Overview', href: '/dealerships', icon: <DealershipIcon /> }
     ] : []),

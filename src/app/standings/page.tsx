@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import HubSidebar from '@/components/sidebar/HubSidebar';
 import RequireAuth from '@/components/layout/RequireAuth';
+import { API_BASE, getToken } from '@/lib/auth';
+import { getJsonAuth } from '@/lib/http';
 
 // Modern color palette - matching surveys page
 const COLORS = {
@@ -38,35 +40,93 @@ export default function StandingsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [sortColumn, setSortColumn] = useState<string>('standing');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  const [userRole, setUserRole] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [dealerships, setDealerships] = useState<Dealership[]>([]);
+  const [overallRetention, setOverallRetention] = useState(0);
+  const [overallTurnover, setOverallTurnover] = useState(0);
+  const [selectedDealershipId, setSelectedDealershipId] = useState<number | null>(null);
   const itemsPerPage = 20;
 
-  // Mock data
-  const [dealerships] = useState<Dealership[]>([
-    { standing: 1, dealership: 'Toyota', city: 'Orange', retentionRate: 92.9, turnoverRate: 8.1, retentionChange: 38.9, turnoverChange: -38.9, isCurrent: false },
-    { standing: 2, dealership: 'AutoNation Honda', city: 'Irvine', retentionRate: 90, turnoverRate: 10, retentionChange: 36, turnoverChange: -36, isCurrent: false },
-    { standing: 3, dealership: 'Honda', city: 'Irvine', retentionRate: 88, turnoverRate: 12, retentionChange: 34, turnoverChange: -34, isCurrent: false },
-    { standing: 4, dealership: 'BMW', city: 'Costa Mesa', retentionRate: 88.5, turnoverRate: 11.5, retentionChange: 34.5, turnoverChange: -34.5, isCurrent: true },
-    { standing: 5, dealership: 'Norm Reeves Honda', city: 'Orange', retentionRate: 80, turnoverRate: 20, retentionChange: 26, turnoverChange: -26, isCurrent: false },
-    { standing: 6, dealership: 'Supreme Motors', city: 'Newport Beach', retentionRate: 78.8, turnoverRate: 21.2, retentionChange: 24.8, turnoverChange: -24.8, isCurrent: false },
-    { standing: 7, dealership: 'Mercedes-Benz', city: 'Irvine', retentionRate: 75, turnoverRate: 25, retentionChange: 21, turnoverChange: -21, isCurrent: false },
-    { standing: 8, dealership: 'Lexus', city: 'Newport Beach', retentionRate: 72, turnoverRate: 28, retentionChange: 18, turnoverChange: -18, isCurrent: false },
-    { standing: 9, dealership: 'Audi', city: 'Irvine', retentionRate: 70, turnoverRate: 30, retentionChange: 16, turnoverChange: -16, isCurrent: false },
-    { standing: 10, dealership: 'Ford', city: 'Orange', retentionRate: 68, turnoverRate: 32, retentionChange: 14, turnoverChange: -14, isCurrent: false },
-    { standing: 11, dealership: 'Chevrolet', city: 'Costa Mesa', retentionRate: 65, turnoverRate: 35, retentionChange: 11, turnoverChange: -11, isCurrent: false },
-    { standing: 12, dealership: 'Nissan', city: 'Irvine', retentionRate: 62, turnoverRate: 38, retentionChange: 8, turnoverChange: -8, isCurrent: false },
-    { standing: 13, dealership: 'Hyundai', city: 'Orange', retentionRate: 58, turnoverRate: 42, retentionChange: 4, turnoverChange: -4, isCurrent: false },
-    { standing: 14, dealership: 'Kia', city: 'Newport Beach', retentionRate: 55, turnoverRate: 45, retentionChange: 1, turnoverChange: -1, isCurrent: false },
-    { standing: 15, dealership: 'Mazda', city: 'Irvine', retentionRate: 52, turnoverRate: 48, retentionChange: -2, turnoverChange: 2, isCurrent: false },
-    { standing: 16, dealership: 'Subaru', city: 'Orange', retentionRate: 48, turnoverRate: 52, retentionChange: -6, turnoverChange: 6, isCurrent: false },
-    { standing: 17, dealership: 'Volkswagen', city: 'Costa Mesa', retentionRate: 45, turnoverRate: 55, retentionChange: -9, turnoverChange: 9, isCurrent: false },
-    { standing: 18, dealership: 'Auto Center', city: 'Orange', retentionRate: 40, turnoverRate: 60, retentionChange: -14, turnoverChange: 14, isCurrent: false },
-    { standing: 19, dealership: 'Auto Republic', city: 'Irvine', retentionRate: 36, turnoverRate: 64, retentionChange: -18, turnoverChange: 18, isCurrent: false },
-    { standing: 20, dealership: 'Majano Enterprise', city: 'Buena Park', retentionRate: 20, turnoverRate: 80, retentionChange: -34, turnoverChange: 34, isCurrent: false },
-  ]);
+  // Load user role and standings data on mount
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const token = getToken();
+        if (!token) {
+          setLoading(false);
+          return;
+        }
+        
+        // Load user role
+        const res = await fetch(`${API_BASE}/auth/me`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        
+        if (res.ok) {
+          const contentType = res.headers.get('content-type');
+          if (contentType && contentType.includes('application/json')) {
+            const data = await res.json().catch(() => ({}));
+            const role = data.user?.role || data.role || null;
+            setUserRole(role);
+            
+            // Only load standings if corporate user
+            if (role === 'corporate') {
+              await loadStandings();
+            } else {
+              setLoading(false);
+            }
+          } else {
+            setLoading(false);
+          }
+        } else {
+          setLoading(false);
+        }
+      } catch (err) {
+        setLoading(false);
+      }
+    }
+    
+    async function loadStandings() {
+      try {
+        const data = await getJsonAuth(`/analytics/dealership-standings`);
+        
+        if (data && data.ok && Array.isArray(data.standings)) {
+          // Get selected dealership ID from localStorage or header
+          const storedDealershipId = localStorage.getItem('selectedDealershipId');
+          const dealershipId = storedDealershipId ? parseInt(storedDealershipId, 10) : null;
+          setSelectedDealershipId(dealershipId);
+          
+          // Transform API data to match frontend format
+          const transformedStandings: Dealership[] = data.standings.map((s: any) => ({
+            standing: s.standing,
+            dealership: s.dealership,
+            city: s.city || '',
+            retentionRate: s.retentionRate,
+            turnoverRate: s.turnoverRate,
+            retentionChange: 0, // Not calculated in backend yet
+            turnoverChange: 0, // Not calculated in backend yet
+            isCurrent: s.dealership_id === dealershipId,
+          }));
+          
+          setDealerships(transformedStandings);
+          setOverallRetention(data.overall_retention || 0);
+          setOverallTurnover(data.overall_turnover || 0);
+        } else {
+          setDealerships([]);
+        }
+      } catch (err) {
+        console.error('Error loading standings:', err);
+        setDealerships([]);
+      } finally {
+        setLoading(false);
+      }
+    }
+    
+    loadData();
+  }, []);
 
   const currentDealership = dealerships.find(d => d.isCurrent);
-  const allDealershipRetention = 54;
-  const allDealershipTurnover = 46;
 
   const handleSort = (column: string) => {
     if (sortColumn === column) {
@@ -118,6 +178,77 @@ export default function StandingsPage() {
     );
   };
 
+  // Show loading state
+  if (loading) {
+    return (
+      <RequireAuth>
+        <div className="flex min-h-screen" style={{ backgroundColor: COLORS.gray[50] }}>
+          <HubSidebar />
+          <main className="ml-64 p-8 flex-1 flex items-center justify-center" style={{ maxWidth: 'calc(100vw - 256px)' }}>
+            <div className="flex items-center gap-3">
+              <div className="w-5 h-5 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: COLORS.primary, borderTopColor: 'transparent' }}></div>
+              <p style={{ color: COLORS.gray[500] }}>Loading...</p>
+            </div>
+          </main>
+        </div>
+      </RequireAuth>
+    );
+  }
+
+  // Only allow corporate users to view this page
+  if (userRole !== 'corporate') {
+    return (
+      <RequireAuth>
+        <div className="flex min-h-screen" style={{ backgroundColor: COLORS.gray[50] }}>
+          <HubSidebar />
+          <main className="ml-64 p-8 flex-1" style={{ maxWidth: 'calc(100vw - 256px)' }}>
+            <div className="rounded-xl p-12 text-center" style={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}` }}>
+              <div className="mb-6">
+                <svg className="mx-auto h-16 w-16" fill="none" viewBox="0 0 24 24" stroke="currentColor" style={{ color: '#F59E0B' }}>
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+              </div>
+              <h2 className="text-xl font-semibold mb-3" style={{ color: COLORS.gray[900] }}>Access Restricted</h2>
+              <p className="text-sm mb-1" style={{ color: COLORS.gray[500] }}>
+                This page is only available to corporate users.
+              </p>
+              <p className="text-sm" style={{ color: COLORS.gray[500] }}>
+                Please contact your administrator if you believe you should have access.
+              </p>
+            </div>
+          </main>
+        </div>
+      </RequireAuth>
+    );
+  }
+
+  // Show message if no dealerships assigned
+  if (!loading && dealerships.length === 0) {
+    return (
+      <RequireAuth>
+        <div className="flex min-h-screen" style={{ backgroundColor: COLORS.gray[50] }}>
+          <HubSidebar />
+          <main className="ml-64 p-8 flex-1" style={{ maxWidth: 'calc(100vw - 256px)' }}>
+            <div className="rounded-xl p-12 text-center" style={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}` }}>
+              <div className="mb-6">
+                <svg className="mx-auto h-16 w-16" fill="none" viewBox="0 0 24 24" stroke="currentColor" style={{ color: '#3B5998' }}>
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                </svg>
+              </div>
+              <h2 className="text-xl font-semibold mb-3" style={{ color: COLORS.gray[900] }}>No Dealerships Assigned</h2>
+              <p className="text-sm mb-1" style={{ color: COLORS.gray[500] }}>
+                You don't have access to any dealerships yet.
+              </p>
+              <p className="text-sm" style={{ color: COLORS.gray[500] }}>
+                Please request access to dealerships from administrators.
+              </p>
+            </div>
+          </main>
+        </div>
+      </RequireAuth>
+    );
+  }
+
   return (
     <RequireAuth>
       <div className="flex min-h-screen" style={{ backgroundColor: COLORS.gray[50] }}>
@@ -136,39 +267,18 @@ export default function StandingsPage() {
           </div>
 
           {/* Summary Cards - Condensed */}
-          <div className="grid grid-cols-5 gap-4 mb-6">
-            <div className="rounded-xl p-4" style={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}` }}>
-              <div className="text-xs font-medium uppercase tracking-wide mb-2" style={{ color: COLORS.gray[400] }}>Your Standing</div>
-              <div className="text-2xl font-semibold" style={{ color: COLORS.gray[900] }}>
-                {currentDealership?.standing || 4}th
-              </div>
-            </div>
-
-            <div className="rounded-xl p-4" style={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}` }}>
-              <div className="text-xs font-medium uppercase tracking-wide mb-2" style={{ color: COLORS.gray[400] }}>Your Retention Rate</div>
-              <div className="text-2xl font-semibold" style={{ color: COLORS.success }}>
-                {currentDealership?.retentionRate || 88.5}%
-              </div>
-            </div>
-
-            <div className="rounded-xl p-4" style={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}` }}>
-              <div className="text-xs font-medium uppercase tracking-wide mb-2" style={{ color: COLORS.gray[400] }}>Your Turnover Rate</div>
-              <div className="text-2xl font-semibold" style={{ color: COLORS.negative }}>
-                {currentDealership?.turnoverRate || 11.5}%
-              </div>
-            </div>
-
+          <div className="grid grid-cols-2 gap-4 mb-6">
             <div className="rounded-xl p-4" style={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}` }}>
               <div className="text-xs font-medium uppercase tracking-wide mb-2" style={{ color: COLORS.gray[400] }}>All Retention Avg</div>
               <div className="text-2xl font-semibold" style={{ color: COLORS.gray[900] }}>
-                {allDealershipRetention}%
+                {overallRetention}%
               </div>
             </div>
 
             <div className="rounded-xl p-4" style={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}` }}>
               <div className="text-xs font-medium uppercase tracking-wide mb-2" style={{ color: COLORS.gray[400] }}>All Turnover Avg</div>
               <div className="text-2xl font-semibold" style={{ color: COLORS.gray[900] }}>
-                {allDealershipTurnover}%
+                {overallTurnover}%
               </div>
             </div>
           </div>
@@ -274,23 +384,11 @@ export default function StandingsPage() {
                       <td className="py-2.5 px-3">
                         <div className="flex items-center gap-1.5">
                           <span className="text-sm font-semibold" style={{ color: '#232E40' }}>{dealership.retentionRate}%</span>
-                          <span 
-                            className="text-[11px] font-medium"
-                            style={{ color: dealership.retentionChange >= 0 ? '#22c55e' : '#ef4444' }}
-                          >
-                            {dealership.retentionChange >= 0 ? '+' : ''}{dealership.retentionChange}%
-                          </span>
                         </div>
                       </td>
                       <td className="py-2.5 px-3">
                         <div className="flex items-center gap-1.5">
                           <span className="text-sm font-semibold" style={{ color: '#232E40' }}>{dealership.turnoverRate}%</span>
-                          <span 
-                            className="text-[11px] font-medium"
-                            style={{ color: dealership.turnoverChange <= 0 ? '#22c55e' : '#ef4444' }}
-                          >
-                            {dealership.turnoverChange >= 0 ? '+' : ''}{dealership.turnoverChange}%
-                          </span>
                         </div>
                       </td>
                     </tr>
