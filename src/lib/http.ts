@@ -26,7 +26,26 @@ export async function postJsonAuth<T = any>(
     body: JSON.stringify(body),
   });
 
-  const data = (await res.json().catch(() => ({}))) as any;
+  // Check content-type before parsing JSON
+  const contentType = res.headers.get('content-type');
+  let data: any = {};
+  
+  if (contentType && contentType.includes('application/json')) {
+    try {
+      data = await res.json();
+    } catch (err) {
+      // If JSON parsing fails, data remains {}
+      data = {};
+    }
+  } else {
+    // If not JSON, try to parse anyway but catch errors
+    try {
+      data = await res.json();
+    } catch (err) {
+      // If parsing fails, return empty object
+      data = {};
+    }
+  }
 
   if (!res.ok) {
     const msg = data?.error || `Request failed (${res.status})`;
@@ -48,7 +67,26 @@ export async function getJson<T = any>(
     ...init,
   });
 
-  const data = (await res.json().catch(() => ({}))) as any;
+  // Check content-type before parsing JSON
+  const contentType = res.headers.get('content-type');
+  let data: any = {};
+  
+  if (contentType && contentType.includes('application/json')) {
+    try {
+      data = await res.json();
+    } catch (err) {
+      // If JSON parsing fails, data remains {}
+      data = {};
+    }
+  } else {
+    // If not JSON, try to parse anyway but catch errors
+    try {
+      data = await res.json();
+    } catch (err) {
+      // If parsing fails, return empty object
+      data = {};
+    }
+  }
 
   if (!res.ok) {
     const msg = data?.error || `Request failed (${res.status})`;
@@ -75,7 +113,26 @@ export async function getJsonAuth<T = any>(
     },
   });
 
-  const data = (await res.json().catch(() => ({}))) as any;
+  // Check content-type before parsing JSON
+  const contentType = res.headers.get('content-type');
+  let data: any = {};
+  
+  if (contentType && contentType.includes('application/json')) {
+    try {
+      data = await res.json();
+    } catch (err) {
+      // If JSON parsing fails, data remains {}
+      data = {};
+    }
+  } else {
+    // If not JSON, try to parse anyway but catch errors
+    try {
+      data = await res.json();
+    } catch (err) {
+      // If parsing fails, return empty object
+      data = {};
+    }
+  }
 
   if (!res.ok) {
     const msg = data?.error || `Request failed (${res.status})`;

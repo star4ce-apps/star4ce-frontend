@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { API_BASE } from '@/lib/auth';
+import Logo from '@/components/Logo';
 
 export default function VerifyPage() {
   const search = useSearchParams();

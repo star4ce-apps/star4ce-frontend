@@ -235,7 +235,23 @@ function AdminRegisterPageContent() {
           });
           
           if (loginRes.ok) {
-            const loginData = await loginRes.json();
+            // Check content-type before parsing JSON
+            const contentType = loginRes.headers.get('content-type');
+            let loginData: any = {};
+            if (contentType && contentType.includes('application/json')) {
+              try {
+                loginData = await loginRes.json();
+              } catch (err) {
+                // JSON parsing failed
+                loginData = {};
+              }
+            } else {
+              try {
+                loginData = await loginRes.json();
+              } catch (err) {
+                loginData = {};
+              }
+            }
             // User exists and password is correct, proceed to checkout
             // We'll get user_id from checkout endpoint
           } else {
@@ -264,7 +280,24 @@ function AdminRegisterPageContent() {
           }),
         });
 
-        const registerData = await registerRes.json();
+        // Check content-type before parsing JSON
+        const contentType = registerRes.headers.get('content-type');
+        let registerData: any = {};
+        if (contentType && contentType.includes('application/json')) {
+          try {
+            registerData = await registerRes.json();
+          } catch (err) {
+            // JSON parsing failed
+            registerData = {};
+          }
+        } else {
+          try {
+            registerData = await registerRes.json();
+          } catch (err) {
+            registerData = {};
+          }
+        }
+        
         if (!registerRes.ok) {
           setError(registerData.error || 'Registration failed');
           toast.error(registerData.error || 'Registration failed');
