@@ -13,13 +13,16 @@ export default function SurveyPage() {
   const [accessCode, setAccessCode] = useState('');
   const [employeeStatus, setEmployeeStatus] = useState<'newly-hired' | 'termination' | 'leave' | 'none' | ''>('');
   const [role, setRole] = useState('');
-  const [satisfactionAnswers, setSatisfactionAnswers] = useState<{ [key: number]: string }>({});
-  const [trainingAnswers, setTrainingAnswers] = useState<{ [key: number]: string }>({});
-  const [terminationReason, setTerminationReason] = useState('');
-  const [terminationOther, setTerminationOther] = useState('');
-  const [leaveReason, setLeaveReason] = useState('');
-  const [leaveOther, setLeaveOther] = useState('');
-  const [additionalFeedback, setAdditionalFeedback] = useState('');
+  // Answers and comments for all questions (indexed by question number)
+  const [questionAnswers, setQuestionAnswers] = useState<{ [key: number]: string }>({});
+  const [questionComments, setQuestionComments] = useState<{ [key: number]: string }>({});
+  // Special open-ended questions
+  const [improvementSuggestion, setImprovementSuggestion] = useState('');
+  const [retentionInquiry, setRetentionInquiry] = useState('');
+  const [futureConsideration, setFutureConsideration] = useState('');
+  const [futureConsiderationComment, setFutureConsiderationComment] = useState('');
+  const [primaryReasonForLeaving, setPrimaryReasonForLeaving] = useState('');
+  const [primaryReasonDetails, setPrimaryReasonDetails] = useState('');
 
   const [loading, setLoading] = useState(false);          // for final submit
   const [validatingCode, setValidatingCode] = useState(false); // for "Start Survey"
@@ -27,13 +30,13 @@ export default function SurveyPage() {
   const [disclaimerAccepted, setDisclaimerAccepted] = useState(false);
   const [showDisclaimerModal, setShowDisclaimerModal] = useState(false);
 
-  // Calculate progress percentage
+  // Calculate progress percentage (5 steps: intro, info, questions, open-ended, review/submit)
   const getProgress = () => {
     if (currentStep === 0) return 0;
     if (currentStep === 1) return 20;
-    if (currentStep === 2) return 40;
-    if (currentStep === 3) return 60;
-    if (currentStep === 4) return 80;
+    if (currentStep === 2) return 50;
+    if (currentStep === 3) return 75;
+    if (currentStep === 4) return 90;
     if (currentStep === 5) return 100;
     return 0;
   };
@@ -66,13 +69,14 @@ export default function SurveyPage() {
         if (progress.accessCode === fromUrl) {
           setEmployeeStatus(progress.employeeStatus || '');
           setRole(progress.role || '');
-          setSatisfactionAnswers(progress.satisfactionAnswers || {});
-          setTrainingAnswers(progress.trainingAnswers || {});
-          setTerminationReason(progress.terminationReason || '');
-          setTerminationOther(progress.terminationOther || '');
-          setLeaveReason(progress.leaveReason || '');
-          setLeaveOther(progress.leaveOther || '');
-          setAdditionalFeedback(progress.additionalFeedback || '');
+          setQuestionAnswers(progress.questionAnswers || {});
+          setQuestionComments(progress.questionComments || {});
+          setImprovementSuggestion(progress.improvementSuggestion || '');
+          setRetentionInquiry(progress.retentionInquiry || '');
+          setFutureConsideration(progress.futureConsideration || '');
+          setFutureConsiderationComment(progress.futureConsiderationComment || '');
+          setPrimaryReasonForLeaving(progress.primaryReasonForLeaving || '');
+          setPrimaryReasonDetails(progress.primaryReasonDetails || '');
           setDisclaimerAccepted(progress.disclaimerAccepted || false);
           if (progress.currentStep) setCurrentStep(progress.currentStep);
           toast.success('Resumed previous survey progress');
@@ -90,21 +94,23 @@ export default function SurveyPage() {
         accessCode,
         employeeStatus,
         role,
-        satisfactionAnswers,
-        trainingAnswers,
-        terminationReason,
-        terminationOther,
-        leaveReason,
-        leaveOther,
-        additionalFeedback,
+        questionAnswers,
+        questionComments,
+        improvementSuggestion,
+        retentionInquiry,
+        futureConsideration,
+        futureConsiderationComment,
+        primaryReasonForLeaving,
+        primaryReasonDetails,
         disclaimerAccepted,
         currentStep,
       };
       localStorage.setItem('survey_progress', JSON.stringify(progress));
     }
-  }, [accessCode, employeeStatus, role, satisfactionAnswers, trainingAnswers, 
-      terminationReason, terminationOther, leaveReason, leaveOther, 
-      additionalFeedback, disclaimerAccepted, currentStep]);
+  }, [accessCode, employeeStatus, role, questionAnswers, questionComments,
+      improvementSuggestion, retentionInquiry, futureConsideration,
+      futureConsiderationComment, primaryReasonForLeaving, primaryReasonDetails,
+      disclaimerAccepted, currentStep]);
 
   const roles = [
     'Sales Department',
@@ -112,45 +118,98 @@ export default function SurveyPage() {
     'Parts Department',
     'Administration Department',
     'Office Department',
+    'Finance Department',
+    'Customer Relations',
+    'Inventory Management',
+    'Marketing Department',
+    'Human Resources',
+    'Technical Support',
+    'Warranty Services',
+    'Training and Development',
+    'Others',
   ];
 
-  const satisfactionQuestions = [
-    'How satisfied are you with your work?',
-    'How satisfied are you with your pay?',
-    'How satisfied are you with your coworkers?',
-    'How satisfied are you with higher management?',
-    'How satisfied are you with the workplace culture?',
-    'How satisfied are you with work-life balance?',
-    'How satisfied are you with opportunities for growth?',
-    'How satisfied are you with communication within the company?',
-    'How satisfied are you with the work environment?',
-    'How satisfied are you with your overall experience?',
+  // Survey 1: Current Employee Engagement Survey (for "none")
+  const engagementQuestions = [
+    { num: 1, text: 'I am satisfied with my overall job at this dealership.', category: 'Culture & Work Environment' },
+    { num: 2, text: 'There is effective teamwork and collaboration between departments (Sales, Service, Parts, Admin).', category: 'Culture & Work Environment' },
+    { num: 3, text: 'The dealership promotes a positive and inclusive culture for all employees.', category: 'Culture & Work Environment' },
+    { num: 4, text: 'I am proud to work here and would recommend this dealership as a great place to work.', category: 'Culture & Work Environment' },
+    { num: 5, text: 'I feel safe in my workplace, and proper safety protocols are followed (especially in Service).', category: 'Culture & Work Environment' },
+    { num: 6, text: 'My role and responsibilities are clearly defined and understood.', category: 'Role, Support & Development' },
+    { num: 7, text: 'I feel supported by my immediate supervisor or manager.', category: 'Role, Support & Development' },
+    { num: 8, text: 'I receive regular, constructive feedback on my performance.', category: 'Role, Support & Development' },
+    { num: 9, text: 'I have access to adequate training and development opportunities.', category: 'Role, Support & Development' },
+    { num: 10, text: 'I feel recognized and appreciated for my contributions and achievements.', category: 'Role, Support & Development' },
+    { num: 11, text: 'I have the tools, resources, and technology needed to perform my job effectively.', category: 'Resources & Processes' },
+    { num: 12, text: 'My performance expectations or sales targets are reasonable and achievable.', category: 'Resources & Processes' },
+    { num: 13, text: 'Dealership inventory and vehicle availability effectively support my work (sales/service).', category: 'Resources & Processes' },
+    { num: 14, text: 'The dealership supports employees well during difficult customer interactions or complaints.', category: 'Resources & Processes' },
+    { num: 15, text: 'The physical work environment (cleanliness, break areas, facilities) is satisfactory.', category: 'Resources & Processes' },
+    { num: 16, text: 'Management effectively communicates company goals, changes, and updates.', category: 'Leadership & Compensation' },
+    { num: 17, text: 'I have confidence in the dealership\'s leadership and its future direction.', category: 'Leadership & Compensation' },
+    { num: 18, text: 'My compensation (including commission structure) is fair and motivating.', category: 'Leadership & Compensation' },
+    { num: 19, text: 'I am satisfied with the benefits package (health insurance, vacation, retirement).', category: 'Leadership & Compensation' },
   ];
 
-  const trainingQuestions = [
-    'How effective was your training program?',
-    'How satisfied are you with the onboarding process?',
-    'Did you receive adequate support during your first weeks?',
-    'How clear were your job expectations?',
-    'How well did training prepare you for your role?',
+  // Survey 2: 30-Day Onboarding Feedback Survey (for "newly-hired")
+  const onboardingQuestions = [
+    { num: 1, text: 'I felt welcomed and supported during my first 30 days.' },
+    { num: 2, text: 'I feel I am becoming part of the team and building positive colleague relationships.' },
+    { num: 3, text: 'My initial onboarding (orientation, paperwork, introductions) was clear and organized.' },
+    { num: 4, text: 'The initial training I received adequately covered the key aspects of my specific role.' },
+    { num: 5, text: 'I feel confident using the dealership\'s key systems, tools, and processes (CRM, DMS, etc.).' },
+    { num: 6, text: 'I have been given the resources needed to perform my job effectively so far.' },
+    { num: 7, text: 'My supervisor has provided clear expectations and goals for my role.' },
+    { num: 8, text: 'My immediate supervisor has provided adequate guidance and support.' },
+    { num: 9, text: 'I have had sufficient opportunities to ask questions and get timely answers.' },
   ];
 
-  const terminationReasons = [
-    'Low pay',
-    'Poor management',
-    'Lack of growth opportunities',
-    'Unfavorable work environment',
-    'Better opportunity elsewhere',
-    'Personal reasons',
-    'Other',
+  // Survey 3: Termination Exit Survey (for "termination")
+  const terminationQuestions = [
+    { num: 1, text: 'The termination meeting was conducted professionally.' },
+    { num: 2, text: 'The reasons for my termination were communicated clearly and specifically.' },
+    { num: 3, text: 'I was given an opportunity to ask questions or discuss the decision during the termination process.' },
+    { num: 4, text: 'The termination process felt fair and in line with stated policies.' },
+    { num: 5, text: 'In the time leading up to termination, I received adequate feedback or warnings regarding performance/conduct (if applicable).' },
+    { num: 6, text: 'I was provided with clear information and resources following termination (final pay, benefits, etc.).' },
+    { num: 7, text: 'My overall employment experience at the dealership was positive.' },
+    { num: 8, text: 'The dealership provided sufficient support and opportunity for me to succeed in my role.' },
+    { num: 9, text: 'I would recommend this dealership as a place of employment to others.' },
   ];
 
-  const leaveReasons = [
-    'Health issues',
-    'Family responsibilities',
-    'Personal reasons',
-    'Better opportunity elsewhere',
-    'Work environment concerns',
+  // Survey 4: Voluntary Resignation Exit Survey (for "leave")
+  const resignationQuestions = [
+    { num: 1, text: 'I was satisfied with my role and responsibilities.' },
+    { num: 2, text: 'I had adequate opportunities for professional growth and advancement here.' },
+    { num: 3, text: 'The dealership provided effective training and development throughout my employment.' },
+    { num: 4, text: 'I felt recognized and appreciated for my contributions.' },
+    { num: 5, text: 'There was a high level of teamwork and collaboration among colleagues and departments.' },
+    { num: 6, text: 'My workload and scheduling expectations were reasonable and manageable.' },
+    { num: 7, text: 'Management communicated company goals and updates effectively.' },
+    { num: 8, text: 'I felt supported by the dealership during challenging situations or customer interactions.' },
+    { num: 9, text: 'I had a positive working relationship with my primary supervisor/manager.' },
+    { num: 10, text: 'The dealership\'s culture and work environment aligned with my personal values.' },
+    { num: 11, text: 'My total compensation (pay, commission, benefits) was competitive for the role and area.' },
+    { num: 12, text: 'Factors like commute, schedule, and work-life balance were supportive of my well-being.' },
+  ];
+
+  // Get current survey questions based on employee status
+  const getCurrentQuestions = () => {
+    if (employeeStatus === 'none') return engagementQuestions;
+    if (employeeStatus === 'newly-hired') return onboardingQuestions;
+    if (employeeStatus === 'termination') return terminationQuestions;
+    if (employeeStatus === 'leave') return resignationQuestions;
+    return [];
+  };
+
+  const primaryReasonOptions = [
+    'Career Advancement',
+    'Compensation/Benefits',
+    'Work Environment/Culture',
+    'Management Relationship',
+    'Work-Life Balance',
+    'Commute',
     'Other',
   ];
 
@@ -161,26 +220,20 @@ export default function SurveyPage() {
       toast.error('Please complete all required fields');
       return;
     }
-    if (currentStep === 2 && Object.keys(satisfactionAnswers).length < satisfactionQuestions.length) {
-      toast.error('Please answer all satisfaction questions');
-      return;
+    if (currentStep === 2) {
+      const questions = getCurrentQuestions();
+      const answeredCount = questions.filter(q => questionAnswers[q.num]).length;
+      if (answeredCount < questions.length) {
+        toast.error('Please answer all questions (1-10 scale)');
+        return;
+      }
     }
-    // Skip conditional questions if "none" is selected
-    if (currentStep === 2 && employeeStatus === 'none') {
-      setCurrentStep(4); // Skip to feedback
-    } else {
-      setCurrentStep(currentStep + 1);
-    }
+    setCurrentStep(currentStep + 1);
   }
 
   function prevStep() {
     if (currentStep > 0) {
-      // If going back from feedback and "none" was selected, skip conditional step
-      if (currentStep === 4 && employeeStatus === 'none') {
-        setCurrentStep(2);
-      } else {
-        setCurrentStep(currentStep - 1);
-      }
+      setCurrentStep(currentStep - 1);
     }
   }
 
@@ -248,13 +301,14 @@ export default function SurveyPage() {
         access_code: accessCode,
         employee_status: employeeStatus,
         role,
-        satisfaction_answers: satisfactionAnswers,
-        training_answers: trainingAnswers,
-        termination_reason: terminationReason || null,
-        termination_other: terminationOther || null,
-        leave_reason: leaveReason || null,
-        leave_other: leaveOther || null,
-        additional_feedback: additionalFeedback || null,
+        question_answers: questionAnswers,
+        question_comments: questionComments,
+        improvement_suggestion: improvementSuggestion || null,
+        retention_inquiry: retentionInquiry || null,
+        future_consideration: futureConsideration || null,
+        future_consideration_comment: futureConsiderationComment || null,
+        primary_reason_for_leaving: primaryReasonForLeaving || null,
+        primary_reason_details: primaryReasonDetails || null,
         disclaimer_accepted: disclaimerAccepted,
       };
 
@@ -302,77 +356,23 @@ export default function SurveyPage() {
       />
 
       {/* Survey Modal */}
-      <div className="relative z-[2000] w-full max-w-2xl mx-4 max-h-[95vh]">
-        <div className="bg-white rounded-lg shadow-2xl overflow-hidden flex max-h-[95vh] isolate">
-          {/* Left Section - Gradient Blue Sidebar */}
-          <div
-            className="w-1/4 hidden md:block"
-            style={{
-              background: 'linear-gradient(180deg, #071F45 0%, #203F70 100%)',
-              flexShrink: 0,
-            }}
-          ></div>
-
+      <div className="relative z-[2000] w-full max-w-lg mx-2 sm:mx-4 max-h-[85vh]">
+        <div className="bg-white rounded-lg shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
           {/* Right Section - Form */}
-          <div className="bg-[#E6E6E6] flex-1 p-6 md:p-8 flex flex-col justify-center overflow-hidden max-h-[95vh]">
+          <div className="bg-[#E6E6E6] flex-1 p-2 sm:p-3 md:p-4 flex flex-col overflow-hidden max-h-[85vh]">
             {/* Logo */}
-            <div className="text-center mb-4">
+            <div className="text-center mb-1 sm:mb-2 flex-shrink-0">
               <Link href="/" className="inline-block">
-                <Logo size="lg" className="justify-center" />
+                <Logo size="sm" className="justify-center" />
               </Link>
             </div>
 
-            {/* Progress Bar - Only show after intro */}
-            {currentStep > 0 && currentStep < 5 && (
-              <div className="mb-6">
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-sm text-gray-600">Progress</span>
-                  <span className="text-sm font-medium text-gray-700">{getProgress()}%</span>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-2">
-                  <div
-                    className="bg-[#0B2E65] h-2 rounded-full transition-all duration-300"
-                    style={{ width: `${getProgress()}%` }}
-                  />
-                </div>
-              </div>
-            )}
-
-            {/* Progress Dots - Only show after intro */}
-            {currentStep > 0 && (
-              <div className="flex justify-center items-center gap-2 mb-6">
-                {[1, 2, 3, 4].map((step) => {
-                  const currentDisplayStep = currentStep === 4 ? 4 : currentStep;
-                  return (
-                    <div key={step} className="flex items-center">
-                      <div
-                        className={`w-3 h-3 rounded-full transition-all ${
-                          step === currentDisplayStep
-                            ? 'bg-[#0B2E65] scale-125'
-                            : step < currentDisplayStep
-                            ? 'bg-[#0B2E65]'
-                            : 'bg-gray-300'
-                        }`}
-                      />
-                      {step < 4 && (
-                        <div
-                          className={`w-8 h-0.5 mx-1 ${
-                            step < currentDisplayStep ? 'bg-[#0B2E65]' : 'bg-gray-300'
-                          }`}
-                        />
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
             {/* Step 0: Introduction */}
             {currentStep === 0 && (
-              <div className="space-y-6">
-                <div className="text-center space-y-3">
-                  <h2 className="text-xl font-bold text-[#0B2E65]">Welcome to the Survey</h2>
-                  <div className="text-gray-700 space-y-2 text-center text-sm">
+              <div className="space-y-4 sm:space-y-6 overflow-y-auto flex-1">
+                <div className="text-center space-y-2 sm:space-y-3">
+                  <h2 className="text-lg sm:text-xl font-bold text-[#0B2E65]">Welcome to the Survey</h2>
+                  <div className="text-gray-700 space-y-2 text-center text-xs sm:text-sm">
                     <p>
                       This survey helps us understand your experience and improve our workplace.
                       We value your honest feedback and it will be used to make positive changes.
@@ -452,13 +452,13 @@ export default function SurveyPage() {
                   e.preventDefault();
                   nextStep();
                 }}
-                className="space-y-6"
+                className="space-y-4 sm:space-y-6 overflow-y-auto flex-1"
               >
                 <div>
-                  <label className="block text-gray-700 text-sm font-medium mb-4">
+                  <label className="block text-gray-700 text-xs sm:text-sm font-medium mb-3 sm:mb-4">
                     What is your current status?
                   </label>
-                  <div className="space-y-3">
+                  <div className="space-y-2 sm:space-y-3">
                     {[
                       { value: 'newly-hired', label: 'Newly Hired' },
                       { value: 'termination', label: 'Termination' },
@@ -482,11 +482,11 @@ export default function SurveyPage() {
                 </div>
 
                 <div>
-                  <label className="block text-gray-700 text-sm font-medium mb-2">
+                  <label className="block text-gray-700 text-xs sm:text-sm font-medium mb-2">
                     What is your role?
                   </label>
                   <select
-                    className="cursor-pointer w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none"
+                    className="cursor-pointer w-full px-2 sm:px-3 py-2 sm:py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 text-xs sm:text-sm focus:outline-none"
                     value={role}
                     onChange={(e) => setRole(e.target.value)}
                     required
@@ -500,17 +500,17 @@ export default function SurveyPage() {
                   </select>
                 </div>
 
-                <div className="flex gap-3">
+                <div className="flex gap-2 sm:gap-3 flex-shrink-0 pt-1.5 sm:pt-2">
                   <button
                     type="button"
                     onClick={prevStep}
-                    className="cursor-pointer flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
+                    className="cursor-pointer flex-1 bg-gray-200 text-gray-700 py-1.5 sm:py-2 rounded-lg font-semibold hover:bg-gray-300 active:bg-gray-400 transition-colors text-xs sm:text-sm"
                   >
                     Back
                   </button>
                   <button
                     type="submit"
-                    className="cursor-pointer flex-1 bg-[#0B2E65] text-white py-2 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-colors"
+                    className="cursor-pointer flex-1 bg-[#0B2E65] text-white py-1.5 sm:py-2 rounded-lg font-semibold hover:bg-[#2c5aa0] active:bg-[#1a4a8a] transition-colors text-xs sm:text-sm"
                   >
                     Next
                   </button>
@@ -518,46 +518,98 @@ export default function SurveyPage() {
               </form>
             )}
 
-            {/* Step 2: Satisfaction Questions */}
+            {/* Step 2: Main Survey Questions */}
             {currentStep === 2 && (
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
                   nextStep();
                 }}
-                className="space-y-4"
+                className="space-y-4 flex flex-col h-full overflow-hidden"
               >
-                <div className="space-y-5 pr-2 max-h-[50vh] overflow-y-auto">
-                  {satisfactionQuestions.map((question, index) => (
-                    <div key={index}>
-                      <label className="block text-gray-700 text-sm font-medium mb-3">
-                        {question}
-                      </label>
-                      <div className="space-y-2">
-                        {['Very Satisfied', 'Satisfied', 'Neutral', 'Dissatisfied', 'Very Dissatisfied'].map(
-                          (option) => (
-                            <label key={option} className="flex items-center gap-2 cursor-pointer">
-                              <input
-                                type="radio"
-                                name={`satisfaction-${index}`}
-                                value={option}
-                                checked={satisfactionAnswers[index] === option}
+                <div className="mb-1.5 sm:mb-2 flex-shrink-0">
+                  <h3 className="text-xs sm:text-sm font-semibold text-white bg-[#0B2E65] px-3 py-2 rounded-lg">
+                    {employeeStatus === 'none' && 'Current Employee Engagement Survey'}
+                    {employeeStatus === 'newly-hired' && '30-Day Onboarding Feedback Survey'}
+                    {employeeStatus === 'termination' && 'Termination Exit Survey'}
+                    {employeeStatus === 'leave' && 'Voluntary Resignation Exit Survey'}
+                  </h3>
+                </div>
+                <div className="space-y-2 sm:space-y-3 pr-1 sm:pr-2 flex-1 overflow-y-auto">
+                  {(() => {
+                    const questions = getCurrentQuestions();
+                    let currentCategory = '';
+                    return questions.map((q) => {
+                      const showCategory = q.category && q.category !== currentCategory;
+                      if (showCategory) currentCategory = q.category || '';
+                      return (
+                        <div key={q.num} className="space-y-3">
+                          {showCategory && (
+                            <h4 className="text-sm font-semibold text-[#0B2E65] mt-4 mb-2 first:mt-0">
+                              {q.category}
+                            </h4>
+                          )}
+                          <div className="pb-2 sm:pb-3 border-b border-gray-200 last:border-0">
+                            <label className="block text-gray-700 text-xs sm:text-sm font-medium mb-1.5">
+                              {q.num}. {q.text}
+                            </label>
+                            <div className="mb-1.5">
+                              <div className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 mb-2">
+                                <span className="text-[10px] sm:text-xs text-gray-600 font-medium sm:whitespace-nowrap order-2 sm:order-1">Strongly Disagree</span>
+                                <div className="flex-1 flex items-center justify-between gap-1 sm:gap-1.5 relative order-1 sm:order-2 w-full sm:w-auto pb-3 sm:pb-0">
+                                  {[1, 2, 3, 4, 5, 6, 7].map((num) => (
+                                    <label 
+                                      key={num} 
+                                      className={`relative flex items-center justify-center cursor-pointer transition-all ${
+                                        questionAnswers[q.num] === num.toString() 
+                                          ? 'scale-110' 
+                                          : 'hover:scale-105 active:scale-110'
+                                      }`}
+                                    >
+                                      <div className={`relative w-5 h-5 sm:w-6 sm:h-6 rounded-full border-2 transition-all ${
+                                        questionAnswers[q.num] === num.toString()
+                                          ? 'border-[#0B2E65] bg-[#0B2E65] shadow-md'
+                                          : 'border-gray-300 bg-white hover:border-[#0B2E65] hover:bg-[#0B2E65]/5'
+                                      }`}>
+                                        <input
+                                          type="radio"
+                                          name={`question-${q.num}`}
+                                          value={num.toString()}
+                                          checked={questionAnswers[q.num] === num.toString()}
+                                          onChange={(e) =>
+                                            setQuestionAnswers({
+                                              ...questionAnswers,
+                                              [q.num]: e.target.value,
+                                            })
+                                          }
+                                          className="absolute opacity-0 w-full h-full cursor-pointer"
+                                          required
+                                        />
+                                      </div>
+                                    </label>
+                                  ))}
+                                </div>
+                                <span className="text-[10px] sm:text-xs text-gray-600 font-medium sm:whitespace-nowrap order-3">Strongly Agree</span>
+                              </div>
+                            </div>
+                            <div>
+                              <textarea
+                                placeholder="Optional comments..."
+                                className="w-full px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg border border-gray-300 bg-white text-gray-700 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#0B2E65] focus:border-[#0B2E65] min-h-[40px] sm:min-h-[45px] resize-none transition-all"
+                                value={questionComments[q.num] || ''}
                                 onChange={(e) =>
-                                  setSatisfactionAnswers({
-                                    ...satisfactionAnswers,
-                                    [index]: e.target.value,
+                                  setQuestionComments({
+                                    ...questionComments,
+                                    [q.num]: e.target.value,
                                   })
                                 }
-                                className="w-4 h-4 text-[#0B2E65]"
-                                required
                               />
-                              <span className="text-gray-700 text-sm">{option}</span>
-                            </label>
-                          ),
-                        )}
-                      </div>
-                    </div>
-                  ))}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    });
+                  })()}
                 </div>
 
                 <div className="flex gap-3 pt-3">
@@ -578,135 +630,114 @@ export default function SurveyPage() {
               </form>
             )}
 
-            {/* Step 3: Conditional Questions */}
+            {/* Step 3: Open-Ended Questions */}
             {currentStep === 3 && (
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
                   nextStep();
                 }}
-                className="space-y-4"
+                className="space-y-3 sm:space-y-4 flex flex-col h-full overflow-hidden"
               >
-                <div className="space-y-5 pr-2 max-h-[50vh] overflow-y-auto">
-                  {/* Newly Hired Questions */}
-                  {employeeStatus === 'newly-hired' && (
-                    <>
-                      <h3 className="text-base font-semibold text-[#0B2E65] mb-3">Training & Onboarding</h3>
-                      {trainingQuestions.map((question, index) => (
-                        <div key={index}>
-                          <label className="block text-gray-700 text-sm font-medium mb-3">
-                            {question}
-                          </label>
-                          <div className="space-y-2">
-                            {['Excellent', 'Good', 'Fair', 'Poor', 'Very Poor'].map((option) => (
-                              <label key={option} className="flex items-center gap-2 cursor-pointer">
-                                <input
-                                  type="radio"
-                                  name={`training-${index}`}
-                                  value={option}
-                                  checked={trainingAnswers[index] === option}
-                                  onChange={(e) =>
-                                    setTrainingAnswers({
-                                      ...trainingAnswers,
-                                      [index]: e.target.value,
-                                    })
-                                  }
-                                  className="w-4 h-4 text-[#0B2E65]"
-                                  required
-                                />
-                                <span className="text-gray-700 text-sm">{option}</span>
-                              </label>
-                            ))}
-                          </div>
-                        </div>
-                      ))}
-                    </>
-                  )}
-
-                  {/* Termination Questions */}
-                  {employeeStatus === 'termination' && (
-                    <>
-                      <h3 className="text-base font-semibold text-[#0B2E65] mb-3">Termination Details</h3>
-                      <div>
-                        <label className="block text-gray-700 text-sm font-medium mb-3">
-                          What was the primary reason for termination?
-                        </label>
-                        <div className="space-y-2">
-                          {terminationReasons.map((reason) => (
-                            <label key={reason} className="flex items-center gap-2 cursor-pointer">
-                              <input
-                                type="radio"
-                                name="terminationReason"
-                                value={reason}
-                                checked={terminationReason === reason}
-                                onChange={(e) => setTerminationReason(e.target.value)}
-                                className="w-4 h-4 text-[#0B2E65]"
-                                required
-                              />
-                              <span className="text-gray-700 text-sm">{reason}</span>
-                            </label>
+                <div className="space-y-3 sm:space-y-5 pr-1 sm:pr-2 flex-1 overflow-y-auto">
+                  {/* Improvement Suggestion - All surveys */}
+                  <div>
+                    <label className="block text-gray-700 text-xs sm:text-sm font-medium mb-2">
+                      {employeeStatus === 'none' && '20. Improvement Suggestion: What is the one change that would most improve your day-to-day experience at this dealership?'}
+                      {employeeStatus === 'newly-hired' && '10. Improvement Suggestion: What could the dealership improve about the new employee onboarding experience?'}
+                      {employeeStatus === 'termination' && '10. Improvement Suggestion: What is one thing the dealership could do to improve how it manages performance or supports employees?'}
+                      {employeeStatus === 'leave' && '13. Primary Reason for Leaving: What was the primary reason for your decision to leave?'}
+                    </label>
+                    {employeeStatus === 'leave' ? (
+                      <>
+                        <select
+                          value={primaryReasonForLeaving}
+                          onChange={(e) => setPrimaryReasonForLeaving(e.target.value)}
+                          className="w-full px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg border border-gray-300 bg-white text-gray-700 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#0B2E65] mb-2"
+                          required
+                        >
+                          <option value="">Select a reason</option>
+                          {primaryReasonOptions.map((option) => (
+                            <option key={option} value={option}>
+                              {option}
+                            </option>
                           ))}
-                        </div>
-                        {terminationReason === 'Other' && (
-                          <div className="mt-3">
-                            <input
-                              type="text"
-                              placeholder="Please specify"
-                              className="w-full px-3 py-2 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none"
-                              value={terminationOther}
-                              onChange={(e) => setTerminationOther(e.target.value)}
-                              required
-                            />
-                          </div>
+                        </select>
+                        {primaryReasonForLeaving === 'Other' && (
+                          <input
+                            type="text"
+                            placeholder="Please specify"
+                            className="w-full px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg border border-gray-300 bg-white text-gray-700 text-xs sm:text-sm focus:outline-none mt-2"
+                            value={primaryReasonDetails}
+                            onChange={(e) => setPrimaryReasonDetails(e.target.value)}
+                            required
+                          />
                         )}
-                      </div>
-                    </>
-                  )}
+                        <label className="block text-gray-700 text-xs sm:text-sm font-medium mb-2 mt-3 sm:mt-4">
+                          Additional Details:
+                        </label>
+                        <textarea
+                          placeholder="Please provide additional details..."
+                          className="w-full px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg border border-gray-300 bg-white text-gray-700 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#0B2E65] min-h-[80px] sm:min-h-[100px] resize-none"
+                          value={primaryReasonDetails}
+                          onChange={(e) => setPrimaryReasonDetails(e.target.value)}
+                        />
+                      </>
+                    ) : (
+                      <textarea
+                        placeholder="Your answer..."
+                        className="w-full px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg border border-gray-300 bg-white text-gray-700 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#0B2E65] min-h-[100px] sm:min-h-[120px] resize-none"
+                        value={improvementSuggestion}
+                        onChange={(e) => setImprovementSuggestion(e.target.value)}
+                        required
+                      />
+                    )}
+                  </div>
 
-                  {/* Leave Questions */}
+                  {/* Retention Inquiry - Only for "leave" */}
                   {employeeStatus === 'leave' && (
-                    <>
-                      <h3 className="text-base font-semibold text-[#0B2E65] mb-3">Leave Details</h3>
-                      <div>
-                        <label className="block text-gray-700 text-sm font-medium mb-3">
-                          What was the primary reason for leave?
-                        </label>
-                        <div className="space-y-2">
-                          {leaveReasons.map((reason) => (
-                            <label key={reason} className="flex items-center gap-2 cursor-pointer">
-                              <input
-                                type="radio"
-                                name="leaveReason"
-                                value={reason}
-                                checked={leaveReason === reason}
-                                onChange={(e) => setLeaveReason(e.target.value)}
-                                className="w-4 h-4 text-[#0B2E65]"
-                                required
-                              />
-                              <span className="text-gray-700 text-sm">{reason}</span>
-                            </label>
-                          ))}
-                        </div>
-                        {leaveReason === 'Other' && (
-                          <div className="mt-3">
-                            <input
-                              type="text"
-                              placeholder="Please specify"
-                              className="w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none"
-                              value={leaveOther}
-                              onChange={(e) => setLeaveOther(e.target.value)}
-                              required
-                            />
-                          </div>
-                        )}
-                      </div>
-                    </>
+                    <div>
+                      <label className="block text-gray-700 text-xs sm:text-sm font-medium mb-2">
+                        14. Retention Inquiry: What could the dealership have done differently to encourage you to stay?
+                      </label>
+                      <textarea
+                        placeholder="Your answer..."
+                        className="w-full px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg border border-gray-300 bg-white text-gray-700 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#0B2E65] min-h-[100px] sm:min-h-[120px] resize-none"
+                        value={retentionInquiry}
+                        onChange={(e) => setRetentionInquiry(e.target.value)}
+                        required
+                      />
+                    </div>
                   )}
 
-                  {/* None of the above - skip conditional questions */}
-                  {employeeStatus === 'none' && (
-                    <div className="text-center text-gray-600 py-4">
-                      <p>No additional questions for this status.</p>
+                  {/* Future Consideration - Only for "leave" */}
+                  {employeeStatus === 'leave' && (
+                    <div>
+                      <label className="block text-gray-700 text-xs sm:text-sm font-medium mb-2">
+                        15. Future Consideration: Would you consider returning to this dealership in the future?
+                      </label>
+                      <div className="space-y-2 mb-2 sm:mb-3">
+                        {['Yes', 'No', 'Maybe'].map((option) => (
+                          <label key={option} className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="radio"
+                              name="futureConsideration"
+                              value={option}
+                              checked={futureConsideration === option}
+                              onChange={(e) => setFutureConsideration(e.target.value)}
+                              className="w-4 h-4 text-[#0B2E65]"
+                              required
+                            />
+                            <span className="text-gray-700 text-xs sm:text-sm">{option}</span>
+                          </label>
+                        ))}
+                      </div>
+                      <textarea
+                        placeholder="Optional comments..."
+                        className="w-full px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg border border-gray-300 bg-white text-gray-700 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#0B2E65] min-h-[60px] sm:min-h-[80px] resize-none"
+                        value={futureConsiderationComment}
+                        onChange={(e) => setFutureConsiderationComment(e.target.value)}
+                      />
                     </div>
                   )}
                 </div>
@@ -729,33 +760,28 @@ export default function SurveyPage() {
               </form>
             )}
 
-            {/* Step 4: Additional Feedback */}
+            {/* Step 4: Review and Submit */}
             {currentStep === 4 && (
-              <form onSubmit={handleSubmit} className="space-y-5">
-                <div>
-                  <label className="block text-gray-700 text-sm font-medium mb-3">
-                    Additional Feedback
-                  </label>
-                  <textarea
-                    placeholder="Please share any additional thoughts, comments, or suggestions..."
-                    className="w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none min-h-[150px] resize-none"
-                    value={additionalFeedback}
-                    onChange={(e) => setAdditionalFeedback(e.target.value)}
-                  />
+              <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5 flex flex-col h-full overflow-hidden">
+                <div className="text-center space-y-2 mb-3 sm:mb-4 flex-shrink-0">
+                  <h3 className="text-sm sm:text-base font-semibold text-[#0B2E65]">Review Your Responses</h3>
+                  <p className="text-xs sm:text-sm text-gray-600">
+                    Please review your answers before submitting. Once submitted, you cannot make changes.
+                  </p>
                 </div>
 
-                <div className="flex gap-3 pt-3">
+                <div className="flex gap-2 sm:gap-3 pt-2 sm:pt-3 flex-shrink-0">
                   <button
                     type="button"
                     onClick={prevStep}
-                    className="cursor-pointer flex-1 bg-gray-200 text-gray-700 py-2.5 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
+                    className="cursor-pointer flex-1 bg-gray-200 text-gray-700 py-2 sm:py-2.5 rounded-lg font-semibold hover:bg-gray-300 active:bg-gray-400 transition-colors text-xs sm:text-sm"
                   >
                     Back
                   </button>
                   <button
                     type="submit"
                     disabled={loading}
-                    className="cursor-pointer flex-1 bg-[#0B2E65] text-white py-2.5 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                    className="cursor-pointer flex-1 bg-[#0B2E65] text-white py-2 sm:py-2.5 rounded-lg font-semibold hover:bg-[#2c5aa0] active:bg-[#1a4a8a] transition-colors disabled:opacity-60 disabled:cursor-not-allowed text-xs sm:text-sm"
                   >
                     {loading ? 'Submitting...' : 'Submit Survey'}
                   </button>

@@ -246,7 +246,8 @@ export default function AnalyticsPage() {
   }
 
   // Calculate statistics
-  const totalEmployees = (Array.isArray(employees) ? employees.length : 0) || summary?.total_responses || 0;
+  // totalEmployees should be the actual employee count, not survey responses
+  const totalEmployees = Array.isArray(employees) ? employees.length : 0;
   const totalTerminations = summary?.by_status?.termination || 0;
   const totalNewHires = summary?.by_status?.['newly-hired'] || 0;
   const totalOnLeave = summary?.by_status?.leave || 0;
@@ -257,6 +258,11 @@ export default function AnalyticsPage() {
   const trainingAvg = averages?.training_avg?.toFixed(1) || '0.0';
   const totalResponses = summary?.total_responses || averages?.total_responses || 0;
   const last30Days = summary?.last_30_days || 0;
+  
+  // Calculate response rate (capped at 100%)
+  const responseRate = totalEmployees > 0 
+    ? Math.min(100, Math.round((totalResponses / totalEmployees) * 100))
+    : 0;
 
   // Process data
   const turnoverByRole = Object.entries(roleBreakdown).map(([role, data]) => ({
@@ -715,7 +721,7 @@ export default function AnalyticsPage() {
               <div className="grid grid-cols-4 gap-4">
                 {[
                   { label: 'Responses', value: totalResponses, sub: `${last30Days} recent` },
-                  { label: 'Response Rate', value: totalEmployees > 0 ? `${((totalResponses / totalEmployees) * 100).toFixed(0)}%` : '0%', sub: 'of employees' },
+                  { label: 'Response Rate', value: `${responseRate}%`, sub: 'of employees' },
                   { label: 'Satisfaction', value: satisfactionAvg, sub: 'out of 5.0' },
                   { label: 'Training', value: trainingAvg, sub: 'out of 5.0' },
                 ].map((stat, idx) => (

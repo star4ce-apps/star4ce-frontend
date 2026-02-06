@@ -2415,6 +2415,10 @@ export default function ScoreCandidatePage() {
   const [selectedCandidate, setSelectedCandidate] = useState('');
   const [selectedManager, setSelectedManager] = useState('');
   const [selectedStage, setSelectedStage] = useState('');
+  const [completedStages, setCompletedStages] = useState<Set<number>>(new Set());
+  const [showRedoConfirmation, setShowRedoConfirmation] = useState(false);
+  const [pendingStage, setPendingStage] = useState<string | null>(null);
+  const [allowRedo, setAllowRedo] = useState(false);
   const [scores, setScores] = useState<Record<string, number>>({});
   const [criterionComments, setCriterionComments] = useState<Record<string, string>>({});
   const [additionalNotes, setAdditionalNotes] = useState('');
@@ -2438,6 +2442,16 @@ export default function ScoreCandidatePage() {
     loadCandidates();
     loadManagers();
   }, []);
+
+  // Load completed stages when candidate is selected
+  useEffect(() => {
+    if (selectedCandidate) {
+      loadCompletedStages(selectedCandidate);
+    } else {
+      setCompletedStages(new Set());
+      setAllowRedo(false);
+    }
+  }, [selectedCandidate]);
 
   // Auto-fill from query parameters
   useEffect(() => {
@@ -2464,6 +2478,83 @@ export default function ScoreCandidatePage() {
       }
     }
   }, [candidates, searchParams, selectedCandidate, selectedRole, selectedStage]);
+
+  async function loadCompletedStages(candidateId: string) {
+    try {
+      const token = getToken();
+      if (!token) return;
+
+      const candidateRes = await fetch(`${API_BASE}/candidates/${candidateId}${getCandidateQueryParams()}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!candidateRes.ok) return;
+
+      const candidateData = await candidateRes.json().catch(() => ({}));
+      const notes = candidateData.notes || '';
+
+      if (!notes || !notes.trim()) {
+        setCompletedStages(new Set());
+        return;
+      }
+
+      // Parse notes to find completed interview stages
+      const completed = new Set<number>();
+      
+      // Split by interview separator
+      const interviewBlocks = notes.includes('--- INTERVIEW ---')
+        ? notes.split(/--- INTERVIEW ---/)
+        : notes.split(/Interview Stage:/);
+
+      interviewBlocks.forEach((block: string) => {
+        const trimmed = block.trim();
+        if (trimmed) {
+          // Look for "Interview Stage: X" pattern
+          const stageMatch = trimmed.match(/Interview Stage:\s*(\d+)/);
+          if (stageMatch) {
+            const stageNum = parseInt(stageMatch[1], 10);
+            if (!isNaN(stageNum) && stageNum >= 1 && stageNum <= 5) {
+              completed.add(stageNum);
+            }
+          }
+        }
+      });
+
+      setCompletedStages(completed);
+    } catch (err) {
+      console.error('Failed to load completed stages:', err);
+      setCompletedStages(new Set());
+    }
+  }
+
+  function handleStageSelection(stage: string) {
+    const stageNum = parseInt(stage, 10);
+    
+    // Check if this stage has already been completed
+    if (completedStages.has(stageNum) && !allowRedo) {
+      // Show confirmation dialog
+      setPendingStage(stage);
+      setShowRedoConfirmation(true);
+    } else {
+      // Allow selection
+      setSelectedStage(stage);
+      setAllowRedo(false);
+    }
+  }
+
+  function handleConfirmRedo() {
+    if (pendingStage) {
+      setSelectedStage(pendingStage);
+      setAllowRedo(true);
+      setShowRedoConfirmation(false);
+      setPendingStage(null);
+    }
+  }
+
+  function handleCancelRedo() {
+    setShowRedoConfirmation(false);
+    setPendingStage(null);
+  }
 
   function getCandidateQueryParams(): string {
     if (typeof window === 'undefined') return '';
@@ -2506,6 +2597,16 @@ export default function ScoreCandidatePage() {
       const userData = await userRes.json();
       const userDealershipId = userData.dealership_id;
 
+      // Always include current user if they're a manager or admin
+      if (userData.role === 'manager' || userData.role === 'hiring_manager' || userData.role === 'admin') {
+        allManagers.push({
+          id: userData.id || 0,
+          email: userData.email || '',
+          full_name: userData.full_name || null,
+          role: userData.role || 'manager'
+        });
+      }
+
       // Try to get managers from admin endpoint
       const res = await fetch(`${API_BASE}/admin/managers`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -2513,25 +2614,15 @@ export default function ScoreCandidatePage() {
 
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
-        // Filter to only include managers (not admins) from the same dealership
+        // Filter to include managers and admins from the same dealership
         const managers = (data.managers || []).filter((m: any) => 
-          m.role === 'manager' && m.dealership_id === userDealershipId
+          (m.role === 'manager' || m.role === 'admin') && m.dealership_id === userDealershipId
         );
         const pending = (data.pending || []).filter((m: any) => 
-          m.role === 'manager' && m.dealership_id === userDealershipId
+          (m.role === 'manager' || m.role === 'admin') && m.dealership_id === userDealershipId
         );
         
         allManagers.push(...managers, ...pending);
-      } else {
-        // If not admin, try to get current user as manager
-        if (userData.role === 'manager' || userData.role === 'hiring_manager') {
-          allManagers.push({
-            id: userData.id || 0,
-            email: userData.email || '',
-            full_name: userData.full_name || null,
-            role: userData.role || 'manager'
-          });
-        }
       }
 
       // Also try to get managers from /admin/users endpoint (only managers, not admins)
@@ -2542,14 +2633,14 @@ export default function ScoreCandidatePage() {
         
         if (usersRes.ok) {
           const usersData = await usersRes.json();
-          // Filter for managers only (not admins) from the same dealership
+          // Filter for managers and admins from the same dealership
           const managers = (usersData.users || []).filter((u: any) => {
-            return u.role === 'manager' && u.dealership_id === userDealershipId;
+            return (u.role === 'manager' || u.role === 'admin') && u.dealership_id === userDealershipId;
           }).map((u: any) => ({
             id: u.id,
             email: u.email || '',
             full_name: u.full_name || null,
-            role: 'manager'
+            role: u.role || 'manager'
           }));
 
           // Add managers that aren't already in the list (check by id)
@@ -2568,6 +2659,7 @@ export default function ScoreCandidatePage() {
         index === self.findIndex((m) => m.id === manager.id)
       );
 
+      console.log('Loaded managers/admins for interviewer:', uniqueManagers);
       setManagers(uniqueManagers);
     } catch (err) {
       console.error('Failed to load managers:', err);
@@ -2630,6 +2722,15 @@ export default function ScoreCandidatePage() {
 
     if (!selectedStage) {
       toast.error('Please select an interview stage');
+      return;
+    }
+
+    // Check if this stage has already been completed and user hasn't confirmed redo
+    const stageNum = parseInt(selectedStage, 10);
+    if (completedStages.has(stageNum) && !allowRedo) {
+      toast.error('This interview stage has already been completed. Please confirm to redo it.');
+      setPendingStage(selectedStage);
+      setShowRedoConfirmation(true);
       return;
     }
 
@@ -2758,9 +2859,14 @@ ${additionalNotes}` : ''}`;
       setSelectedManager('');
       setSelectedStage('');
       setInterviewerRecommendation('');
+      setAllowRedo(false);
       
       // Reload candidates to get updated score
       await loadCandidates();
+      // Reload completed stages if candidate is still selected
+      if (selectedCandidate) {
+        loadCompletedStages(selectedCandidate);
+      }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to submit scores';
       toast.error(msg);
@@ -2778,6 +2884,7 @@ ${additionalNotes}` : ''}`;
       setSelectedManager('');
       setSelectedStage('');
       setInterviewerRecommendation('');
+      setAllowRedo(false);
     }
   };
 
@@ -2960,21 +3067,29 @@ ${additionalNotes}` : ''}`;
                 Interview Stage:
               </label>
               <div className="flex gap-2">
-                {[1, 2, 3, 4, 5].map((num) => (
-                  <button
-                    key={num}
-                    type="button"
-                    onClick={() => setSelectedStage(num.toString())}
-                    className="w-10 h-10 rounded-full text-xs font-semibold transition-all focus:outline-none focus:ring-2 focus:ring-blue-500"
-                style={{
-                      border: selectedStage === num.toString() ? '2px solid #4D6DBE' : '1px solid #D1D5DB',
-                      color: selectedStage === num.toString() ? '#FFFFFF' : '#374151',
-                      backgroundColor: selectedStage === num.toString() ? '#4D6DBE' : '#FFFFFF',
-                    }}
-                  >
-                    {num}
-                  </button>
-                ))}
+                {[1, 2, 3, 4, 5].map((num) => {
+                  const isCompleted = completedStages.has(num);
+                  const isSelected = selectedStage === num.toString();
+                  return (
+                    <button
+                      key={num}
+                      type="button"
+                      onClick={() => handleStageSelection(num.toString())}
+                      className="w-10 h-10 rounded-full text-xs font-semibold transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 relative"
+                      style={{
+                        border: isSelected ? '2px solid #4D6DBE' : isCompleted ? '2px solid #10B981' : '1px solid #D1D5DB',
+                        color: isSelected ? '#FFFFFF' : '#374151',
+                        backgroundColor: isSelected ? '#4D6DBE' : isCompleted ? '#D1FAE5' : '#FFFFFF',
+                      }}
+                      title={isCompleted ? `Stage ${num} already completed. Click to redo.` : `Select Interview Stage ${num}`}
+                    >
+                      {num}
+                      {isCompleted && !isSelected && (
+                        <span className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-white"></span>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           </div>
@@ -3718,6 +3833,42 @@ ${additionalNotes}` : ''}`;
           </div>
         )}
       </div>
+
+      {/* Redo Confirmation Modal */}
+      {showRedoConfirmation && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold mb-4" style={{ color: '#232E40' }}>
+              Interview Stage Already Completed
+            </h3>
+            <p className="text-sm mb-6" style={{ color: '#6B7280' }}>
+              Interview Stage {pendingStage} has already been completed for this candidate. 
+              Do you want to redo/rewrite this interview stage? This will add a new interview entry.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={handleCancelRedo}
+                className="px-4 py-2 rounded-lg font-semibold transition-colors"
+                style={{
+                  backgroundColor: '#F3F4F6',
+                  color: '#374151',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmRedo}
+                className="px-4 py-2 rounded-lg font-semibold text-white transition-colors"
+                style={{
+                  backgroundColor: '#4D6DBE',
+                }}
+              >
+                Yes, Redo Stage {pendingStage}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </RequireAuth>
   );
 }
