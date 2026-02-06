@@ -31,11 +31,17 @@ type Question = {
   text: string;
 };
 
+type InterviewQuestions = {
+  roleSpecific?: string[];
+  starBehavioral?: string[];
+};
+
 type Criterion = {
   id: string;
   name: string;
   weight: number;
   questions: Question[];
+  interviewQuestions?: InterviewQuestions; // Interview questions paired with this criterion
   expanded?: boolean;
 };
 
@@ -57,9 +63,771 @@ const roles = [
   { id: 'support-staff', name: 'Support Staff', description: 'General support staff' },
 ];
 
+// Ice breaker questions - 5 per role
+const iceBreakerQuestions: Record<string, string[]> = {
+  'c-level-manager': [
+    'I always like to start beyond the resume. In your own words, what\'s the one-minute story of you and how you got to this interview chair today?',
+    'If you were the CEO of our company for a day, what is the first thing you would change?',
+    'What is a professional failure you have experienced, and what did you learn from it?',
+    'How do you stay current with industry trends and developments?',
+    'In your opinion, what are the most important qualities of a successful leader?',
+  ],
+  'gm': [
+    'I always like to start beyond the resume. In your own words, what\'s the one-minute story of you and how you got to this interview chair today?',
+    'Tell me about your management style.',
+    'If you were the CEO of our company for a day, what is the first thing you would change?',
+    'What is a professional failure you have experienced, and what did you learn from it?',
+    'In your opinion, what are the most important qualities of a successful leader?',
+  ],
+  'sales-manager': [
+    'I always like to start beyond the resume. In your own words, what\'s the one-minute story of you and how you got to this interview chair today?',
+    'Tell me about your management style.',
+    'How would the people you manage describe you?',
+    'What is a professional failure you have experienced, and what did you learn from it?',
+    'How do you prepare for your workday?',
+  ],
+  'service-manager': [
+    'I always like to start beyond the resume. In your own words, what\'s the one-minute story of you and how you got to this interview chair today?',
+    'Tell me about your management style.',
+    'How would the people you manage describe you?',
+    'How do you stay current with industry trends and developments?',
+    'What is a professional failure you have experienced, and what did you learn from it?',
+  ],
+  'parts-manager': [
+    'I always like to start beyond the resume. In your own words, what\'s the one-minute story of you and how you got to this interview chair today?',
+    'Tell me about your management style.',
+    'How would the people you manage describe you?',
+    'How do you stay current with industry trends and developments?',
+    'What is a professional failure you have experienced, and what did you learn from it?',
+  ],
+  'finance-manager': [
+    'I always like to start beyond the resume. In your own words, what\'s the one-minute story of you and how you got to this interview chair today?',
+    'How do you prepare for your workday?',
+    'How do you stay current with industry trends and developments?',
+    'What is a professional failure you have experienced, and what did you learn from it?',
+    'In your opinion, what are the most important qualities of a successful leader?',
+  ],
+  'office-clerk': [
+    'I always like to start beyond the resume. In your own words, what\'s the one-minute story of you and how you got to this interview chair today?',
+    'Forget the job for a second. What\'s something you\'re genuinely passionate about outside of work, and what does that passion say about you?',
+    'What are you most proud of outside of your professional accomplishments?',
+    'How would your current employer describe you?',
+    'How do you prepare for your workday?',
+  ],
+  'body-shop-manager': [
+    'I always like to start beyond the resume. In your own words, what\'s the one-minute story of you and how you got to this interview chair today?',
+    'Tell me about your management style.',
+    'How would the people you manage describe you?',
+    'How do you stay current with industry trends and developments?',
+    'What is a professional failure you have experienced, and what did you learn from it?',
+  ],
+  'salesperson': [
+    'I always like to start beyond the resume. In your own words, what\'s the one-minute story of you and how you got to this interview chair today?',
+    'Forget the job for a second. What\'s something you\'re genuinely passionate about outside of work, and what does that passion say about you?',
+    'What are you most proud of outside of your professional accomplishments?',
+    'How would your current employer describe you?',
+    'How do you prepare for your workday?',
+  ],
+  'service-advisor': [
+    'I always like to start beyond the resume. In your own words, what\'s the one-minute story of you and how you got to this interview chair today?',
+    'Forget the job for a second. What\'s something you\'re genuinely passionate about outside of work, and what does that passion say about you?',
+    'What are you most proud of outside of your professional accomplishments?',
+    'How would your current employer describe you?',
+    'How do you prepare for your workday?',
+  ],
+  'support-staff': [
+    'I always like to start beyond the resume. In your own words, what\'s the one-minute story of you and how you got to this interview chair today?',
+    'Forget the job for a second. What\'s something you\'re genuinely passionate about outside of work, and what does that passion say about you?',
+    'How was your drive in today?',
+    'What are you most proud of outside of your professional accomplishments?',
+    'How would your current employer describe you?',
+  ],
+  'hr-manager': [
+    'I always like to start beyond the resume. In your own words, what\'s the one-minute story of you and how you got to this interview chair today?',
+    'Tell me about your management style.',
+    'How would the people you manage describe you?',
+    'How do you stay current with industry trends and developments?',
+    'In your opinion, what are the most important qualities of a successful leader?',
+  ],
+  'used-car-manager': [
+    'I always like to start beyond the resume. In your own words, what\'s the one-minute story of you and how you got to this interview chair today?',
+    'Tell me about your management style.',
+    'How would the people you manage describe you?',
+    'How do you stay current with industry trends and developments?',
+    'What is a professional failure you have experienced, and what did you learn from it?',
+  ],
+  'automotive-technician': [
+    'I always like to start beyond the resume. In your own words, what\'s the one-minute story of you and how you got to this interview chair today?',
+    'Forget the job for a second. What\'s something you\'re genuinely passionate about outside of work, and what does that passion say about you?',
+    'What are you most proud of outside of your professional accomplishments?',
+    'How would your current employer describe you?',
+    'How do you prepare for your workday?',
+  ],
+};
+
+// Interview questions mapping - organized by role and question type
+const interviewQuestionsByRole: Record<string, {
+  roleSpecific: string[];
+  starBehavioral: string[];
+}> = {
+  'c-level-manager': {
+    roleSpecific: [
+      'Describe your strategic vision for growing a dealership group in today\'s evolving automotive landscape.',
+      'How do you balance short-term profitability with long-term strategic investments in facilities and technology?',
+      'Walk me through your approach to evaluating potential dealership acquisitions or divestitures.',
+      'What\'s your philosophy on capital allocation across multiple dealership locations?',
+      'How do you stay ahead of industry disruptions (EVs, direct sales, digital retailing, subscription models)?',
+      'Describe your ideal relationship with the OEM/factory and how you maximize that partnership.',
+      'How would you approach restructuring an underperforming dealership group?',
+      'What key performance indicators do you monitor at the executive level, and why?',
+      'How do you develop and execute succession plans for key leadership positions?',
+      'Describe your experience with dealership real estate strategies and facility planning.',
+      'What\'s your approach to digital transformation and technology investment across a dealership group?',
+      'How do you ensure compliance and risk management across all locations and departments?',
+      'Describe your process for setting and achieving multi-year financial and market share goals.',
+      'How do you balance the interests of investors/owners with employee and customer needs?',
+      'What role should dealership executives play in industry associations and government relations?',
+      'How do you handle confidential M&A discussions or sensitive ownership transitions?',
+      'Describe your experience with dealership valuation and buy-sell transactions.',
+      'What\'s your strategy for building and maintaining a high-performance executive team?',
+      'How do you manage the tension between sales volume targets and overall profitability?',
+      'What would your 100-day plan look like for taking over leadership of our organization?',
+      'How do you evaluate and select technology platforms that will serve an entire dealership group?',
+      'Describe your most successful turnaround or growth initiative at the executive level.',
+      'How do you maintain objectivity when making decisions that affect long-term business partners or relationships?',
+      'What\'s your experience with union negotiations or labor relations at the executive level?',
+      'How do you personally contribute to major sales or strategic deals?',
+    ],
+    starBehavioral: [
+      'Describe a time you led a major dealership acquisition or consolidation. What was your integration strategy, and what were the financial results within the first year?',
+      'Tell me about a time you had to implement significant cost reductions across multiple dealerships. What areas did you target, how did you implement changes, and what was the impact on profitability and culture?',
+      'Recall a situation where you had to replace multiple underperforming general managers. How did you handle the transitions, and what was the outcome for those dealerships?',
+      'Describe a major technology implementation you led across a dealership group. How did you manage the change, and what was the ROI on that investment?',
+      'Give an example of when you successfully negotiated with an OEM for better market representation or facility terms. What was your negotiation strategy, and what concessions were you able to secure?',
+      'Tell me about a time you navigated a serious compliance crisis or regulatory investigation. What steps did you take to resolve it and prevent recurrence across the organization?',
+      'Describe a situation where you had to make an unpopular strategic decision for the long-term health of the business. How did you communicate and implement it, and what was the eventual outcome?',
+      'Recall a time you successfully exited an underperforming market or dealership location. What was your exit strategy, and how did you maximize value in the process?',
+      'Give an example of developing a high-potential manager into an executive leadership role. What was your development process, and how did they perform in their new role?',
+      'Describe when you had to lead through a significant industry downturn or market disruption. What strategic adjustments did you make, and how did your organization fare compared to competitors?',
+    ],
+  },
+  'gm': {
+    roleSpecific: [
+      'Describe your philosophy on balancing OEM requirements with dealership profitability.',
+      'How do you structure compensation plans for different departments to drive both individual and teamwork?',
+      'Walk me through your process for analyzing a dealership\'s monthly financial statement.',
+      'What\'s your strategy for improving customer retention and increasing service absorption?',
+      'How do you stay current on automotive retail trends and EV market developments?',
+      'Describe your ideal relationship with the dealership owner/principal.',
+      'How would you approach revitalizing a stagnant or declining dealership culture?',
+      'What metrics do you review daily vs. weekly vs. monthly?',
+      'How do you handle underperforming department managers?',
+      'Describe your experience with facility upgrades and negotiating with the factory for image programs.',
+      'What\'s your approach to digital marketing and online reputation management?',
+      'How do you ensure compliance across all departments (F&I, HR, safety, etc.)?',
+      'Describe your process for forecasting and setting realistic but aggressive monthly goals.',
+      'How do you balance short-term profitability with long-term facility and equipment investments?',
+      'What role should the GM play in the community and local business networks?',
+      'How do you handle confidential employee or customer situations?',
+      'Describe your experience with buy-sell transactions or dealership acquisitions.',
+      'What\'s your strategy for succession planning and developing future leaders?',
+      'How do you manage the tension between sales volume and gross profit objectives?',
+      'What would your 30-60-90 day plan look like for this specific dealership?',
+      'How do you evaluate and select new technology/vendor partners?',
+      'Describe your most successful inventory management strategy.',
+      'How do you maintain objectivity when you have personal relationships with long-term employees?',
+      'What\'s your experience with unionized environments or union avoidance?',
+      'How do you personally contribute to the sales process on major deals?',
+    ],
+    starBehavioral: [
+      'Describe a time you had to turn around declining CSI scores across multiple departments. What specific initiatives did you implement, and what were the results after six months?',
+      'Tell me about a time you had to reduce fixed operations expenses significantly. What costs did you target, how did you implement changes, and what was the impact on profitability?',
+      'Recall a situation where you had to terminate a long-tenured but underperforming manager. How did you handle the process, and what was the outcome for the department?',
+      'Describe a major facility renovation or upgrade you managed. How did you minimize business disruption, and what was the ROI on the investment?',
+      'Give an example of when you successfully negotiated with the factory for better allocation or terms. What was your strategy, and what concessions were you able to secure?',
+      'Tell me about a time you navigated a serious compliance or legal issue. What steps did you take to resolve it and prevent recurrence?',
+      'Describe a situation where you had to make an unpopular decision for the dealership\'s long-term health. How did you communicate it, and what was the eventual outcome?',
+      'Recall a time you successfully integrated a newly acquired dealership or location. What was your integration plan, and how did you measure success?',
+      'Give an example of developing an employee from entry-level into a management position. What was your development process, and how did they perform?',
+      'Describe when you had to manage through a significant market downturn or external crisis. What strategic adjustments did you make, and how did the dealership fare compared to competitors?',
+    ],
+  },
+  'sales-manager': {
+    roleSpecific: [
+      'Walk me through your daily routine for managing a sales team.',
+      'How do you balance new car volume vs. used car gross profit?',
+      'Describe your process for conducting effective sales meetings.',
+      'What\'s your strategy for improving phone and internet lead conversion rates?',
+      'How do you train and enforce a consistent sales process?',
+      'What metrics do you post publicly for the team, and why those specifically?',
+      'How do you handle "TO" situations with your salespeople?',
+      'Describe your approach to inventory management and aging day supply.',
+      'How do you develop salespeople with different experience levels?',
+      'What\'s your philosophy on demo vehicles for sales staff?',
+      'How do you manage floor time rotations and lead distribution?',
+      'Describe your experience with different CRM systems.',
+      'How do you handle price objections without sacrificing gross?',
+      'What\'s your process for reviewing and improving deal structure before it goes to F&I?',
+      'How do you maintain team morale during inventory shortages?',
+      'Describe your ideal relationship with the used car manager.',
+      'How do you incorporate product knowledge into daily training?',
+      'What\'s your strategy for managing high-performing but difficult salespeople?',
+      'How do you ensure ethical treatment of every customer?',
+      'Describe your most successful sales promotion or event.',
+      'How do you handle a salesperson who consistently underperforms?',
+      'What\'s your approach to二手车 appraisals and trades?',
+      'How do you stay current on competitor pricing and promotions?',
+      'Describe your process for working with service department referrals.',
+      'How would you improve our current sales department if hired?',
+    ],
+    starBehavioral: [
+      'Describe a time you turned around an underperforming salesperson. What specific coaching methods did you use, and what was the outcome?',
+      'Tell me about implementing a new sales process or CRM system. How did you gain buy-in, and what were the results?',
+      'Recall a situation where you had to handle a serious customer complaint about a salesperson. How did you investigate and resolve it?',
+      'Give an example of when you had to terminate a top-producing but problematic salesperson. How did you handle it, and what was the impact on the team?',
+      'Describe a successful inventory reduction campaign you led. What strategies did you use, and how quickly did you achieve results?',
+      'Tell me about a time you improved your department\'s CSI scores significantly. What specific actions did you take, and what were the results?',
+      'Recall a major sales event you planned and executed. What was your role, and what were the sales results compared to goals?',
+      'Describe when you successfully increased used car sales volume. What changes did you implement, and what was the impact on gross and volume?',
+      'Give an example of developing a green pea into a consistent performer. What was your training approach, and how long did it take?',
+      'Describe a time you had to manage through a product shortage or recall situation. How did you keep the team motivated and productive?',
+    ],
+  },
+  'service-manager': {
+    roleSpecific: [
+      'Walk me through your daily routine in the service department.',
+      'How do you balance customer pay, warranty, and internal repair work?',
+      'Describe your process for managing technician productivity and efficiency.',
+      'What\'s your strategy for improving effective labor rate?',
+      'How do you handle comebacks and warranty claims?',
+      'What metrics do you track most closely and why?',
+      'Describe your approach to shop scheduling and capacity management.',
+      'How do you manage parts department collaboration and turnaround times?',
+      'What\'s your experience with different shop management systems?',
+      'How do you develop and retain skilled technicians?',
+      'Describe your process for handling customer complaints about repair quality.',
+      'What\'s your safety program for the shop?',
+      'How do you train service advisors on selling recommended services?',
+      'Describe your experience with OEM warranty audits.',
+      'What\'s your strategy for increasing service absorption percentage?',
+      'How do you manage subcontract work (glass, alignments, etc.)?',
+      'Describe your ideal relationship with the parts manager.',
+      'How do you handle technician flat rate disputes?',
+      'What\'s your process for maintaining shop equipment?',
+      'How do you ensure accurate repair orders and documentation?',
+      'Describe your most successful service marketing promotion.',
+      'How do you manage seasonal fluctuations in service business?',
+      'What\'s your approach to apprentice technician programs?',
+      'How do you stay current on new vehicle technology and repair procedures?',
+      'How would you improve our current service operations if hired?',
+    ],
+    starBehavioral: [
+      'Describe a time you improved your department\'s productivity by 15% or more. What specific changes did you implement, and what were the results?',
+      'Tell me about turning around a department with poor CSI scores. What was your action plan, and what were the results after 90 days?',
+      'Recall a major comeback or warranty issue you had to resolve. How did you handle it with the customer and technician?',
+      'Give an example of implementing a new shop process or technology. How did you manage the change, and what was the outcome?',
+      'Describe when you successfully reduced customer wait times. What process improvements did you make, and what was the impact?',
+      'Tell me about developing a technician into a foreman or team lead. What was your approach, and how did they perform?',
+      'Recall a safety incident you had to manage. What were your immediate actions and long-term preventive measures?',
+      'Describe a successful service customer retention program you implemented. What strategies did you use, and what was the increase in retention?',
+      'Give an example of when you had to handle a difficult technician performance issue. How did you address it, and what was the outcome?',
+      'Describe a time you successfully increased extended warranty or maintenance plan sales. What training or incentives did you implement, and what were the results?',
+    ],
+  },
+  'parts-manager': {
+    roleSpecific: [
+      'Walk me through your daily parts department routine.',
+      'How do you balance wholesale vs. retail parts business?',
+      'Describe your inventory management philosophy and ideal stocking levels.',
+      'What\'s your strategy for improving parts fill rate while controlling inventory investment?',
+      'How do you manage obsolescence and dead stock?',
+      'What metrics do you track most closely and why?',
+      'Describe your approach to pricing—retail, wholesale, and internal.',
+      'How do you collaborate with the service and body shop departments?',
+      'What\'s your experience with different parts cataloging and inventory systems?',
+      'How do you develop and train counter personnel?',
+      'Describe your process for conducting physical inventory counts.',
+      'What\'s your strategy for building wholesale customer relationships?',
+      'How do you handle emergency parts situations after hours?',
+      'Describe your experience with OEM parts programs and returns.',
+      'What\'s your process for managing special order parts and customer communication?',
+      'How do you handle parts discrepancies and warranty returns?',
+      'Describe your ideal relationship with the service manager.',
+      'How do you manage supplier relationships and negotiate terms?',
+      'What\'s your process for reviewing and adjusting stock orders?',
+      'How do you ensure accurate receiving and bin locations?',
+      'Describe your most successful wholesale customer acquisition.',
+      'How do you manage seasonal parts demand fluctuations?',
+      'What\'s your approach to competing with aftermarket parts suppliers?',
+      'How do you stay current on parts supersessions and catalog updates?',
+      'How would you improve our current parts operations if hired?',
+    ],
+    starBehavioral: [
+      'Describe a time you significantly improved your department\'s fill rate. What specific changes did you implement, and what were the results?',
+      'Tell me about reducing obsolescence or dead stock in your inventory. What strategies did you use, and what financial impact did it have?',
+      'Recall a major inventory discrepancy you had to resolve. How did you investigate, and what controls did you implement to prevent recurrence?',
+      'Give an example of developing a successful wholesale customer program. What was your approach, and what growth did you achieve?',
+      'Describe when you successfully implemented a new inventory management system. How did you manage the transition, and what improvements resulted?',
+      'Tell me about turning around a struggling wholesale business. What changes did you make, and what were the results after six months?',
+      'Recall a time you had to handle a major backorder or supply chain issue. How did you manage customer expectations and find solutions?',
+      'Describe a successful process you implemented to improve counter efficiency. What was the process, and what was the impact on wait times or productivity?',
+      'Give an example of negotiating better terms with a major supplier. What was your strategy, and what concessions did you secure?',
+      'Describe a time you identified and stopped internal theft or process leakage. What did you discover, and what controls did you put in place?',
+    ],
+  },
+  'finance-manager': {
+    roleSpecific: [
+      'Walk me through your ideal F&I process from deal turnover to delivery.',
+      'How do you balance customer satisfaction with product penetration goals?',
+      'Describe your approach to menu selling and presentation.',
+      'What\'s your strategy for improving VSC (Vehicle Service Contract) penetration?',
+      'How do you manage relationships with multiple lending institutions?',
+      'What metrics do you review daily and why?',
+      'Describe your compliance management system.',
+      'How do you train and develop F&I producers?',
+      'What\'s your experience with different F&I menu and document systems?',
+      'How do you handle credit-challenged customers?',
+      'Describe your process for ensuring 100% regulatory compliance.',
+      'What\'s your strategy for minimizing chargebacks and cancellations?',
+      'How do you work with sales managers on deal structure before turnover?',
+      'Describe your experience with subprime lenders and special finance.',
+      'What\'s your approach to handling customer objections on products?',
+      'How do you manage reserve and participation with different lenders?',
+      'Describe your ideal relationship with the sales department.',
+      'How do you stay current on changing finance regulations?',
+      'What\'s your process for handling spot deliveries and funding issues?',
+      'How do you ensure proper disclosure and documentation on every deal?',
+      'Describe your most successful product penetration improvement initiative.',
+      'How do you handle customer complaints about F&I products or processes?',
+      'What\'s your approach to competing with outside financing?',
+      'How do you manage your department\'s P&L?',
+      'How would you improve our current F&I operations if hired?',
+    ],
+    starBehavioral: [
+      'Describe a time you significantly improved product penetration across all lines. What training or process changes did you implement, and what were the results?',
+      'Tell me about reducing chargebacks or cancellations in your department. What controls did you implement, and what was the financial impact?',
+      'Recall a major compliance issue you had to address. How did you resolve it, and what preventative measures did you put in place?',
+      'Give an example of successfully turning around a struggling F&I producer. What coaching methods did you use, and what was the outcome?',
+      'Describe when you implemented a new menu selling system. How did you train the team, and what improvement in PVR did you see?',
+      'Tell me about handling a particularly difficult credit situation. How did you structure the deal, and what was the result?',
+      'Recall a time you had to manage a regulatory audit or examination. How did you prepare, and what was the outcome?',
+      'Describe a successful relationship you built with a new lender. What was your approach, and what benefits did it bring to the dealership?',
+      'Give an example of improving the F&I department\'s CSI scores. What specific changes did you make to the customer experience?',
+      'Describe a time you identified and stopped unethical sales practices in F&I. What did you do, and what was the impact on the department?',
+    ],
+  },
+  'office-clerk': {
+    roleSpecific: [
+      'Walk me through your month-end close process.',
+      'How do you ensure accurate and timely financial reporting?',
+      'Describe your internal controls for cash handling and accounting.',
+      'What\'s your experience with dealership accounting systems (CDK, Reynolds, etc.)?',
+      'How do you manage payroll processing and compliance?',
+      'What metrics do you provide to department managers?',
+      'Describe your approach to accounts payable and vendor management.',
+      'How do you handle confidential HR matters and employee relations?',
+      'What\'s your experience with OEM financial reporting requirements?',
+      'How do you manage the title and registration process?',
+      'Describe your process for budgeting and forecasting support.',
+      'What\'s your strategy for improving accounting department efficiency?',
+      'How do you work with department managers on expense control?',
+      'Describe your experience with insurance and benefits administration.',
+      'What\'s your approach to training department staff on compliance issues?',
+      'How do you ensure data security and confidentiality?',
+      'Describe your ideal relationship with the dealership controller/CPA.',
+      'How do you stay current on accounting and HR regulations?',
+      'What\'s your process for handling employee onboarding and terminations?',
+      'How do you manage the annual audit process?',
+      'Describe your most successful process improvement in office operations.',
+      'How do you handle confidential employee complaints or investigations?',
+      'What\'s your approach to cost reduction in administrative functions?',
+      'How do you ensure compliance with all labor laws and regulations?',
+      'How would you improve our current business office operations if hired?',
+    ],
+    starBehavioral: [
+      'Describe a time you improved the month-end close timeline. What process changes did you implement, and how much time did you save?',
+      'Tell me about implementing new internal controls or accounting procedures. What was the need, and what improvement in accuracy resulted?',
+      'Recall a significant accounting discrepancy you discovered and resolved. How did you identify it, and what controls did you implement to prevent recurrence?',
+      'Give an example of successfully managing a difficult HR situation. How did you handle it, and what was the outcome?',
+      'Describe when you improved payroll or benefits administration efficiency. What changes did you make, and what was the impact?',
+      'Tell me about preparing for and managing an external audit. How did you prepare, and what was the auditor\'s feedback?',
+      'Recall a time you had to implement cost reductions in administrative areas. What areas did you target, and what savings did you achieve?',
+      'Describe a successful implementation of new accounting software or modules. How did you manage the transition, and what improvements resulted?',
+      'Give an example of improving interdepartmental communication from the office. What initiative did you implement, and what was the result?',
+      'Describe a time you identified and resolved a serious compliance risk. What was the risk, and how did you address it?',
+    ],
+  },
+  'body-shop-manager': {
+    roleSpecific: [
+      'Walk me through your daily body shop management routine.',
+      'How do you balance DRP work with customer-pay and dealer work?',
+      'Describe your production management and workflow system.',
+      'What\'s your strategy for improving cycle time and throughput?',
+      'How do you manage supplement frequency and amount?',
+      'What metrics do you track most closely and why?',
+      'Describe your approach to quality control and final inspections.',
+      'How do you develop and retain skilled technicians in a competitive market?',
+      'What\'s your experience with different estimating and management systems?',
+      'How do you handle insurance adjuster relationships and negotiations?',
+      'Describe your process for managing sublet services (glass, mechanical, etc.).',
+      'What\'s your safety and environmental compliance program?',
+      'How do you train estimators on thorough damage analysis?',
+      'Describe your experience with aluminum and advanced materials repair.',
+      'What\'s your strategy for maintaining DRP relationships and performance standards?',
+      'How do you manage parts procurement and inventory for collision repair?',
+      'Describe your ideal relationship with insurance partners.',
+      'How do you handle customer complaints about repair quality or timeliness?',
+      'What\'s your process for managing work-in-progress and production scheduling?',
+      'How do you ensure proper documentation and compliance on all repairs?',
+      'Describe your most successful DRP relationship development.',
+      'How do you manage seasonal fluctuations in collision business?',
+      'What\'s your approach to new technology adoption in the shop?',
+      'How do you stay current on new vehicle construction and repair procedures?',
+      'How would you improve our current body shop operations if hired?',
+    ],
+    starBehavioral: [
+      'Describe a time you significantly improved your shop\'s cycle time. What process changes did you implement, and what were the results?',
+      'Tell me about improving CSI scores in a body shop. What specific initiatives did you implement, and what improvement did you see?',
+      'Recall a major quality issue or comeback you had to manage. How did you handle it with the customer and insurance company?',
+      'Give an example of successfully adding a new DRP partnership. What was your approach, and what volume did it bring?',
+      'Describe when you implemented a new production management system. How did you manage the transition, and what productivity gains resulted?',
+      'Tell me about turning around an underperforming body shop. What changes did you make in the first 90 days, and what were the results?',
+      'Recall a significant safety or environmental compliance issue you addressed. What actions did you take, and what preventative measures did you implement?',
+      'Describe a successful estimator or technician development program. What was your training approach, and what were the outcomes?',
+      'Give an example of improving gross profit margin on repairs. What strategies did you use, and what was the financial impact?',
+      'Describe a time you managed a complex repair with difficult insurance negotiations. How did you handle it, and what was the outcome for all parties?',
+    ],
+  },
+  'salesperson': {
+    roleSpecific: [
+      'Walk me through your sales process from greeting to delivery.',
+      'How do you build rapport with different types of customers?',
+      'Describe your approach to needs assessment and discovery.',
+      'What\'s your strategy for handling price objections?',
+      'How do you demonstrate vehicle features and benefits effectively?',
+      'What metrics do you track for your own performance?',
+      'Describe your follow-up process for unsold prospects.',
+      'How do you handle customers who want to "think about it"?',
+      'What\'s your experience with different CRM systems?',
+      'How do you prepare for a customer appointment?',
+      'Describe your process for working internet and phone leads.',
+      'What\'s your strategy for building repeat and referral business?',
+      'How do you handle trade-in evaluations and discussions?',
+      'Describe your approach to transitioning customers to F&I.',
+      'What\'s your method for learning new product information?',
+      'How do you handle difficult or indecisive customers?',
+      'Describe your ideal relationship with sales management.',
+      'How do you stay motivated during slow periods?',
+      'What\'s your process for managing multiple customers simultaneously?',
+      'How do you ensure complete customer satisfaction at delivery?',
+      'Describe your most challenging sale and how you closed it.',
+      'How do you handle competition from other dealerships?',
+      'What\'s your approach to working with customers with credit challenges?',
+      'How do you balance volume goals with gross profit objectives?',
+      'How would you contribute to our sales team\'s success?',
+    ],
+    starBehavioral: [
+      'Describe your biggest sale or most profitable deal. What made it challenging, and how did you achieve it?',
+      'Tell me about a time you saved a deal that was about to be lost. What specific actions did you take to recover it?',
+      'Recall a difficult customer situation you handled successfully. How did you de-escalate and satisfy the customer?',
+      'Give an example of building a long-term customer relationship. How did you maintain contact, and what business resulted?',
+      'Describe when you received a negative survey and how you responded. What did you learn, and how did you improve?',
+      'Tell me about a time you successfully overcame a major objection. What was the objection, and how did you address it?',
+      'Recall a situation where you had to work with management on a difficult deal structure. How did you collaborate, and what was the outcome?',
+      'Describe a time you helped a teammate with a sale or problem. What was the situation, and what was the result?',
+      'Give an example of improving your sales process based on feedback. What did you change, and how did it improve your results?',
+      'Describe when you had to learn about a complex new product or technology quickly. How did you approach it, and how did it help you sell?',
+    ],
+  },
+  'service-advisor': {
+    roleSpecific: [
+      'Walk me through your write-up process from customer greeting to estimate approval.',
+      'How do you build trust with new customers?',
+      'Describe your approach to vehicle inspection and maintenance recommendations.',
+      'What\'s your strategy for handling customer price objections on repairs?',
+      'How do you communicate technical information to non-technical customers?',
+      'What metrics do you focus on for your own performance?',
+      'Describe your process for managing customer expectations on repair timelines.',
+      'How do you handle service recalls and campaign notifications?',
+      'What\'s your experience with different shop management systems?',
+      'How do you prepare for your day and manage your appointment schedule?',
+      'Describe your process for thorough vehicle check-in and documentation.',
+      'What\'s your strategy for building repeat customer business?',
+      'How do you handle difficult customers or complaints?',
+      'Describe your approach to working with technicians on diagnosis and estimates.',
+      'What\'s your method for staying current on service procedures and updates?',
+      'How do you prioritize multiple customers waiting at the counter?',
+      'Describe your ideal relationship with the service manager.',
+      'How do you handle customers who decline necessary repairs?',
+      'What\'s your process for follow-up after service completion?',
+      'How do you ensure accurate customer communication throughout the repair process?',
+      'Describe your most challenging diagnosis communication situation.',
+      'How do you handle warranty repair discussions with customers?',
+      'What\'s your approach to selling additional services while maintaining trust?',
+      'How do you manage your productivity during peak hours?',
+      'How would you contribute to our service department\'s success?',
+    ],
+    starBehavioral: [
+      'Describe a time you successfully sold a large repair package to a skeptical customer. How did you build trust and communicate the value?',
+      'Tell me about handling a customer who was angry about a repair bill. How did you de-escalate the situation and resolve it?',
+      'Recall a complex diagnosis situation you managed effectively. How did you coordinate between customer and technician?',
+      'Give an example of building a loyal customer who specifically asks for you. What did you do to earn that loyalty?',
+      'Describe when you caught a potential mistake before it reached the customer. What was the situation, and how did you handle it?',
+      'Tell me about a time you significantly upsold maintenance services ethically. What was your approach, and what was the result?',
+      'Recall a situation where you had to deliver bad news about additional repairs needed. How did you communicate it, and what was the customer\'s reaction?',
+      'Describe a time you improved your efficiency in writing up vehicles. What changes did you make, and what was the impact?',
+      'Give an example of helping a new technician understand customer expectations. What was the situation, and what was the outcome?',
+      'Describe when you received positive customer feedback about your service. What did you do specifically to earn that praise?',
+    ],
+  },
+  'support-staff': {
+    roleSpecific: [
+      // For Porters/Detail
+      'Walk me through your process for preparing a vehicle for delivery.',
+      'How do you ensure every vehicle meets showroom standards?',
+      'Describe your approach to vehicle safety and damage prevention.',
+      'What\'s your strategy for organizing and prioritizing vehicles to clean?',
+      'How do you handle delicate vehicle surfaces and interiors?',
+      'What cleaning products and techniques are you familiar with?',
+      'Describe your process for checking vehicles in and out.',
+      'How do you handle fuel management and vehicle tracking?',
+      'What\'s your experience with different detailing equipment?',
+      'How do you ensure no damage occurs during vehicle movement?',
+      // For Reception/Admin
+      'Walk me through your process for handling multiple phone lines.',
+      'How do you greet and direct customers entering the dealership?',
+      'Describe your approach to managing appointment schedules.',
+      'What\'s your strategy for handling difficult callers or visitors?',
+      'How do you ensure accurate message taking and delivery?',
+      'What office equipment and software are you proficient with?',
+      'Describe your process for managing mail and deliveries.',
+      'How do you handle confidential information appropriately?',
+      'What\'s your experience with multi-line phone systems?',
+      'How do you prioritize tasks during busy periods?',
+      'Describe your approach to maintaining a professional reception area.',
+      'What\'s your method for remembering names and departments?',
+      'How do you handle emergency or upset callers?',
+      'Describe your attention to detail in administrative tasks.',
+      'What\'s your process for coordinating between departments?',
+    ],
+    starBehavioral: [
+      'Describe a time you noticed a problem before it became serious. What did you notice, and what action did you take?',
+      'Tell me about handling a situation where you had multiple urgent requests. How did you prioritize and handle them all?',
+      'Recall a time you went above and beyond in your role. What did you do, and what was the result?',
+      'Give an example of improving a process in your area. What did you change, and what was the impact?',
+      'Describe when you handled a difficult internal customer professionally. What was the situation, and how did you resolve it?',
+      'Tell me about a time you made a mistake and how you handled it. What did you learn from the experience?',
+      'Recall a situation where you had to follow a procedure you disagreed with. How did you handle it, and what was the outcome?',
+      'Describe a time you contributed to team success beyond your specific duties. What did you do, and how did it help the team?',
+      'Give an example of learning a new skill or procedure quickly. How did you approach it, and how quickly were you proficient?',
+      'Describe when you received positive feedback about your work. What did you do to earn that recognition?',
+    ],
+  },
+};
+
+// Function to map interview questions to criteria based on keyword matching and manual mapping
+function mapQuestionsToCriteria(roleId: string, criteria: Criterion[]): Criterion[] {
+  const questions = interviewQuestionsByRole[roleId];
+  if (!questions) return criteria;
+
+  // Manual mapping for C-Level Manager
+  if (roleId === 'c-level-manager') {
+    return criteria.map(criterion => {
+      const mapped: Criterion = { ...criterion, interviewQuestions: {} };
+      
+      switch (criterion.id) {
+        case 'clm1': // Strategic Vision & Planning
+          mapped.interviewQuestions = {
+            roleSpecific: [questions.roleSpecific[0], questions.roleSpecific[1], questions.roleSpecific[2]],
+            starBehavioral: [questions.starBehavioral[0], questions.starBehavioral[6]],
+          };
+          break;
+        case 'clm2': // Financial Acumen
+          mapped.interviewQuestions = {
+            roleSpecific: [questions.roleSpecific[12]],
+            starBehavioral: [questions.starBehavioral[1]],
+          };
+          break;
+        case 'clm3': // Industry Knowledge & Market Awareness
+          mapped.interviewQuestions = {
+            roleSpecific: [questions.roleSpecific[4], questions.roleSpecific[5]],
+            starBehavioral: [questions.starBehavioral[9]],
+          };
+          break;
+        case 'clm4': // Executive Presence & Influence
+          mapped.interviewQuestions = {
+            roleSpecific: [questions.roleSpecific[17], questions.roleSpecific[24]],
+            starBehavioral: [questions.starBehavioral[4]],
+          };
+          break;
+        case 'clm5': // Organizational Development
+          mapped.interviewQuestions = {
+            roleSpecific: [questions.roleSpecific[8], questions.roleSpecific[17]],
+            starBehavioral: [questions.starBehavioral[8]],
+          };
+          break;
+        case 'clm6': // Change Management
+          mapped.interviewQuestions = {
+            roleSpecific: [questions.roleSpecific[6], questions.roleSpecific[10]],
+            starBehavioral: [questions.starBehavioral[6]],
+          };
+          break;
+        case 'clm7': // Compliance & Ethics
+          mapped.interviewQuestions = {
+            roleSpecific: [questions.roleSpecific[11]],
+            starBehavioral: [questions.starBehavioral[5]],
+          };
+          break;
+        case 'clm8': // Risk Management
+          mapped.interviewQuestions = {
+            roleSpecific: [questions.roleSpecific[11]],
+            starBehavioral: [questions.starBehavioral[5]],
+          };
+          break;
+        case 'clm9': // Board & Owner Relations
+          mapped.interviewQuestions = {
+            roleSpecific: [questions.roleSpecific[13], questions.roleSpecific[15]],
+            starBehavioral: [questions.starBehavioral[4]],
+          };
+          break;
+        case 'clm10': // External Relationships
+          mapped.interviewQuestions = {
+            roleSpecific: [questions.roleSpecific[5], questions.roleSpecific[14]],
+            starBehavioral: [questions.starBehavioral[4]],
+          };
+          break;
+        case 'clm11': // Primary Residence Distance
+          mapped.interviewQuestions = {
+            roleSpecific: ['Is your primary residence a reasonable distance from the dealership? Consider commute time, reliability, and availability for emergencies.'],
+          };
+          break;
+        case 'clm12': // References
+          mapped.interviewQuestions = {
+            roleSpecific: ['What would we discover if we conducted confidential interviews with your previous direct reports and department heads?'],
+          };
+          break;
+        case 'clm13': // Dealership Culture Alignment
+          mapped.interviewQuestions = {
+            roleSpecific: [questions.roleSpecific[13], questions.roleSpecific[22]],
+          };
+          break;
+      }
+      
+      return mapped;
+    });
+  }
+
+  // Intelligent mapping function that pairs questions with criteria based on relevance
+  // Maximum 5 questions per criterion
+  return criteria.map(criterion => {
+    const mapped: Criterion = { ...criterion, interviewQuestions: {} };
+    const selectedRoleSpecific: string[] = [];
+    const selectedStarBehavioral: string[] = [];
+    
+    // Helper function to check if a question is relevant to a criterion
+    const isRelevant = (question: string, criterionName: string): boolean => {
+      const qLower = question.toLowerCase();
+      const cLower = criterionName.toLowerCase();
+      
+      // Extract key terms from criterion name
+      const criterionTerms = cLower.split(/[&\s]+/).filter(term => term.length > 3);
+      
+      // Check if question contains relevant terms
+      return criterionTerms.some(term => qLower.includes(term)) ||
+             qLower.includes(cLower.split(' ')[0]) || // First word match
+             qLower.includes(cLower.split(' ').slice(-1)[0]); // Last word match
+    };
+    
+    // Select relevant role-specific questions (max 3)
+    for (const q of questions.roleSpecific) {
+      if (selectedRoleSpecific.length >= 3) break;
+      if (isRelevant(q, criterion.name)) {
+        selectedRoleSpecific.push(q);
+      }
+    }
+    
+    // Select relevant STAR behavioral questions (max 2)
+    for (const q of questions.starBehavioral) {
+      if (selectedStarBehavioral.length >= 2) break;
+      if (isRelevant(q, criterion.name)) {
+        selectedStarBehavioral.push(q);
+      }
+    }
+    
+    // If we don't have enough questions, create custom ones based on the criterion
+    const totalQuestions = selectedRoleSpecific.length + selectedStarBehavioral.length;
+    if (totalQuestions < 3) {
+      // Generate questions based on criterion name and weight
+      const customQuestions = generateCustomQuestions(criterion.name, criterion.weight, roleId);
+      selectedRoleSpecific.push(...customQuestions.slice(0, 5 - totalQuestions));
+    }
+    
+    // Limit to 5 total questions
+    const finalRoleSpecific = selectedRoleSpecific.slice(0, 3);
+    const finalStarBehavioral = selectedStarBehavioral.slice(0, 2);
+    
+    mapped.interviewQuestions = {
+      roleSpecific: finalRoleSpecific,
+      starBehavioral: finalStarBehavioral,
+    };
+    
+    return mapped;
+  });
+}
+
+// Helper function to generate custom interview questions based on criterion
+function generateCustomQuestions(criterionName: string, weight: number, roleId: string): string[] {
+  const questions: string[] = [];
+  const nameLower = criterionName.toLowerCase();
+  
+  // Generate questions based on common criterion patterns
+  if (nameLower.includes('performance') || nameLower.includes('achievement') || nameLower.includes('target')) {
+    questions.push(`What specific metrics or KPIs do you use to measure success in ${criterionName.toLowerCase()}?`);
+    questions.push(`Can you describe a time when you exceeded expectations in ${criterionName.toLowerCase()}?`);
+    questions.push(`How do you set and track goals related to ${criterionName.toLowerCase()}?`);
+  } else if (nameLower.includes('leadership') || nameLower.includes('management') || nameLower.includes('team')) {
+    questions.push(`Describe your approach to ${criterionName.toLowerCase()}.`);
+    questions.push(`How do you motivate and develop your team in the area of ${criterionName.toLowerCase()}?`);
+    questions.push(`What challenges have you faced in ${criterionName.toLowerCase()}, and how did you overcome them?`);
+  } else if (nameLower.includes('customer') || nameLower.includes('satisfaction') || nameLower.includes('service')) {
+    questions.push(`How do you ensure customer satisfaction in ${criterionName.toLowerCase()}?`);
+    questions.push(`Describe a situation where you had to handle a difficult customer issue related to ${criterionName.toLowerCase()}.`);
+    questions.push(`What strategies do you use to improve ${criterionName.toLowerCase()}?`);
+  } else if (nameLower.includes('financial') || nameLower.includes('profit') || nameLower.includes('revenue')) {
+    questions.push(`How do you manage ${criterionName.toLowerCase()} to maximize profitability?`);
+    questions.push(`Describe your experience with budgeting and financial planning in ${criterionName.toLowerCase()}.`);
+    questions.push(`What financial metrics do you track for ${criterionName.toLowerCase()}?`);
+  } else if (nameLower.includes('compliance') || nameLower.includes('safety') || nameLower.includes('risk')) {
+    questions.push(`How do you ensure compliance and safety in ${criterionName.toLowerCase()}?`);
+    questions.push(`Describe your approach to risk management in ${criterionName.toLowerCase()}.`);
+    questions.push(`What compliance challenges have you faced in ${criterionName.toLowerCase()}?`);
+  } else if (nameLower.includes('communication') || nameLower.includes('relationship')) {
+    questions.push(`How do you communicate effectively in ${criterionName.toLowerCase()}?`);
+    questions.push(`Describe your approach to building relationships in ${criterionName.toLowerCase()}.`);
+    questions.push(`What communication challenges have you encountered in ${criterionName.toLowerCase()}?`);
+  } else if (nameLower.includes('process') || nameLower.includes('efficiency') || nameLower.includes('improvement')) {
+    questions.push(`How do you improve processes and efficiency in ${criterionName.toLowerCase()}?`);
+    questions.push(`Describe a process improvement you implemented in ${criterionName.toLowerCase()}.`);
+    questions.push(`What methods do you use to identify areas for improvement in ${criterionName.toLowerCase()}?`);
+  } else if (nameLower.includes('knowledge') || nameLower.includes('expertise') || nameLower.includes('technical')) {
+    questions.push(`What is your level of expertise in ${criterionName.toLowerCase()}?`);
+    questions.push(`How do you stay current with developments in ${criterionName.toLowerCase()}?`);
+    questions.push(`Describe your technical knowledge and experience in ${criterionName.toLowerCase()}.`);
+  } else {
+    // Generic questions for any criterion
+    questions.push(`How do you approach ${criterionName.toLowerCase()} in your work?`);
+    questions.push(`What experience do you have with ${criterionName.toLowerCase()}?`);
+    questions.push(`Describe a situation where you demonstrated strong ${criterionName.toLowerCase()}.`);
+    questions.push(`What challenges have you faced related to ${criterionName.toLowerCase()}, and how did you handle them?`);
+    questions.push(`How would you improve ${criterionName.toLowerCase()} if hired for this role?`);
+  }
+  
+  return questions;
+}
+
 // Full criteria data with questions - populated from Score Card Editor or PDFs
 // This will be dynamically loaded from the scorecard editor or API
-const criteriaData: Record<string, Criterion[]> = {
+const criteriaDataRaw: Record<string, Criterion[]> = {
   'c-level-manager': [
     {
       id: 'clm1',
@@ -1660,7 +2428,9 @@ export default function ScoreCandidatePage() {
   const [showCandidateDropdown, setShowCandidateDropdown] = useState(false);
   const [interviewerRecommendation, setInterviewerRecommendation] = useState('');
 
-  const currentCriteria = criteriaData[selectedRole] || [];
+  // Get criteria and map interview questions
+  const rawCriteria = criteriaDataRaw[selectedRole] || [];
+  const currentCriteria = mapQuestionsToCriteria(selectedRole, rawCriteria);
   const selectedRoleData = roles.find(r => r.id === selectedRole);
 
   // Load candidates and managers on mount
@@ -1720,6 +2490,16 @@ export default function ScoreCandidatePage() {
 
       const allManagers: Manager[] = [];
 
+      // Get current user to check their dealership
+      const userRes = await fetch(`${API_BASE}/auth/me`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      
+      if (!userRes.ok) return;
+      
+      const userData = await userRes.json();
+      const userDealershipId = userData.dealership_id;
+
       // Try to get managers from admin endpoint
       const res = await fetch(`${API_BASE}/admin/managers`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -1727,18 +2507,18 @@ export default function ScoreCandidatePage() {
 
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
-        // Combine approved and pending managers
-        allManagers.push(
-          ...(data.managers || []),
-          ...(data.pending || [])
+        // Filter to only include managers (not admins) from the same dealership
+        const managers = (data.managers || []).filter((m: any) => 
+          m.role === 'manager' && m.dealership_id === userDealershipId
         );
+        const pending = (data.pending || []).filter((m: any) => 
+          m.role === 'manager' && m.dealership_id === userDealershipId
+        );
+        
+        allManagers.push(...managers, ...pending);
       } else {
         // If not admin, try to get current user as manager
-        const userRes = await fetch(`${API_BASE}/auth/me`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const userData = await userRes.json().catch(() => ({}));
-        if (userRes.ok && (userData.role === 'manager' || userData.role === 'hiring_manager')) {
+        if (userData.role === 'manager' || userData.role === 'hiring_manager') {
           allManagers.push({
             id: userData.id || 0,
             email: userData.email || '',
@@ -1748,7 +2528,7 @@ export default function ScoreCandidatePage() {
         }
       }
 
-      // Also fetch admins from /admin/users endpoint
+      // Also try to get managers from /admin/users endpoint (only managers, not admins)
       try {
         const usersRes = await fetch(`${API_BASE}/admin/users`, {
           headers: { Authorization: `Bearer ${token}` },
@@ -1756,30 +2536,33 @@ export default function ScoreCandidatePage() {
         
         if (usersRes.ok) {
           const usersData = await usersRes.json();
-          // Filter for admins
-          const admins = (usersData.users || []).filter((u: any) => {
-            const isAdmin = u.role === 'admin';
-            const isApproved = u.is_approved !== false || u.is_approved === undefined;
-            return isAdmin && isApproved;
+          // Filter for managers only (not admins) from the same dealership
+          const managers = (usersData.users || []).filter((u: any) => {
+            return u.role === 'manager' && u.dealership_id === userDealershipId;
           }).map((u: any) => ({
             id: u.id,
             email: u.email || '',
             full_name: u.full_name || null,
-            role: 'admin'
+            role: 'manager'
           }));
 
-          // Add admins that aren't already in the list (check by email)
-          admins.forEach((admin: Manager) => {
-            if (!allManagers.find(m => m.email === admin.email)) {
-              allManagers.push(admin);
+          // Add managers that aren't already in the list (check by id)
+          managers.forEach((manager: Manager) => {
+            if (!allManagers.find(m => m.id === manager.id)) {
+              allManagers.push(manager);
             }
           });
         }
       } catch (usersErr) {
-        console.error('Failed to load admins:', usersErr);
+        console.error('Failed to load managers from users endpoint:', usersErr);
       }
 
-      setManagers(allManagers);
+      // Remove duplicates based on id
+      const uniqueManagers = allManagers.filter((manager, index, self) =>
+        index === self.findIndex((m) => m.id === manager.id)
+      );
+
+      setManagers(uniqueManagers);
     } catch (err) {
       console.error('Failed to load managers:', err);
     }
@@ -1811,6 +2594,23 @@ export default function ScoreCandidatePage() {
     return sum + calculateWeighted(criterion.id);
   }, 0);
 
+  // Get missing required fields for tooltip
+  const getMissingFields = (): string[] => {
+    const missing: string[] = [];
+    if (!selectedCandidate) missing.push('Candidate');
+    if (!selectedManager) missing.push('Interviewer');
+    if (!selectedStage) missing.push('Interview Stage');
+    if (!interviewerRecommendation) missing.push('Interviewer Recommendation');
+    
+    const hasScores = Object.keys(scores).some(key => scores[key] > 0);
+    if (!hasScores) missing.push('At least one score');
+    
+    return missing;
+  };
+
+  const missingFields = getMissingFields();
+  const isSubmitDisabled = !selectedCandidate || !selectedManager || !selectedStage || !interviewerRecommendation || submitting;
+
   const handleSubmit = async () => {
     if (!selectedCandidate) {
       toast.error('Please select a candidate');
@@ -1818,7 +2618,7 @@ export default function ScoreCandidatePage() {
     }
 
     if (!selectedManager) {
-      toast.error('Please select a hiring manager');
+      toast.error('Please select an interviewer');
       return;
     }
 
@@ -1862,7 +2662,7 @@ export default function ScoreCandidatePage() {
       // Create structured interview notes with clear formatting
       // This format is designed to work with the backend once it supports multiple interviews
       const newInterviewNotes = `Interview Stage: ${selectedStage}
-Hiring Manager: ${manager?.full_name || manager?.email || 'Unknown'}
+Interviewer: ${manager?.full_name || manager?.email || 'Unknown'}
 Role: ${selectedRoleData?.name || selectedRole}
 Interviewer Recommendation: ${recommendationText}
 
@@ -2012,7 +2812,7 @@ ${additionalNotes}` : ''}`;
             </div>
           </div>
 
-          {/* Candidate, Role, Interview Stage, and Hiring Manager Selection - Top */}
+          {/* Candidate, Role, Interview Stage, and Interviewer Selection - Top */}
           {(() => {
             const selectedCandidateObj = candidates.find(c => c.id.toString() === selectedCandidate);
             if (selectedCandidate && selectedCandidateObj && selectedCandidateObj.score !== null && selectedCandidateObj.score !== undefined) {
@@ -2128,7 +2928,7 @@ ${additionalNotes}` : ''}`;
             </div>
             <div>
               <label className="block text-sm font-bold mb-2" style={{ color: '#232E40' }}>
-                Hiring Manager:
+                Interviewer:
               </label>
               <select
                 value={selectedManager}
@@ -2144,7 +2944,7 @@ ${additionalNotes}` : ''}`;
                 <option value="">Please choose...</option>
                 {managers.map(manager => (
                   <option key={manager.id} value={manager.id.toString()}>
-                    {manager.full_name || manager.email} ({manager.role})
+                    {manager.full_name || manager.email}
                   </option>
                 ))}
               </select>
@@ -2204,57 +3004,104 @@ ${additionalNotes}` : ''}`;
             </button>
           </div>
 
-          {/* Scoring Table */}
-          <div className="rounded-xl overflow-hidden" style={{ backgroundColor: '#FFFFFF', border: '1px solid #E5E7EB' }}>
-            <table className="w-full">
-              <thead>
-                <tr style={{ backgroundColor: '#4D6DBE' }}>
-                  <th className="py-4 px-6 text-left text-xs font-bold text-white">CRITERION</th>
-                  <th className="py-4 px-6 text-right text-xs font-bold text-white">WEIGHT %</th>
-                  <th className="py-4 px-6 text-center text-xs font-bold text-white">RAW SCORE (out of 10)</th>
-                  <th className="py-4 px-6 text-right text-xs font-bold text-white">WEIGHTED</th>
-                  <th className="py-4 px-6 text-left text-xs font-bold text-white">COMMENTS</th>
-                </tr>
-              </thead>
-              <tbody>
+          {/* Role Header */}
+          <div className="mb-6 p-4 rounded-lg" style={{ backgroundColor: '#4D6DBE', border: '1px solid #3B5998' }}>
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-bold text-white mb-1">
+                  {selectedRoleData?.name || 'Select a Role'}
+                </h2>
+                {selectedRoleData?.description && (
+                  <p className="text-sm text-blue-100">
+                    {selectedRoleData.description}
+                  </p>
+                )}
+              </div>
+              <div className="text-right">
+                <p className="text-sm text-blue-100 mb-1">Total Criteria</p>
+                <p className="text-2xl font-bold text-white">{currentCriteria.length}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Ice Breaker Questions */}
+          {iceBreakerQuestions[selectedRole] && iceBreakerQuestions[selectedRole].length > 0 && (
+            <div className="mb-6 p-5 rounded-lg" style={{ backgroundColor: '#F0F9FF', border: '1px solid #BAE6FD' }}>
+              <h3 className="text-base font-bold mb-3" style={{ color: '#1E40AF' }}>Ice Breaker Questions</h3>
+              <ol className="space-y-2 list-decimal list-inside">
+                {iceBreakerQuestions[selectedRole].map((question, idx) => (
+                  <li key={idx} className="text-sm leading-relaxed" style={{ color: '#1E3A8A' }}>
+                    {question}
+                  </li>
+                ))}
+              </ol>
+            </div>
+          )}
+
+          {/* Scoring Cards */}
+          <div className="space-y-4">
                 {currentCriteria.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="py-8 px-6 text-center text-sm" style={{ color: '#6B7280' }}>
+              <div className="py-8 px-6 text-center text-sm rounded-lg" style={{ backgroundColor: '#FFFFFF', border: '1px solid #E5E7EB', color: '#6B7280' }}>
                       No criteria defined for this role.
-                    </td>
-                  </tr>
+              </div>
                 ) : (
                   currentCriteria.map((criterion) => (
-                    <React.Fragment key={criterion.id}>
-                      <tr
-                        className="hover:bg-blue-50 transition-all duration-200"
-                        style={{ borderBottom: '1px solid #F3F4F6' }}
-                      >
-                        <td className="py-3 px-6">
-                          <div>
-                            <span className="text-sm font-semibold block mb-1" style={{ color: '#232E40' }}>
-                              {criterion.name}
-                            </span>
-                            {criterion.questions.length > 0 && (
-                              <div className="space-y-0.5 mt-1">
-                                {criterion.questions.map((question) => (
-                                  <p key={question.id} className="text-xs leading-tight break-words" style={{ color: '#6B7280', maxWidth: '800px' }}>
-                                    • {question.text}
-                                  </p>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        </td>
-                        <td className="py-3 px-6 text-right">
-                          <span className="text-sm font-bold px-3 py-1 rounded-lg" style={{ 
-                            color: '#232E40',
-                            backgroundColor: '#F3F4F6'
-                          }}>
-                            {criterion.weight}%
-                          </span>
-                        </td>
-                        <td className="py-3 px-6 text-center">
+                <div
+                  key={criterion.id}
+                  className="rounded-lg p-6 transition-all duration-200 hover:shadow-md"
+                  style={{
+                    backgroundColor: '#FFFFFF',
+                    border: '1px solid #E5E7EB',
+                    boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
+                  }}
+                >
+                  {/* Card Header */}
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-base font-semibold" style={{ color: '#232E40' }}>
+                          {criterion.name}
+                        </span>
+                        <span className="text-sm font-bold px-3 py-1 rounded-lg" style={{ 
+                          color: '#232E40',
+                          backgroundColor: '#F3F4F6'
+                        }}>
+                          {criterion.weight}%
+                        </span>
+                      </div>
+                      {criterion.questions.length > 0 && (
+                        <div className="space-y-0.5 mt-2">
+                          {criterion.questions.map((question) => (
+                            <p key={question.id} className="text-xs leading-tight break-words" style={{ color: '#6B7280', maxWidth: '800px' }}>
+                              • {question.text}
+                            </p>
+                          ))}
+                        </div>
+                      )}
+                      {criterion.interviewQuestions && (
+                        <div className="mt-4 pt-4 border-t" style={{ borderColor: '#E5E7EB' }}>
+                          <div className="text-xs font-semibold mb-2" style={{ color: '#374151' }}>Interview Questions:</div>
+                          <ul className="space-y-1">
+                            {criterion.interviewQuestions.roleSpecific && criterion.interviewQuestions.roleSpecific.map((q, idx) => (
+                              <li key={`role-${idx}`} className="text-xs leading-relaxed" style={{ color: '#6B7280' }}>
+                                • {q}
+                              </li>
+                            ))}
+                            {criterion.interviewQuestions.starBehavioral && criterion.interviewQuestions.starBehavioral.map((q, idx) => (
+                              <li key={`star-${idx}`} className="text-xs leading-relaxed" style={{ color: '#6B7280' }}>
+                                • {q}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Scoring Section */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4 pt-4 border-t" style={{ borderColor: '#E5E7EB' }}>
+                    <div className="flex flex-col gap-2">
+                      <label className="text-xs font-semibold" style={{ color: '#374151' }}>Raw Score (out of 10)</label>
                           <input
                             type="number"
                             min="0"
@@ -2262,40 +3109,47 @@ ${additionalNotes}` : ''}`;
                             step="0.1"
                             value={scores[criterion.id] || ''}
                             onChange={(e) => handleScoreChange(criterion.id, e.target.value)}
-                            className="w-24 px-3 py-2 text-sm rounded-lg text-center transition-all focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-3 py-2 text-sm rounded-lg text-center transition-all focus:outline-none focus:ring-2 focus:ring-blue-500"
                             style={{
                               border: '1px solid #D1D5DB',
                               color: '#374151',
                               backgroundColor: '#FFFFFF',
+                          WebkitAppearance: 'none',
+                          MozAppearance: 'textfield',
                             }}
                             placeholder="0.0 / 10"
-                          />
-                        </td>
-                        <td className="py-3 px-6 text-right">
-                          <span className="text-sm font-bold" style={{ color: '#232E40' }}>
+                        onWheel={(e) => e.currentTarget.blur()}
+                      />
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <label className="text-xs font-semibold" style={{ color: '#374151' }}>Weighted Score</label>
+                      <div className="px-3 py-2 text-sm font-bold rounded-lg text-center" style={{ 
+                        color: '#232E40',
+                        backgroundColor: '#F3F4F6',
+                        border: '1px solid #E5E7EB'
+                      }}>
                             {calculateWeighted(criterion.id).toFixed(2)}
-                          </span>
-                        </td>
-                        <td className="py-3 px-6">
-                          <textarea
-                            value={criterionComments[criterion.id] || ''}
-                            onChange={(e) => setCriterionComments(prev => ({ ...prev, [criterion.id]: e.target.value }))}
-                            className="w-full px-3 py-2 text-sm rounded-lg border resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            style={{
-                              border: '1px solid #D1D5DB',
-                              color: '#374151',
-                              backgroundColor: '#FFFFFF',
-                            }}
-                            rows={2}
-                            placeholder="Add comments..."
-                          />
-                          </td>
-                        </tr>
-                    </React.Fragment>
-                  ))
-                )}
-              </tbody>
-            </table>
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <label className="text-xs font-semibold" style={{ color: '#374151' }}>Comments</label>
+                      <textarea
+                        value={criterionComments[criterion.id] || ''}
+                        onChange={(e) => setCriterionComments(prev => ({ ...prev, [criterion.id]: e.target.value }))}
+                        className="w-full px-3 py-2 text-sm rounded-lg border resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        style={{
+                          border: '1px solid #D1D5DB',
+                          color: '#374151',
+                          backgroundColor: '#FFFFFF',
+                        }}
+                        rows={3}
+                        placeholder="Add comments..."
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
 
           {/* Additional Notes Section */}
@@ -2398,22 +3252,38 @@ ${additionalNotes}` : ''}`;
               >
                 Reset
               </button>
+              <div className="relative group">
               <button
                 onClick={handleSubmit}
-                disabled={!selectedCandidate || !selectedManager || !selectedStage || !interviewerRecommendation || submitting}
-                className="px-8 py-2.5 rounded-lg text-sm font-semibold transition-all hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={isSubmitDisabled}
+                  className="px-8 py-2.5 rounded-lg text-sm font-semibold transition-all hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
                 style={{
                   backgroundColor: '#10B981',
                   color: '#FFFFFF',
                 }}
+                  title={isSubmitDisabled && missingFields.length > 0 ? `Missing: ${missingFields.join(', ')}` : ''}
               >
                 {submitting ? 'Submitting...' : 'Submit'}
               </button>
+                {isSubmitDisabled && missingFields.length > 0 && (
+                  <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 text-xs rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50" style={{ backgroundColor: '#FFFFFF', border: '2px solid #4D6DBE' }}>
+                    <div className="font-semibold mb-1" style={{ color: '#232E40' }}>Missing Required Fields:</div>
+                    <ul className="list-disc list-inside space-y-0.5" style={{ color: '#374151' }}>
+                      {missingFields.map((field, idx) => (
+                        <li key={idx}>{field}</li>
+                      ))}
+                    </ul>
+                    <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-full">
+                      <div className="border-4 border-transparent" style={{ borderTopColor: '#4D6DBE' }}></div>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </main>
 
-        {/* Print View - Same as Score Card Editor */}
+        {/* Print View */}
         {showPrintView && (
           <div className="print-wrapper" style={{
             position: 'fixed',
@@ -2424,7 +3294,10 @@ ${additionalNotes}` : ''}`;
             background: 'white',
             zIndex: 9999,
             overflowY: 'auto',
-            padding: '20px'
+            padding: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center'
           }}>
             <div className="print-buttons" style={{
               position: 'fixed',
@@ -2483,6 +3356,7 @@ ${additionalNotes}` : ''}`;
                   margin: 0 !important;
                   background: white !important;
                   overflow: visible !important;
+                  display: block !important;
                 }
                 .print-wrapper * {
                   visibility: visible !important;
@@ -2492,15 +3366,15 @@ ${additionalNotes}` : ''}`;
                   display: none !important;
                   visibility: hidden !important;
                 }
-                .print-layout-container {
-                  position: relative !important;
-                  width: 100% !important;
-                  max-width: 100% !important;
-                  margin: 0 !important;
-                  padding: 0.5in !important;
+                .print-page {
+                  width: 8.5in !important;
+                  max-width: 8.5in !important;
+                  margin: 0 auto !important;
+                  padding: 0.05in !important;
                   background: white !important;
-                  top: 0 !important;
-                  left: 0 !important;
+                  font-family: Arial, sans-serif !important;
+                  page-break-after: auto !important;
+                  break-after: auto !important;
                 }
                 .print-header {
                   page-break-after: avoid;
@@ -2514,19 +3388,27 @@ ${additionalNotes}` : ''}`;
                   page-break-after: avoid;
                   break-after: avoid;
                 }
-                .criterion-section {
-                  page-break-inside: avoid;
-                  break-inside: avoid;
+                .questions-page {
+                  page-break-before: always !important;
+                  break-before: page !important;
+                  padding-top: 0.2in !important;
+                }
+                @page {
+                  margin: 0.05in;
+                  size: letter;
                 }
               }
             `}} />
-            <div className="print-layout-container" style={{
+            
+            {/* Scorecard Page */}
+            <div className="print-page scorecard-page" style={{
               fontFamily: 'Arial, sans-serif',
-              fontSize: '10px',
-              lineHeight: 1.2,
+              fontSize: '14px',
+              lineHeight: 1.3,
               color: '#000',
               background: 'white',
-              padding: '60px 40px 40px',
+              padding: '0.05in',
+              width: '8.5in',
               maxWidth: '8.5in',
               margin: '0 auto'
             }}>
@@ -2536,8 +3418,8 @@ ${additionalNotes}` : ''}`;
                 borderBottom: '2px solid #000',
                 paddingBottom: '8px'
               }}>
-                <h1 style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '3px' }}>INTERVIEW SCORECARD</h1>
-                <h2 style={{ fontSize: '12px', fontWeight: 'normal' }}>{selectedRoleData?.name} Evaluation</h2>
+                <h1 style={{ fontSize: '24px', fontWeight: 'bold', marginBottom: '3px' }}>INTERVIEW SCORECARD</h1>
+                <h2 style={{ fontSize: '16px', fontWeight: 'normal' }}>{selectedRoleData?.name} Evaluation</h2>
               </div>
 
               <div className="candidate-info" style={{
@@ -2547,41 +3429,42 @@ ${additionalNotes}` : ''}`;
                 marginBottom: '15px',
                 padding: '8px',
                 border: '1px solid #000',
-                fontSize: '9px'
+                fontSize: '13px'
               }}>
                 <div style={{ display: 'flex', alignItems: 'center' }}>
-                  <label style={{ fontWeight: 'bold', minWidth: '60px', marginRight: '5px', fontSize: '8px' }}>Candidate:</label>
+                  <label style={{ fontWeight: 'bold', minWidth: '70px', marginRight: '5px', fontSize: '12px' }}>Candidate:</label>
                   <div style={{ flex: 1, borderBottom: '1px solid #000', height: '15px' }}></div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center' }}>
-                  <label style={{ fontWeight: 'bold', minWidth: '60px', marginRight: '5px', fontSize: '8px' }}>Position:</label>
+                  <label style={{ fontWeight: 'bold', minWidth: '70px', marginRight: '5px', fontSize: '12px' }}>Position:</label>
                   <div style={{ flex: 1, borderBottom: '1px solid #000', height: '15px' }}></div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center' }}>
-                  <label style={{ fontWeight: 'bold', minWidth: '60px', marginRight: '5px', fontSize: '8px' }}>Date:</label>
+                  <label style={{ fontWeight: 'bold', minWidth: '70px', marginRight: '5px', fontSize: '12px' }}>Date:</label>
                   <div style={{ flex: 1, borderBottom: '1px solid #000', height: '15px' }}></div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center' }}>
-                  <label style={{ fontWeight: 'bold', minWidth: '60px', marginRight: '5px', fontSize: '8px' }}>Interviewer:</label>
+                  <label style={{ fontWeight: 'bold', minWidth: '70px', marginRight: '5px', fontSize: '12px' }}>Interviewer:</label>
                   <div style={{ flex: 1, borderBottom: '1px solid #000', height: '15px' }}></div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center' }}>
-                  <label style={{ fontWeight: 'bold', minWidth: '60px', marginRight: '5px', fontSize: '8px' }}>Time:</label>
+                  <label style={{ fontWeight: 'bold', minWidth: '70px', marginRight: '5px', fontSize: '12px' }}>Time:</label>
                   <div style={{ flex: 1, borderBottom: '1px solid #000', height: '15px' }}></div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center' }}>
-                  <label style={{ fontWeight: 'bold', minWidth: '70px', marginRight: '5px', fontSize: '8px' }}>Interview Stage:</label>
+                  <label style={{ fontWeight: 'bold', minWidth: '80px', marginRight: '5px', fontSize: '12px' }}>Interview Stage:</label>
                   <div style={{ flex: 1, display: 'flex', gap: '8px', alignItems: 'center' }}>
                     {[1, 2, 3, 4, 5].map((num) => (
                       <div key={num} style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
                         <div style={{ width: '14px', height: '14px', border: '1px solid #000', borderRadius: '50%', background: 'white' }}></div>
-                        <span style={{ fontSize: '8px' }}>{num}</span>
+                        <span style={{ fontSize: '12px' }}>{num}</span>
                       </div>
                     ))}
                   </div>
                 </div>
               </div>
 
+              {/* First Impression Section */}
               <div className="first-impression-section" style={{
                 border: '1px solid #000',
                 padding: '8px',
@@ -2589,7 +3472,7 @@ ${additionalNotes}` : ''}`;
                 background: '#f9f9f9'
               }}>
                 <div style={{
-                  fontSize: '11px',
+                  fontSize: '15px',
                   fontWeight: 'bold',
                   textAlign: 'center',
                   marginBottom: '8px',
@@ -2600,27 +3483,27 @@ ${additionalNotes}` : ''}`;
                   gridTemplateColumns: '1fr 1fr',
                   gap: '20px'
                 }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', fontSize: '9px', gap: '6px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', fontSize: '13px', gap: '6px' }}>
                     <span>Professional Attire:</span>
                     <div style={{ display: 'flex', justifyContent: 'center', gap: '12px', marginTop: '4px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '8px', fontWeight: 600 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: 600 }}>
                         <div style={{ width: '12px', height: '12px', border: '2px solid #000', background: 'white', borderRadius: '2px' }}></div>
                         <span>Yes</span>
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '8px', fontWeight: 600 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: 600 }}>
                         <div style={{ width: '12px', height: '12px', border: '2px solid #000', background: 'white', borderRadius: '2px' }}></div>
                         <span>No</span>
                       </div>
                     </div>
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', fontSize: '9px', gap: '6px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', fontSize: '13px', gap: '6px' }}>
                     <span>Punctuality:</span>
                     <div style={{ display: 'flex', justifyContent: 'center', gap: '12px', marginTop: '4px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '8px', fontWeight: 600 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: 600 }}>
                         <div style={{ width: '12px', height: '12px', border: '2px solid #000', background: 'white', borderRadius: '2px' }}></div>
                         <span>Yes</span>
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '8px', fontWeight: 600 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: 600 }}>
                         <div style={{ width: '12px', height: '12px', border: '2px solid #000', background: 'white', borderRadius: '2px' }}></div>
                         <span>No</span>
                       </div>
@@ -2634,20 +3517,20 @@ ${additionalNotes}` : ''}`;
                 <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
                   <thead>
                     <tr style={{ backgroundColor: '#f0f0f0' }}>
-                      <th style={{ padding: '8px', textAlign: 'left', fontSize: '9px', fontWeight: 'bold', color: '#000', border: '1px solid #000', width: '30%' }}>CRITERION</th>
-                      <th style={{ padding: '8px', textAlign: 'right', fontSize: '9px', fontWeight: 'bold', color: '#000', border: '1px solid #000', width: '8%' }}>WEIGHT %</th>
-                      <th style={{ padding: '8px', textAlign: 'center', fontSize: '9px', fontWeight: 'bold', color: '#000', border: '1px solid #000', width: '12%' }}>RAW SCORE (out of 10)</th>
-                      <th style={{ padding: '8px', textAlign: 'right', fontSize: '9px', fontWeight: 'bold', color: '#000', border: '1px solid #000', width: '10%' }}>WEIGHTED</th>
-                      <th style={{ padding: '8px', textAlign: 'left', fontSize: '9px', fontWeight: 'bold', color: '#000', border: '1px solid #000', width: '40%' }}>COMMENTS</th>
+                      <th style={{ padding: '10px', textAlign: 'left', fontSize: '13px', fontWeight: 'bold', color: '#000', border: '1px solid #000', width: '30%' }}>CRITERION</th>
+                      <th style={{ padding: '10px', textAlign: 'right', fontSize: '13px', fontWeight: 'bold', color: '#000', border: '1px solid #000', width: '8%' }}>WEIGHT %</th>
+                      <th style={{ padding: '10px', textAlign: 'center', fontSize: '13px', fontWeight: 'bold', color: '#000', border: '1px solid #000', width: '12%' }}>RAW SCORE (out of 10)</th>
+                      <th style={{ padding: '10px', textAlign: 'right', fontSize: '13px', fontWeight: 'bold', color: '#000', border: '1px solid #000', width: '10%' }}>WEIGHTED</th>
+                      <th style={{ padding: '10px', textAlign: 'left', fontSize: '13px', fontWeight: 'bold', color: '#000', border: '1px solid #000', width: '40%' }}>COMMENTS</th>
                     </tr>
                   </thead>
                   <tbody>
                 {currentCriteria.map((criterion) => (
                       <tr key={criterion.id} style={{ borderBottom: '1px solid #ccc' }}>
-                        <td style={{ padding: '8px', border: '1px solid #ccc', verticalAlign: 'top' }}>
-                          <div style={{ fontWeight: 'bold', fontSize: '9px', marginBottom: '4px' }}>{criterion.name}</div>
+                        <td style={{ padding: '10px', border: '1px solid #ccc', verticalAlign: 'top' }}>
+                          <div style={{ fontWeight: 'bold', fontSize: '13px', marginBottom: '4px' }}>{criterion.name}</div>
                           {criterion.questions.length > 0 && (
-                            <div style={{ fontSize: '10px', lineHeight: 1.4, color: '#555' }}>
+                            <div style={{ fontSize: '13px', lineHeight: 1.4, color: '#555' }}>
                               {criterion.questions.map((question, idx) => (
                                 <div key={question.id} style={{ marginTop: idx > 0 ? '3px' : '0' }}>
                                   • {question.text}
@@ -2656,16 +3539,16 @@ ${additionalNotes}` : ''}`;
                             </div>
                           )}
                         </td>
-                        <td style={{ padding: '8px', textAlign: 'right', border: '1px solid #ccc', verticalAlign: 'top' }}>
-                          <span style={{ fontSize: '9px', fontWeight: 'bold' }}>{criterion.weight}%</span>
+                        <td style={{ padding: '10px', textAlign: 'right', border: '1px solid #ccc', verticalAlign: 'top' }}>
+                          <span style={{ fontSize: '13px', fontWeight: 'bold' }}>{criterion.weight}%</span>
                         </td>
-                        <td style={{ padding: '8px', textAlign: 'center', border: '1px solid #ccc', verticalAlign: 'top' }}>
+                        <td style={{ padding: '10px', textAlign: 'center', border: '1px solid #ccc', verticalAlign: 'top' }}>
                           <div style={{ width: '40px', height: '20px', border: '1px solid #000', background: 'white', margin: '0 auto' }}></div>
                         </td>
-                        <td style={{ padding: '8px', textAlign: 'right', border: '1px solid #ccc', verticalAlign: 'top' }}>
+                        <td style={{ padding: '10px', textAlign: 'right', border: '1px solid #ccc', verticalAlign: 'top' }}>
                           <div style={{ width: '50px', height: '20px', border: '1px solid #000', background: 'white', margin: '0 auto' }}></div>
                         </td>
-                        <td style={{ padding: '8px', border: '1px solid #ccc', verticalAlign: 'top' }}>
+                        <td style={{ padding: '10px', border: '1px solid #ccc', verticalAlign: 'top' }}>
                           <div style={{ minHeight: '100px', padding: '4px' }}>
                             {Array.from({ length: 6 }).map((_, i) => (
                               <div key={i} style={{ height: '14px', borderBottom: '1px solid #ccc', marginBottom: '2px' }}></div>
@@ -2680,14 +3563,14 @@ ${additionalNotes}` : ''}`;
 
               {/* Additional Notes Section */}
               <div style={{ marginBottom: '20px' }}>
-                <div style={{ fontSize: '10px', fontWeight: 'bold', marginBottom: '6px' }}>Additional Notes:</div>
+                <div style={{ fontSize: '14px', fontWeight: 'bold', marginBottom: '6px' }}>Additional Notes:</div>
                 <div style={{ border: '1px solid #000', minHeight: '150px', padding: '8px' }}></div>
                       </div>
 
               {/* Hiring Recommendation Guide */}
               <div style={{ marginBottom: '20px', padding: '10px', border: '1px solid #000', backgroundColor: '#f9f9f9' }}>
-                <div style={{ fontSize: '10px', fontWeight: 'bold', marginBottom: '8px' }}>Hiring Recommendation Guide</div>
-                <div style={{ fontSize: '8px' }}>
+                <div style={{ fontSize: '14px', fontWeight: 'bold', marginBottom: '8px' }}>Hiring Recommendation Guide</div>
+                <div style={{ fontSize: '12px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '4px 0', borderBottom: '1px solid #ddd' }}>
                     <span style={{ fontWeight: 'bold', padding: '2px 6px', border: '1px solid #000', minWidth: '60px', textAlign: 'center' }}>90-100</span>
                     <span style={{ fontWeight: 'bold' }}>Likely Game Changer</span>
@@ -2719,13 +3602,13 @@ ${additionalNotes}` : ''}`;
               {/* Sum Score and Interviewer Recommendation */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '20px', padding: '10px', border: '1px solid #000' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <span style={{ fontSize: '10px', fontWeight: 'bold' }}>Sum Score:</span>
-                  <div style={{ width: '60px', height: '25px', border: '1px solid #000', background: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: 'bold' }}></div>
-                  <span style={{ fontSize: '10px' }}>/ 100</span>
+                  <span style={{ fontSize: '14px', fontWeight: 'bold' }}>Sum Score:</span>
+                  <div style={{ width: '60px', height: '25px', border: '1px solid #000', background: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', fontWeight: 'bold' }}></div>
+                  <span style={{ fontSize: '14px' }}>/ 100</span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <span style={{ fontSize: '10px', fontWeight: 'bold' }}>Interviewer Recommendation:</span>
-                  <div style={{ display: 'flex', gap: '15px', fontSize: '9px' }}>
+                  <span style={{ fontSize: '14px', fontWeight: 'bold' }}>Interviewer Recommendation:</span>
+                  <div style={{ display: 'flex', gap: '15px', fontSize: '13px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                       <div style={{ width: '12px', height: '12px', border: '1px solid #000', background: 'white' }}></div>
                       <span>Hire</span>
@@ -2742,9 +3625,89 @@ ${additionalNotes}` : ''}`;
                       <div style={{ width: '12px', height: '12px', border: '1px solid #000', background: 'white' }}></div>
                       <span>Undecided</span>
                   </div>
+                </div>
                   </div>
                 </div>
               </div>
+
+            {/* Questions Page - Last page listing all questions */}
+            <div className="print-page questions-page" style={{
+              fontFamily: 'Arial, sans-serif',
+              fontSize: '12px',
+              lineHeight: 1.4,
+              color: '#000',
+              background: 'white',
+              padding: '0.05in',
+              paddingTop: '0.2in',
+              width: '8.5in',
+              maxWidth: '8.5in',
+              margin: '0 auto'
+            }}>
+              {/* Interview Questions Header */}
+              <div style={{
+                fontSize: '16px',
+                fontWeight: 'bold',
+                textAlign: 'center',
+                marginBottom: '20px',
+                textTransform: 'uppercase',
+                color: '#000',
+                borderBottom: '2px solid #000',
+                paddingBottom: '8px'
+              }}>Interview Questions</div>
+
+              {/* Ice Breaker Questions */}
+              {iceBreakerQuestions[selectedRole] && iceBreakerQuestions[selectedRole].length > 0 && (
+                <div style={{ 
+                  marginBottom: '16px',
+                  border: '2px solid #000',
+                  padding: '12px',
+                  backgroundColor: '#f9f9f9'
+                }}>
+                  <div style={{
+                    fontSize: '13px',
+                    fontWeight: 'bold',
+                    marginBottom: '8px',
+                    textTransform: 'uppercase',
+                    color: '#000'
+                  }}>Ice Breaker Questions</div>
+                  <ol style={{ paddingLeft: '20px', margin: 0, fontSize: '12px', lineHeight: 1.4 }}>
+                    {iceBreakerQuestions[selectedRole].map((question, idx) => (
+                      <li key={idx} style={{ marginBottom: '6px', color: '#000' }}>
+                        {question}
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+              )}
+
+              {/* Questions by Criterion */}
+              {currentCriteria.map((criterion) => (
+                <div key={criterion.id} style={{ marginBottom: '10px' }}>
+                  <div style={{
+                    fontSize: '13px',
+                    fontWeight: 'bold',
+                    marginBottom: '6px',
+                    textTransform: 'uppercase',
+                    color: '#000'
+                  }}>{criterion.name}</div>
+                  
+                  {/* Interview Questions Only */}
+                  {criterion.interviewQuestions && (
+                    <ol style={{ paddingLeft: '20px', margin: 0, fontSize: '12px', lineHeight: 1.4 }}>
+                      {criterion.interviewQuestions.roleSpecific && criterion.interviewQuestions.roleSpecific.map((q, idx) => (
+                        <li key={`role-${idx}`} style={{ marginBottom: '6px', color: '#000' }}>
+                          {q}
+                        </li>
+                      ))}
+                      {criterion.interviewQuestions.starBehavioral && criterion.interviewQuestions.starBehavioral.map((q, idx) => (
+                        <li key={`star-${idx}`} style={{ marginBottom: '6px', color: '#000' }}>
+                          {q}
+                        </li>
+                      ))}
+                    </ol>
+                  )}
+                </div>
+              ))}
             </div>
           </div>
         )}
