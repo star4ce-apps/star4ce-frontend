@@ -84,7 +84,6 @@ function DashboardContent() {
   const [analytics, setAnalytics] = useState<AnalyticsSummary | null>(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
   const [analyticsError, setAnalyticsError] = useState<string | null>(null);
-  const [currentChart, setCurrentChart] = useState<'quit' | 'terminated'>('quit');
   const [userRole, setUserRole] = useState<string | null>(null);
   const [isApproved, setIsApproved] = useState<boolean | null>(null);
   
@@ -134,7 +133,7 @@ function DashboardContent() {
   const [terminatedQuitData, setTerminatedQuitData] = useState<{ name: string; value: number; percentage: number; color: string }[]>([]);
   const [roleBreakdown, setRoleBreakdown] = useState<{ role: string; terminated: number; quit: number; total: number }[]>([]);
   const [surveyFeedback, setSurveyFeedback] = useState<{ name: string; value: number; color: string }[]>([]);
-  const [turnoverTimeSeries, setTurnoverTimeSeries] = useState<{ month: string; value: number }[]>([]);
+  const [turnoverTimeSeries, setTurnoverTimeSeries] = useState<{ month: string; value: number; retention_rate?: number | null }[]>([]);
   const [interviewingProcessData, setInterviewingProcessData] = useState<{ name: string; value: number }[]>([]);
   const [dataLoading, setDataLoading] = useState(false);
 
@@ -418,31 +417,28 @@ function DashboardContent() {
     ? analytics.retention_rate
     : (turnoverRate != null ? 100 - turnoverRate : null);
   const hasRate = turnoverRate != null && retentionRate != null;
+  const periodLabel = dateRangePreset === 'Year' ? 'annual' : dateRangePreset === 'Month' ? 'month' : dateRangePreset.toLowerCase();
 
-  // Get terminated breakdown by role
-  // Ensure roleBreakdown is always an array before calling filter
+  // Quit and Terminated breakdown by role (both shown at once, separated)
   const safeRoleBreakdown = Array.isArray(roleBreakdown) ? roleBreakdown : [];
-  const terminatedBreakdownData = currentChart === 'terminated'
-    ? safeRoleBreakdown
-        .filter(r => r.terminated > 0)
-        .map((r, idx) => ({
-          name: r.role,
-          value: r.terminated,
-          percentage: safeRoleBreakdown.reduce((sum, role) => sum + role.terminated, 0) > 0
-            ? Math.round((r.terminated / safeRoleBreakdown.reduce((sum, role) => sum + role.terminated, 0)) * 100 * 10) / 10
-            : 0,
-          color: roleColors[idx % roleColors.length],
-        }))
-    : safeRoleBreakdown
-        .filter(r => r.quit > 0)
-        .map((r, idx) => ({
-          name: r.role,
-          value: r.quit,
-          percentage: safeRoleBreakdown.reduce((sum, role) => sum + role.quit, 0) > 0
-            ? Math.round((r.quit / safeRoleBreakdown.reduce((sum, role) => sum + role.quit, 0)) * 100 * 10) / 10
-            : 0,
-          color: roleColors[idx % roleColors.length],
-        }));
+  const totalQuit = safeRoleBreakdown.reduce((sum, r) => sum + r.quit, 0);
+  const totalTerminated = safeRoleBreakdown.reduce((sum, r) => sum + r.terminated, 0);
+  const quitBreakdownData = safeRoleBreakdown
+    .filter(r => r.quit > 0)
+    .map((r, idx) => ({
+      name: r.role,
+      value: r.quit,
+      percentage: totalQuit > 0 ? Math.round((r.quit / totalQuit) * 100 * 10) / 10 : 0,
+      color: roleColors[idx % roleColors.length],
+    }));
+  const terminatedBreakdownData = safeRoleBreakdown
+    .filter(r => r.terminated > 0)
+    .map((r, idx) => ({
+      name: r.role,
+      value: r.terminated,
+      percentage: totalTerminated > 0 ? Math.round((r.terminated / totalTerminated) * 100 * 10) / 10 : 0,
+      color: roleColors[(idx + 3) % roleColors.length],
+    }));
 
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -554,8 +550,8 @@ function DashboardContent() {
               { label: 'Total Employees', value: analyticsLoading ? '...' : totalEmployees.toLocaleString(), sub: `+${analytics?.last_30_days || 0} new`, color: COLORS.gray[900] },
               { label: 'Terminated', value: dataLoading ? '...' : (analytics?.by_status?.termination || 0), sub: 'employees', color: COLORS.gray[900] },
               { label: 'Quit', value: dataLoading ? '...' : (analytics?.by_status?.leave || 0), sub: 'employees', color: COLORS.gray[900] },
-              { label: 'Turnover Rate', value: dataLoading ? '...' : (hasRate ? `${turnoverRate}%` : 'N/A'), sub: 'annual', color: COLORS.negative },
-              { label: 'Retention', value: dataLoading ? '...' : (retentionRate != null ? `${retentionRate.toFixed(1)}%` : 'N/A'), sub: 'annual', color: COLORS.success },
+              { label: 'Turnover Rate', value: dataLoading ? '...' : (hasRate ? `${turnoverRate}%` : 'N/A'), sub: periodLabel, color: COLORS.negative },
+              { label: 'Retention', value: dataLoading ? '...' : (retentionRate != null ? `${retentionRate.toFixed(1)}%` : 'N/A'), sub: periodLabel, color: COLORS.success },
             ].map((kpi, idx) => (
               <div key={idx} className="rounded-xl p-3 sm:p-4 min-w-0" style={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}` }}>
                 <p className="text-xs font-medium uppercase tracking-wide mb-1 sm:mb-2 truncate" style={{ color: COLORS.gray[400] }}>{kpi.label}</p>
@@ -678,14 +674,14 @@ function DashboardContent() {
                     </PieChart>
                   </ResponsiveContainer>
                   </div>
-                  <div className="flex flex-col gap-3 flex-1 w-full md:min-w-0 min-w-[8rem]">
+                  <div className="flex flex-col gap-4 flex-1 w-full md:min-w-0 min-w-[8rem]">
                     {terminatedQuitData.map((item, idx) => (
-                      <div key={idx} className="flex items-center justify-between gap-2 min-w-0">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: CHART_COLORS[idx] }} />
-                          <span className="text-sm truncate" style={{ color: COLORS.gray[600] }}>{item.name}</span>
+                      <div key={idx} className="flex items-start gap-2 min-w-0">
+                        <div className="w-3 h-3 rounded-full flex-shrink-0 mt-0.5" style={{ backgroundColor: CHART_COLORS[idx] }} />
+                        <div className="flex flex-col min-w-0">
+                          <span className="text-sm leading-tight" style={{ color: COLORS.gray[600] }}>{item.name}</span>
+                          <span className="text-sm font-medium mt-0.5" style={{ color: COLORS.gray[900] }}>{item.value} ({item.percentage}%)</span>
                         </div>
-                        <span className="text-sm font-medium whitespace-nowrap flex-shrink-0" style={{ color: COLORS.gray[900] }}>{item.value} ({item.percentage}%)</span>
                       </div>
                     ))}
                   </div>
@@ -700,127 +696,138 @@ function DashboardContent() {
 
           {/* Role Breakdown Row */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6 mb-4 lg:mb-6">
-            {/* Quit by Role */}
+            {/* Quit & Terminated by Role - left and right with donuts */}
             <div className="rounded-xl p-4 sm:p-6 min-w-0 overflow-hidden" style={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}` }}>
-              <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
-                <h2 className="text-sm font-medium" style={{ color: COLORS.gray[900] }}>
-                  {currentChart === 'terminated' ? 'Terminated by Role' : 'Quit by Role'}
-                </h2>
-                <div className="flex items-center gap-1 rounded-lg p-1 flex-shrink-0" style={{ backgroundColor: COLORS.gray[100] }}>
-                  <button
-                    onClick={() => setCurrentChart('quit')}
-                    className="cursor-pointer px-3 py-1.5 text-xs rounded-md transition-all"
-                    style={{ 
-                      backgroundColor: currentChart === 'quit' ? '#fff' : 'transparent',
-                      color: currentChart === 'quit' ? COLORS.gray[900] : COLORS.gray[500],
-                      boxShadow: currentChart === 'quit' ? '0 1px 2px rgba(0,0,0,0.05)' : 'none'
-                    }}
-                  >
-                    Quit
-                  </button>
-                  <button
-                    onClick={() => setCurrentChart('terminated')}
-                    className="cursor-pointer px-3 py-1.5 text-xs rounded-md transition-all"
-                    style={{ 
-                      backgroundColor: currentChart === 'terminated' ? '#fff' : 'transparent',
-                      color: currentChart === 'terminated' ? COLORS.gray[700] : COLORS.gray[500],
-                      boxShadow: currentChart === 'terminated' ? '0 1px 2px rgba(0,0,0,0.05)' : 'none'
-                    }}
-                  >
-                    Terminated
-                  </button>
+              <h2 className="text-sm font-medium mb-4" style={{ color: COLORS.gray[900] }}>Quit & Terminated by Role</h2>
+              <div className="flex flex-col sm:flex-row gap-4 sm:gap-6">
+                {/* Left: Quit by Role */}
+                <div className="flex-1 min-w-0 border-r-0 sm:border-r sm:pr-6" style={{ borderColor: COLORS.gray[200] }}>
+                  <h3 className="text-xs font-medium uppercase tracking-wide mb-2" style={{ color: COLORS.gray[500] }}>Quit</h3>
+                  {quitBreakdownData.length > 0 ? (
+                    <div className="flex items-center gap-3">
+                      <div className="w-24 h-24 min-w-[6rem] min-h-[6rem] flex-shrink-0">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart margin={{ top: 4, right: 4, bottom: 4, left: 4 }}>
+                            <Pie
+                              data={quitBreakdownData}
+                              cx="50%"
+                              cy="50%"
+                              innerRadius="50%"
+                              outerRadius="75%"
+                              dataKey="value"
+                              paddingAngle={2}
+                            >
+                              {quitBreakdownData.map((entry, index) => (
+                                <Cell key={`quit-${index}`} fill={entry.color} />
+                              ))}
+                            </Pie>
+                            <Tooltip
+                              contentStyle={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}`, borderRadius: '6px', padding: '6px 8px', fontSize: '11px' }}
+                            />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      </div>
+                      <div className="flex flex-col gap-1.5 flex-1 min-w-0 max-h-[96px] overflow-y-auto">
+                        {quitBreakdownData.map((item, idx) => (
+                          <div key={idx} className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: item.color }} />
+                              <span className="text-sm truncate" style={{ color: COLORS.gray[600] }}>{item.name}</span>
+                            </div>
+                            <span className="text-sm font-medium flex-shrink-0" style={{ color: COLORS.gray[900] }}>{item.value}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-sm" style={{ color: COLORS.gray[400] }}>{dataLoading ? 'Loading...' : 'No data'}</p>
+                  )}
+                </div>
+
+                {/* Right: Terminated by Role */}
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-xs font-medium uppercase tracking-wide mb-2" style={{ color: COLORS.gray[500] }}>Terminated</h3>
+                  {terminatedBreakdownData.length > 0 ? (
+                    <div className="flex items-center gap-3">
+                      <div className="w-24 h-24 min-w-[6rem] min-h-[6rem] flex-shrink-0">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart margin={{ top: 4, right: 4, bottom: 4, left: 4 }}>
+                            <Pie
+                              data={terminatedBreakdownData}
+                              cx="50%"
+                              cy="50%"
+                              innerRadius="50%"
+                              outerRadius="75%"
+                              dataKey="value"
+                              paddingAngle={2}
+                            >
+                              {terminatedBreakdownData.map((entry, index) => (
+                                <Cell key={`term-${index}`} fill={entry.color} />
+                              ))}
+                            </Pie>
+                            <Tooltip
+                              contentStyle={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}`, borderRadius: '6px', padding: '6px 8px', fontSize: '11px' }}
+                            />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      </div>
+                      <div className="flex flex-col gap-1.5 flex-1 min-w-0 max-h-[96px] overflow-y-auto">
+                        {terminatedBreakdownData.map((item, idx) => (
+                          <div key={idx} className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: item.color }} />
+                              <span className="text-sm truncate" style={{ color: COLORS.gray[600] }}>{item.name}</span>
+                            </div>
+                            <span className="text-sm font-medium flex-shrink-0" style={{ color: COLORS.gray[900] }}>{item.value}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-sm" style={{ color: COLORS.gray[400] }}>{dataLoading ? 'Loading...' : 'No data'}</p>
+                  )}
                 </div>
               </div>
-              {terminatedBreakdownData.length > 0 ? (
-                <div className="flex flex-col md:flex-row items-center gap-4 md:gap-6">
-                  <div className="w-full md:w-[45%] min-w-0" style={{ height: 180 }}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={terminatedBreakdownData}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={40}
-                        outerRadius={65}
-                        dataKey="value"
-                        paddingAngle={2}
-                      >
-                        {terminatedBreakdownData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip 
-                        contentStyle={{ 
-                          backgroundColor: '#fff', 
-                          border: `1px solid ${COLORS.gray[200]}`,
-                          borderRadius: '8px',
-                          padding: '8px 12px',
-                          fontSize: '12px'
-                        }}
-                      />
-                    </PieChart>
-                  </ResponsiveContainer>
-                  </div>
-                  <div className="flex flex-col gap-2 flex-1 w-full md:min-w-0 max-h-[180px] overflow-y-auto">
-                    {terminatedBreakdownData.map((item, idx) => (
-                      <div key={idx} className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: CHART_COLORS[idx % CHART_COLORS.length] }}></div>
-                          <span className="text-sm truncate" style={{ color: COLORS.gray[600] }}>{item.name}</span>
-                        </div>
-                        <span className="text-sm font-medium flex-shrink-0" style={{ color: COLORS.gray[900] }}>{item.value}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : (
-                <div className="text-center py-12" style={{ color: COLORS.gray[400] }}>
-                  <div className="text-sm">{dataLoading ? 'Loading...' : 'No data'}</div>
-                </div>
-              )}
             </div>
 
-            {/* Turnover Trend */}
+            {/* Turnover Trend & Retention Trend */}
             <div className="rounded-xl p-4 sm:p-6 min-w-0 overflow-hidden" style={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}` }}>
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-sm font-medium" style={{ color: COLORS.gray[900] }}>Turnover Trend</h2>
-              </div>
-              {turnoverTimeSeries.length > 0 ? (
-                <ResponsiveContainer width="100%" height={180}>
-                  <LineChart data={turnoverTimeSeries} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke={COLORS.gray[200]} />
-                    <XAxis 
-                      dataKey="month" 
-                      tick={{ fill: COLORS.gray[500], fontSize: 11 }}
-                    />
-                    <YAxis 
-                      domain={[0, 'auto']} 
-                      tick={{ fill: COLORS.gray[500], fontSize: 11 }}
-                    />
-                    <Tooltip 
-                      contentStyle={{ 
-                        backgroundColor: '#fff', 
-                        border: `1px solid ${COLORS.gray[200]}`,
-                        borderRadius: '8px',
-                        padding: '8px 12px',
-                        fontSize: '12px'
-                      }}
-                    />
-                    <Line 
-                      type="monotone" 
-                      dataKey="value" 
-                      stroke={COLORS.primary} 
-                      strokeWidth={2} 
-                      dot={{ fill: COLORS.primary, r: 3 }} 
-                      activeDot={{ r: 5 }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="text-center py-12" style={{ color: COLORS.gray[400] }}>
-                  <div className="text-sm">{dataLoading ? 'Loading...' : 'No data'}</div>
+              <div className="flex flex-col sm:flex-row gap-4 sm:gap-6">
+                {/* Left: Turnover Trend */}
+                <div className="flex-1 min-w-0">
+                  <h2 className="text-sm font-medium mb-3" style={{ color: COLORS.gray[900] }}>Turnover Trend</h2>
+                  {turnoverTimeSeries.length > 0 ? (
+                    <ResponsiveContainer width="100%" height={180}>
+                      <LineChart data={turnoverTimeSeries} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke={COLORS.gray[200]} />
+                        <XAxis dataKey="month" tick={{ fill: COLORS.gray[500], fontSize: 11 }} />
+                        <YAxis domain={[0, 'auto']} tick={{ fill: COLORS.gray[500], fontSize: 11 }} />
+                        <Tooltip contentStyle={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}`, borderRadius: '8px', padding: '8px 12px', fontSize: '12px' }} />
+                        <Line type="monotone" dataKey="value" name="Exits" stroke={COLORS.primary} strokeWidth={2} dot={{ fill: COLORS.primary, r: 3 }} activeDot={{ r: 5 }} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="text-center py-12" style={{ color: COLORS.gray[400] }}><div className="text-sm">{dataLoading ? 'Loading...' : 'No data'}</div></div>
+                  )}
                 </div>
-              )}
+                {/* Right: Retention Trend */}
+                <div className="flex-1 min-w-0">
+                  <h2 className="text-sm font-medium mb-3" style={{ color: COLORS.gray[900] }}>Retention Trend</h2>
+                  {turnoverTimeSeries.length > 0 && turnoverTimeSeries.some(d => d.retention_rate != null) ? (
+                    <ResponsiveContainer width="100%" height={180}>
+                      <LineChart data={turnoverTimeSeries} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke={COLORS.gray[200]} />
+                        <XAxis dataKey="month" tick={{ fill: COLORS.gray[500], fontSize: 11 }} />
+                        <YAxis domain={[0, 100]} tick={{ fill: COLORS.gray[500], fontSize: 11 }} />
+                        <Tooltip contentStyle={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}`, borderRadius: '8px', padding: '8px 12px', fontSize: '12px' }} formatter={(v: number) => [`${v}%`, 'Retention']} />
+                        <Line type="monotone" dataKey="retention_rate" name="Retention %" stroke={COLORS.success} strokeWidth={2} dot={{ fill: COLORS.success, r: 3 }} activeDot={{ r: 5 }} connectNulls />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="text-center py-12" style={{ color: COLORS.gray[400] }}><div className="text-sm">{dataLoading ? 'Loading...' : 'No data'}</div></div>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         </main>
