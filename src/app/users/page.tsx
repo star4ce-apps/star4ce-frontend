@@ -507,8 +507,8 @@ export default function UserManagementPage() {
           <div className="mb-8">
             <div className="flex items-center justify-between mb-6">
               <div>
-                <h1 className="text-4xl font-bold mb-2" style={{ color: '#232E40', letterSpacing: '-0.02em' }}>Sub Accounts</h1>
-                <p className="text-base" style={{ color: '#6B7280' }}>Manage manager accounts and permissions for your dealership</p>
+                <h1 className="text-2xl font-semibold mb-1" style={{ color: '#232E40' }}>Sub Accounts</h1>
+                <p className="text-sm" style={{ color: '#6B7280' }}>Manage manager accounts and permissions for your dealership</p>
               </div>
               {activeTab === 'managers' && (
                 <button

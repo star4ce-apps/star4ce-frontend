@@ -216,8 +216,8 @@ export default function SelectDealershipPage() {
           {/* Header */}
           <div className="mb-8">
             <div className="mb-6">
-              <h1 className="text-4xl font-bold mb-2" style={{ color: '#232E40', letterSpacing: '-0.02em' }}>Dealerships</h1>
-              <p className="text-base" style={{ color: '#6B7280' }}>Request access to view dealerships or select one you already have access to</p>
+              <h1 className="text-2xl font-semibold mb-1" style={{ color: '#232E40' }}>Dealerships</h1>
+              <p className="text-sm" style={{ color: '#6B7280' }}>Request access to view dealerships or select one you already have access to</p>
             </div>
             
             {/* Search */}

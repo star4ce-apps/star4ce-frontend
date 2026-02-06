@@ -23,6 +23,43 @@ const COLORS = {
   }
 };
 
+// Job roles dropdown options
+const JOB_ROLES = [
+  'Body Shop Manager',
+  'Body Shop Technician',
+  'Business Manager',
+  'Business Office Support',
+  'C-Level Executives',
+  'Platform Manager',
+  'Controller',
+  'Finance Manager',
+  'Finance Director',
+  'General Manager',
+  'Human Resources Manager',
+  'IT Manager',
+  'Loaner Agent',
+  'Mobility Manager',
+  'Parts Counter Employee',
+  'Parts Manager',
+  'Parts Support',
+  'Drivers',
+  'Sales Manager',
+  'GSM',
+  'Sales People',
+  'Sales Support',
+  'Receptionist',
+  'Service Advisor',
+  'Service Director',
+  'Service Drive Manager',
+  'Service Manager',
+  'Parts and Service Director',
+  'Service Support',
+  'Porters',
+  'Technician',
+  'Used Car Director',
+  'Used Car Manager',
+];
+
 type Employee = {
   id: number;
   name: string;
@@ -1338,19 +1375,29 @@ export default function EmployeesPage() {
                     </div>
                     <div>
                       <label className="block text-xs font-semibold mb-1.5" style={{ color: '#374151' }}>Job Title *</label>
-                      <input
-                        type="text"
-                        placeholder="e.g., Sales Consultant"
-                        value={formData.jobTitle}
-                        onChange={(e) => setFormData({ ...formData, jobTitle: e.target.value })}
-                        required
-                        className="w-full px-3 py-2 text-sm rounded-lg transition-all focus:outline-none focus:ring-2"
-                        style={{ 
-                          border: '1px solid #D1D5DB', 
-                          color: '#374151', 
-                          backgroundColor: '#FFFFFF',
-                        }}
-                      />
+                      <div className="relative">
+                        <select
+                          value={formData.jobTitle}
+                          onChange={(e) => setFormData({ ...formData, jobTitle: e.target.value })}
+                          required
+                          className="w-full px-3 py-2 text-sm rounded-lg appearance-none cursor-pointer transition-all focus:outline-none focus:ring-2"
+                          style={{ 
+                            border: '1px solid #D1D5DB', 
+                            color: '#374151', 
+                            backgroundColor: '#FFFFFF',
+                          }}
+                        >
+                          <option value="">Select Job Title</option>
+                          {JOB_ROLES.map(role => (
+                            <option key={role} value={role}>{role}</option>
+                          ))}
+                        </select>
+                        <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: '#6B7280' }}>
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                          </svg>
+                        </div>
+                      </div>
                     </div>
                     <div>
                       <label className="block text-xs font-semibold mb-1.5" style={{ color: '#374151' }}>Hired Date *</label>
@@ -1481,11 +1528,6 @@ export default function EmployeesPage() {
             <div 
               className="fixed inset-0 z-50 flex items-center justify-center p-4"
               style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}
-              onClick={(e) => {
-                if (e.target === e.currentTarget) {
-                  resetForm();
-                }
-              }}
             >
               <div 
                 className="bg-white rounded-xl shadow-2xl"
@@ -1689,19 +1731,29 @@ export default function EmployeesPage() {
                     </div>
                     <div>
                       <label className="block text-xs font-semibold mb-1.5" style={{ color: '#374151' }}>Job Title *</label>
-                      <input
-                        type="text"
-                        placeholder="e.g., Sales Consultant"
-                        value={formData.jobTitle}
-                        onChange={(e) => setFormData({ ...formData, jobTitle: e.target.value })}
-                        required
-                        className="w-full px-3 py-2 text-sm rounded-lg transition-all focus:outline-none focus:ring-2"
-                        style={{ 
-                          border: '1px solid #D1D5DB', 
-                          color: '#374151', 
-                          backgroundColor: '#FFFFFF',
-                        }}
-                      />
+                      <div className="relative">
+                        <select
+                          value={formData.jobTitle}
+                          onChange={(e) => setFormData({ ...formData, jobTitle: e.target.value })}
+                          required
+                          className="w-full px-3 py-2 text-sm rounded-lg appearance-none cursor-pointer transition-all focus:outline-none focus:ring-2"
+                          style={{ 
+                            border: '1px solid #D1D5DB', 
+                            color: '#374151', 
+                            backgroundColor: '#FFFFFF',
+                          }}
+                        >
+                          <option value="">Select Job Title</option>
+                          {JOB_ROLES.map(role => (
+                            <option key={role} value={role}>{role}</option>
+                          ))}
+                        </select>
+                        <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: '#6B7280' }}>
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                          </svg>
+                        </div>
+                      </div>
                     </div>
                     <div>
                       <label className="block text-xs font-semibold mb-1.5" style={{ color: '#374151' }}>Hired Date *</label>
