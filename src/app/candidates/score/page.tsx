@@ -2465,12 +2465,18 @@ export default function ScoreCandidatePage() {
     }
   }, [candidates, searchParams, selectedCandidate, selectedRole, selectedStage]);
 
+  function getCandidateQueryParams(): string {
+    if (typeof window === 'undefined') return '';
+    const id = localStorage.getItem('selected_dealership_id');
+    return id ? `?dealership_id=${id}` : '';
+  }
+
   async function loadCandidates() {
     try {
       const token = getToken();
       if (!token) return;
 
-      const res = await fetch(`${API_BASE}/candidates`, {
+      const res = await fetch(`${API_BASE}/candidates${getCandidateQueryParams()}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -2675,7 +2681,7 @@ Additional Notes:
 ${additionalNotes}` : ''}`;
 
       // Fetch current candidate to get existing notes
-      const candidateRes = await fetch(`${API_BASE}/candidates/${selectedCandidate}`, {
+      const candidateRes = await fetch(`${API_BASE}/candidates/${selectedCandidate}${getCandidateQueryParams()}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       
@@ -2701,7 +2707,7 @@ ${additionalNotes}` : ''}`;
       }
 
       // Update candidate with score and notes
-      const res = await fetch(`${API_BASE}/candidates/${selectedCandidate}`, {
+      const res = await fetch(`${API_BASE}/candidates/${selectedCandidate}${getCandidateQueryParams()}`, {
         method: 'PUT',
         headers: {
           Authorization: `Bearer ${token}`,
