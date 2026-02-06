@@ -211,7 +211,23 @@ export default function AnalyticsPage() {
       if (summaryData) setSummary(summaryData);
       if (averagesData) setAverages(averagesData);
       if (breakdownData) {
-        setRoleBreakdown(breakdownData.breakdown || breakdownData || {});
+        const raw = breakdownData.breakdown ?? breakdownData;
+        // Backend may return array [{ role, terminated, quit, total }] or legacy object { [role]: { count, by_status } }
+        const normalized: RoleBreakdown = Array.isArray(raw)
+          ? (raw as { role: string; terminated: number; quit: number; total: number }[]).reduce<RoleBreakdown>((acc, r) => {
+              acc[r.role] = {
+                count: r.total,
+                by_status: {
+                  'newly-hired': 0,
+                  termination: r.terminated,
+                  leave: r.quit,
+                  none: Math.max(0, r.total - r.terminated - r.quit),
+                },
+              };
+              return acc;
+            }, {})
+          : (raw as RoleBreakdown);
+        setRoleBreakdown(normalized);
       }
       if (timeSeriesData) {
         setTimeSeries(timeSeriesData.data || timeSeriesData || []);
