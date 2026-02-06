@@ -94,6 +94,8 @@ export default function EmployeesPage() {
   const [showViewModal, setShowViewModal] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [viewingEmployee, setViewingEmployee] = useState<Employee | null>(null);
+  const [performanceScore, setPerformanceScore] = useState<number | null>(null);
+  const [loadingPerformanceScore, setLoadingPerformanceScore] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedJobTitle, setSelectedJobTitle] = useState('All Job Titles');
   const [selectedStatus, setSelectedStatus] = useState('All Statuses');
@@ -279,12 +281,49 @@ export default function EmployeesPage() {
     setShowViewModal(false);
     setEditingEmployee(null);
     setViewingEmployee(null);
+    setPerformanceScore(null);
     setError(null);
+  }
+
+  async function loadPerformanceScore(employeeId: number) {
+    setLoadingPerformanceScore(true);
+    try {
+      const token = getToken();
+      if (!token) {
+        setPerformanceScore(null);
+        return;
+      }
+
+      // Try to fetch performance reviews for this employee
+      const data = await getJsonAuth<{ ok: boolean; reviews?: any[] }>(`/employees/${employeeId}/performance-reviews`);
+      
+      if (data.ok && data.reviews && data.reviews.length > 0) {
+        // Calculate average of overall_rating from all reviews
+        const ratings = data.reviews
+          .map((review: any) => review.overall_rating)
+          .filter((rating: any) => rating !== null && rating !== undefined && !isNaN(rating));
+        
+        if (ratings.length > 0) {
+          const average = ratings.reduce((sum: number, rating: number) => sum + rating, 0) / ratings.length;
+          setPerformanceScore(Math.round(average * 10) / 10); // Round to 1 decimal place
+        } else {
+          setPerformanceScore(null);
+        }
+      } else {
+        setPerformanceScore(null);
+      }
+    } catch (err) {
+      console.error('Failed to load performance score:', err);
+      setPerformanceScore(null);
+    } finally {
+      setLoadingPerformanceScore(false);
+    }
   }
 
   function openViewModal(employee: Employee) {
     setViewingEmployee(employee);
     setShowViewModal(true);
+    loadPerformanceScore(employee.id);
   }
 
   function openEditModal(employee: Employee) {
@@ -1079,6 +1118,24 @@ export default function EmployeesPage() {
                             >
                               {viewingEmployee.status || (viewingEmployee.is_active ? 'Active' : 'Inactive')}
                             </span>
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium mb-1.5" style={{ color: '#6B7280' }}>Performance Score</label>
+                          <div className="text-sm font-semibold" style={{ color: '#232E40' }}>
+                            {loadingPerformanceScore ? (
+                              <span style={{ color: '#6B7280' }}>Loading...</span>
+                            ) : performanceScore !== null ? (
+                              <span style={{ 
+                                color: performanceScore >= 4 ? '#059669' : 
+                                       performanceScore >= 3 ? '#D97706' : 
+                                       '#DC2626' 
+                              }}>
+                                {performanceScore.toFixed(1)} / 5.0
+                              </span>
+                            ) : (
+                              <span style={{ color: '#6B7280' }}>—</span>
+                            )}
                           </div>
                         </div>
                       </div>

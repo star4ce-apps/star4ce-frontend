@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { API_BASE } from '@/lib/auth';
+import { API_BASE, getToken } from '@/lib/auth';
 import Logo from '@/components/Logo';
 
 export default function VerifyPage() {
@@ -33,6 +33,18 @@ export default function VerifyPage() {
   
   useEffect(() => {
     const qEmail = search.get('email');
+    const subscriptionParam = search.get('subscription');
+    
+    // If user is already logged in and coming from subscription success, redirect to subscription page
+    if (subscriptionParam === 'success') {
+      const token = getToken();
+      if (token) {
+        // User is already logged in, redirect to subscription page
+        router.replace('/subscription?subscription=success');
+        return;
+      }
+    }
+    
     if (qEmail) {
       // Next.js searchParams automatically decodes URL parameters
       setEmail(qEmail);
@@ -40,7 +52,6 @@ export default function VerifyPage() {
     }
     
     // Check if coming from subscription success
-    const subscriptionParam = search.get('subscription');
     if (subscriptionParam === 'success') {
       setMessage('🎉 Subscription successful! Your admin account has been created. Please check your email for the verification code to complete setup.');
       
@@ -72,7 +83,7 @@ export default function VerifyPage() {
         }, 2000); // Wait 2 seconds for webhook to potentially fire first
       }
     }
-  }, [search, router, email]);
+  }, [search, router, email, showCode]);
 
   useEffect(() => {
     if (!email || devCodeRequested) return;
