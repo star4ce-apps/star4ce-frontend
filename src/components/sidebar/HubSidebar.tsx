@@ -479,6 +479,9 @@ export default function HubSidebar() {
                   setSelectedDealership(dealership);
                   localStorage.setItem('selected_dealership_id', id.toString());
                   localStorage.setItem('selected_dealership_name', dealership.name);
+                  if (typeof window !== 'undefined') {
+                    window.dispatchEvent(new CustomEvent('dealership-changed', { detail: { dealershipId: id } }));
+                  }
                   router.push('/dashboard');
                 }
               }}

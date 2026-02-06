@@ -36,6 +36,8 @@ type AnalyticsSummary = {
     leave: number;
     none: number;
   };
+  turnover_rate?: number | null;
+  retention_rate?: number | null;
 };
 
 // Modern color palette - matching surveys page
@@ -96,6 +98,8 @@ function DashboardContent() {
     return new Date().toISOString().split('T')[0]; // Today
   });
   const [dateRangePreset, setDateRangePreset] = useState<string>('Year');
+  // Corporate "VIEWING" dealership – refetch when changed from sidebar
+  const [selectedDealershipId, setSelectedDealershipId] = useState<number | null>(null);
 
   const handleDatePresetChange = (preset: string) => {
     setDateRangePreset(preset);
@@ -216,6 +220,23 @@ function DashboardContent() {
     }
   }, [searchParams]);
 
+  // Sync selected dealership from localStorage on mount (corporate)
+  useEffect(() => {
+    const id = typeof window !== 'undefined' ? localStorage.getItem('selected_dealership_id') : null;
+    setSelectedDealershipId(id ? parseInt(id, 10) : null);
+  }, []);
+
+  // Refetch when corporate user changes dealership in sidebar
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent<{ dealershipId: number }>).detail;
+      if (detail?.dealershipId != null) setSelectedDealershipId(detail.dealershipId);
+    };
+    window.addEventListener('dealership-changed', handler);
+    return () => window.removeEventListener('dealership-changed', handler);
+  }, []);
+
   // Health check
   useEffect(() => {
     (async () => {
@@ -245,8 +266,11 @@ function DashboardContent() {
           return;
         }
 
-        // Build date range query params
-        const rangeParam = `?start_date=${startDate}&end_date=${endDate}`;
+        // Build date range query params; corporate can pass selected dealership
+        let rangeParam = `?start_date=${startDate}&end_date=${endDate}`;
+        if (selectedDealershipId != null) {
+          rangeParam += `&dealership_id=${selectedDealershipId}`;
+        }
 
         // Fetch all data in parallel using Promise.allSettled to handle permission errors gracefully
         // This allows individual endpoints to fail without breaking the entire dashboard
@@ -364,14 +388,19 @@ function DashboardContent() {
         setDataLoading(false);
       }
     })();
-  }, [startDate, endDate]);
+  }, [startDate, endDate, selectedDealershipId]);
 
-  // Calculate metrics from API data
-  const totalEmployees = analytics?.total_responses || 0;
-  const terminatedQuit = (analytics?.by_status?.termination || 0) + (analytics?.by_status?.leave || 0);
-  const turnoverRate = totalEmployees > 0 
-    ? Math.round(((terminatedQuit / totalEmployees) * 100) * 10) / 10 
-    : 0;
+  // Use real employee data from API (total_responses = ending headcount, by_status = exits in period)
+  const totalEmployees = analytics?.total_responses ?? 0;
+  const turnoverRate: number | null = typeof analytics?.turnover_rate === 'number'
+    ? analytics.turnover_rate
+    : (totalEmployees > 0
+        ? Math.round((( (analytics?.by_status?.termination || 0) + (analytics?.by_status?.leave || 0) ) / totalEmployees) * 100 * 10) / 10
+        : null);
+  const retentionRate: number | null = typeof analytics?.retention_rate === 'number'
+    ? analytics.retention_rate
+    : (turnoverRate != null ? 100 - turnoverRate : null);
+  const hasRate = turnoverRate != null && retentionRate != null;
 
   // Get terminated breakdown by role
   // Ensure roleBreakdown is always an array before calling filter
@@ -508,8 +537,8 @@ function DashboardContent() {
               { label: 'Total Employees', value: analyticsLoading ? '...' : totalEmployees.toLocaleString(), sub: `+${analytics?.last_30_days || 0} new`, color: COLORS.gray[900] },
               { label: 'Terminated', value: dataLoading ? '...' : (analytics?.by_status?.termination || 0), sub: 'employees', color: COLORS.gray[900] },
               { label: 'Quit', value: dataLoading ? '...' : (analytics?.by_status?.leave || 0), sub: 'employees', color: COLORS.gray[900] },
-              { label: 'Turnover Rate', value: dataLoading ? '...' : `${turnoverRate}%`, sub: 'annual', color: COLORS.negative },
-              { label: 'Retention', value: dataLoading ? '...' : `${(100 - turnoverRate).toFixed(1)}%`, sub: 'annual', color: COLORS.success },
+              { label: 'Turnover Rate', value: dataLoading ? '...' : (hasRate ? `${turnoverRate}%` : 'N/A'), sub: 'annual', color: COLORS.negative },
+              { label: 'Retention', value: dataLoading ? '...' : (retentionRate != null ? `${retentionRate.toFixed(1)}%` : 'N/A'), sub: 'annual', color: COLORS.success },
             ].map((kpi, idx) => (
               <div key={idx} className="rounded-xl p-4" style={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}` }}>
                 <p className="text-xs font-medium uppercase tracking-wide mb-2" style={{ color: COLORS.gray[400] }}>{kpi.label}</p>
