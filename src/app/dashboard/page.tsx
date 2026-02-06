@@ -135,6 +135,7 @@ function DashboardContent() {
   const [roleBreakdown, setRoleBreakdown] = useState<{ role: string; terminated: number; quit: number; total: number }[]>([]);
   const [surveyFeedback, setSurveyFeedback] = useState<{ name: string; value: number; color: string }[]>([]);
   const [turnoverTimeSeries, setTurnoverTimeSeries] = useState<{ month: string; value: number }[]>([]);
+  const [interviewingProcessData, setInterviewingProcessData] = useState<{ name: string; value: number }[]>([]);
   const [dataLoading, setDataLoading] = useState(false);
 
   // Read email from localStorage and check user role
@@ -311,6 +312,13 @@ function DashboardContent() {
             }
             throw err;
           }),
+          getJsonAuth(`/analytics/interviewing-process${rangeParam}`).catch(err => {
+            const errorMsg = err?.message || '';
+            if (errorMsg.includes('403') || errorMsg.includes('forbidden') || errorMsg.includes('insufficient role')) {
+              return { ok: false };
+            }
+            throw err;
+          }),
         ]);
 
         // Extract results, handling both fulfilled and rejected promises
@@ -319,6 +327,7 @@ function DashboardContent() {
         const roleBreakdownData = results[2].status === 'fulfilled' ? results[2].value : { ok: false };
         const surveyFeedbackData = results[3].status === 'fulfilled' ? results[3].value : { ok: false };
         const turnoverData = results[4].status === 'fulfilled' ? results[4].value : { ok: false };
+        const interviewingData = results[5].status === 'fulfilled' ? results[5].value : { ok: false };
 
         if (summaryData.ok) {
           setAnalytics(summaryData as AnalyticsSummary);
@@ -375,6 +384,14 @@ function DashboardContent() {
           setTurnoverTimeSeries(timeSeries);
         } else {
           setTurnoverTimeSeries([]);
+        }
+
+        // Process interviewing process (candidates by status)
+        if (interviewingData.ok && interviewingData.stages) {
+          const stages = Array.isArray(interviewingData.stages) ? interviewingData.stages : [];
+          setInterviewingProcessData(stages);
+        } else {
+          setInterviewingProcessData([]);
         }
       } catch (err: unknown) {
         // Only set error for non-permission related errors
@@ -451,8 +468,8 @@ function DashboardContent() {
       <RequireAuth>
         <div className="flex min-h-screen" style={{ backgroundColor: COLORS.gray[50] }}>
           <HubSidebar />
-          <main className="ml-64 p-8 flex-1" style={{ maxWidth: 'calc(100vw - 256px)' }}>
-            <div className="rounded-xl p-12 text-center" style={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}` }}>
+          <main className="ml-64 flex-1 min-w-0 p-4 sm:p-6 lg:p-8 overflow-x-hidden" style={{ maxWidth: 'calc(100vw - 16rem)' }}>
+            <div className="rounded-xl p-6 sm:p-12 text-center" style={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}` }}>
               <div className="mb-6">
                 <svg className="mx-auto h-16 w-16" fill="none" viewBox="0 0 24 24" stroke="currentColor" style={{ color: COLORS.warning }}>
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -477,32 +494,32 @@ function DashboardContent() {
       <div className="flex min-h-screen" style={{ backgroundColor: COLORS.gray[50] }}>
         <HubSidebar />
         
-        <main className="ml-64 p-8 flex-1" style={{ maxWidth: 'calc(100vw - 256px)' }}>
+        <main className="ml-64 flex-1 min-w-0 p-4 sm:p-6 lg:p-8 overflow-x-hidden" style={{ maxWidth: 'calc(100vw - 16rem)' }}>
           {/* Header */}
-          <div className="mb-8">
-            <div className="flex items-start justify-between">
-              <div>
-                <h1 className="text-2xl font-semibold mb-1" style={{ color: COLORS.gray[900] }}>Dashboard</h1>
+          <div className="mb-6 lg:mb-8">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0">
+                <h1 className="text-xl sm:text-2xl font-semibold mb-1 truncate" style={{ color: COLORS.gray[900] }}>Dashboard</h1>
                 <p className="text-sm" style={{ color: COLORS.gray[500] }}>
                   Overview of your dealership's performance and analytics
                 </p>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center gap-2 sm:gap-3 flex-shrink-0">
                 <div className="flex items-center gap-2 px-3 py-2 rounded-lg" style={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}` }}>
                   <input
                     type="date"
                     value={startDate}
                     onChange={(e) => setStartDate(e.target.value)}
-                    className="text-sm border-none outline-none bg-transparent"
-                    style={{ color: COLORS.gray[700], width: '120px' }}
+                    className="text-sm border-none outline-none bg-transparent min-w-0"
+                    style={{ color: COLORS.gray[700], width: '110px', maxWidth: '50vw' }}
                   />
-                  <span className="text-sm" style={{ color: COLORS.gray[300] }}>—</span>
+                  <span className="text-sm flex-shrink-0" style={{ color: COLORS.gray[300] }}>—</span>
                   <input
                     type="date"
                     value={endDate}
                     onChange={(e) => setEndDate(e.target.value)}
-                    className="text-sm border-none outline-none bg-transparent"
-                    style={{ color: COLORS.gray[700], width: '120px' }}
+                    className="text-sm border-none outline-none bg-transparent min-w-0"
+                    style={{ color: COLORS.gray[700], width: '110px', maxWidth: '50vw' }}
                   />
                 </div>
                 <div className="relative">
@@ -532,7 +549,7 @@ function DashboardContent() {
           </div>
 
           {/* Key Metrics Cards */}
-          <div className="grid grid-cols-5 gap-4 mb-6">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 mb-4 lg:mb-6">
             {[
               { label: 'Total Employees', value: analyticsLoading ? '...' : totalEmployees.toLocaleString(), sub: `+${analytics?.last_30_days || 0} new`, color: COLORS.gray[900] },
               { label: 'Terminated', value: dataLoading ? '...' : (analytics?.by_status?.termination || 0), sub: 'employees', color: COLORS.gray[900] },
@@ -540,26 +557,56 @@ function DashboardContent() {
               { label: 'Turnover Rate', value: dataLoading ? '...' : (hasRate ? `${turnoverRate}%` : 'N/A'), sub: 'annual', color: COLORS.negative },
               { label: 'Retention', value: dataLoading ? '...' : (retentionRate != null ? `${retentionRate.toFixed(1)}%` : 'N/A'), sub: 'annual', color: COLORS.success },
             ].map((kpi, idx) => (
-              <div key={idx} className="rounded-xl p-4" style={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}` }}>
-                <p className="text-xs font-medium uppercase tracking-wide mb-2" style={{ color: COLORS.gray[400] }}>{kpi.label}</p>
-                <p className="text-2xl font-semibold" style={{ color: kpi.color }}>{kpi.value}</p>
-                <p className="text-xs mt-1" style={{ color: COLORS.gray[400] }}>{kpi.sub}</p>
+              <div key={idx} className="rounded-xl p-3 sm:p-4 min-w-0" style={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}` }}>
+                <p className="text-xs font-medium uppercase tracking-wide mb-1 sm:mb-2 truncate" style={{ color: COLORS.gray[400] }}>{kpi.label}</p>
+                <p className="text-xl sm:text-2xl font-semibold truncate" style={{ color: kpi.color }}>{kpi.value}</p>
+                <p className="text-xs mt-1 truncate" style={{ color: COLORS.gray[400] }}>{kpi.sub}</p>
               </div>
             ))}
           </div>
 
           {/* Interview Process, Survey Feedback, and Role Distribution */}
-          <div className="grid grid-cols-3 gap-6 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6 mb-4 lg:mb-6">
             {/* Interviewing Process */}
-            <div className="rounded-xl p-6" style={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}` }}>
+            <div className="rounded-xl p-4 sm:p-6 min-w-0 overflow-hidden" style={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}` }}>
               <h2 className="text-sm font-medium mb-4" style={{ color: COLORS.gray[900] }}>Interviewing Process</h2>
-              <div className="text-center py-12" style={{ color: COLORS.gray[400] }}>
-                <div className="text-sm">No data available</div>
-              </div>
+              {interviewingProcessData.length > 0 ? (
+                <ResponsiveContainer width="100%" height={180}>
+                  <BarChart data={interviewingProcessData} margin={{ top: 5, right: 5, left: -15, bottom: 40 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke={COLORS.gray[200]} />
+                    <XAxis 
+                      dataKey="name" 
+                      angle={-45} 
+                      textAnchor="end" 
+                      height={50}
+                      tick={{ fill: COLORS.gray[500], fontSize: 9 }}
+                    />
+                    <YAxis tick={{ fill: COLORS.gray[500], fontSize: 9 }} />
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: '#fff', 
+                        border: `1px solid ${COLORS.gray[200]}`,
+                        borderRadius: '6px',
+                        padding: '6px 10px',
+                        fontSize: '11px'
+                      }}
+                    />
+                    <Bar dataKey="value" radius={[4, 4, 0, 0]} fill={COLORS.primary}>
+                      {interviewingProcessData.map((_, index) => (
+                        <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="text-center py-12" style={{ color: COLORS.gray[400] }}>
+                  <div className="text-sm">{dataLoading ? 'Loading...' : 'No data available'}</div>
+                </div>
+              )}
             </div>
 
             {/* Survey Feedback */}
-            <div className="rounded-xl p-6" style={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}` }}>
+            <div className="rounded-xl p-4 sm:p-6 min-w-0 overflow-hidden" style={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}` }}>
               <h2 className="text-sm font-medium mb-4" style={{ color: COLORS.gray[900] }}>Survey Feedback</h2>
               {surveyFeedback.length > 0 ? (
                 <ResponsiveContainer width="100%" height={180}>
@@ -597,20 +644,21 @@ function DashboardContent() {
             </div>
 
             {/* Terminated vs Quit */}
-            <div className="rounded-xl p-6" style={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}` }}>
+            <div className="rounded-xl p-4 sm:p-6 min-w-0 overflow-hidden" style={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}` }}>
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-sm font-medium" style={{ color: COLORS.gray[900] }}>Terminated vs Quit</h2>
               </div>
               {terminatedQuitData.length > 0 ? (
-                <div className="flex items-center gap-6">
-                  <ResponsiveContainer width="50%" height={180}>
-                    <PieChart>
+                <div className="flex flex-col md:flex-row items-center gap-4 md:gap-6">
+                  <div className="w-full md:w-1/2 min-w-0" style={{ height: 180 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart margin={{ top: 8, right: 8, bottom: 8, left: 8 }}>
                       <Pie
                         data={terminatedQuitData}
                         cx="50%"
                         cy="50%"
-                        innerRadius={45}
-                        outerRadius={70}
+                        innerRadius="50%"
+                        outerRadius="75%"
                         dataKey="value"
                         paddingAngle={2}
                       >
@@ -629,14 +677,15 @@ function DashboardContent() {
                       />
                     </PieChart>
                   </ResponsiveContainer>
-                  <div className="flex flex-col gap-3 flex-1">
+                  </div>
+                  <div className="flex flex-col gap-3 flex-1 w-full md:min-w-0 min-w-[8rem]">
                     {terminatedQuitData.map((item, idx) => (
-                      <div key={idx} className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: CHART_COLORS[idx] }}></div>
-                          <span className="text-sm" style={{ color: COLORS.gray[600] }}>{item.name}</span>
+                      <div key={idx} className="flex items-center justify-between gap-2 min-w-0">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: CHART_COLORS[idx] }} />
+                          <span className="text-sm truncate" style={{ color: COLORS.gray[600] }}>{item.name}</span>
                         </div>
-                        <span className="text-sm font-medium" style={{ color: COLORS.gray[900] }}>{item.value} ({item.percentage}%)</span>
+                        <span className="text-sm font-medium whitespace-nowrap flex-shrink-0" style={{ color: COLORS.gray[900] }}>{item.value} ({item.percentage}%)</span>
                       </div>
                     ))}
                   </div>
@@ -650,14 +699,14 @@ function DashboardContent() {
           </div>
 
           {/* Role Breakdown Row */}
-          <div className="grid grid-cols-2 gap-6 mb-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6 mb-4 lg:mb-6">
             {/* Quit by Role */}
-            <div className="rounded-xl p-6" style={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}` }}>
-              <div className="flex items-center justify-between mb-4">
+            <div className="rounded-xl p-4 sm:p-6 min-w-0 overflow-hidden" style={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}` }}>
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
                 <h2 className="text-sm font-medium" style={{ color: COLORS.gray[900] }}>
                   {currentChart === 'terminated' ? 'Terminated by Role' : 'Quit by Role'}
                 </h2>
-                <div className="flex items-center gap-1 rounded-lg p-1" style={{ backgroundColor: COLORS.gray[100] }}>
+                <div className="flex items-center gap-1 rounded-lg p-1 flex-shrink-0" style={{ backgroundColor: COLORS.gray[100] }}>
                   <button
                     onClick={() => setCurrentChart('quit')}
                     className="cursor-pointer px-3 py-1.5 text-xs rounded-md transition-all"
@@ -683,8 +732,9 @@ function DashboardContent() {
                 </div>
               </div>
               {terminatedBreakdownData.length > 0 ? (
-                <div className="flex items-center gap-6">
-                  <ResponsiveContainer width="45%" height={180}>
+                <div className="flex flex-col md:flex-row items-center gap-4 md:gap-6">
+                  <div className="w-full md:w-[45%] min-w-0" style={{ height: 180 }}>
+                  <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie
                         data={terminatedBreakdownData}
@@ -710,7 +760,8 @@ function DashboardContent() {
                       />
                     </PieChart>
                   </ResponsiveContainer>
-                  <div className="flex flex-col gap-2 flex-1 max-h-[180px] overflow-y-auto">
+                  </div>
+                  <div className="flex flex-col gap-2 flex-1 w-full md:min-w-0 max-h-[180px] overflow-y-auto">
                     {terminatedBreakdownData.map((item, idx) => (
                       <div key={idx} className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
@@ -730,7 +781,7 @@ function DashboardContent() {
             </div>
 
             {/* Turnover Trend */}
-            <div className="rounded-xl p-6" style={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}` }}>
+            <div className="rounded-xl p-4 sm:p-6 min-w-0 overflow-hidden" style={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}` }}>
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-sm font-medium" style={{ color: COLORS.gray[900] }}>Turnover Trend</h2>
               </div>
