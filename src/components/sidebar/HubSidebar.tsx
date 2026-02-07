@@ -3,6 +3,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import { clearSession } from "@/lib/auth";
+import Logo from "@/components/Logo";
 
 // Icon components
 const DashboardIcon = () => (
@@ -92,6 +93,13 @@ const CorporateRequestIcon = () => (
 const AccessCodeIcon = () => (
   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+  </svg>
+);
+
+const SettingsIcon = () => (
+  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
   </svg>
 );
 
@@ -274,7 +282,6 @@ export default function HubSidebar() {
   const analyticsItems: MenuItem[] = [
     { label: 'Our Performance', href: '/analytics', icon: <PerformanceIcon /> },
     { label: 'Survey', href: '/surveys', icon: <SurveyIcon /> },
-    { label: 'Access Codes', href: '/access-codes', icon: <AccessCodeIcon /> },
     // Only show Dealership Standings to corporate users
     ...(role === 'corporate' ? [
       { label: 'Dealership Standings', href: '/standings', icon: <StandingsIcon /> },
@@ -290,9 +297,7 @@ export default function HubSidebar() {
     { label: 'Corporate Requests', href: '/admin/corporate-requests', icon: <CorporateRequestIcon /> }
   ] : [];
 
-  const paymentItems: MenuItem[] = [
-    { label: 'Subscription', href: '/subscription', icon: <SubscriptionIcon /> },
-  ];
+  const paymentItems: MenuItem[] = [];
 
   const isActive = (href?: string) => href && pathname === href;
   
@@ -311,10 +316,9 @@ export default function HubSidebar() {
     <aside className="w-64 flex flex-col h-screen fixed left-0 top-0" style={{ backgroundColor: '#EDEDED' }}>
       {/* Logo - Fixed at top */}
       <div className="p-4 border-b flex-shrink-0" style={{ borderColor: '#D1D5DB' }}>
-        <div className="flex items-center gap-2">
-          <span className="text-[#0B2E65] italic font-bold text-xl">Star</span>
-          <span className="text-[#e74c3c] italic font-bold text-xl">4ce</span>
-        </div>
+        <Link href="/dashboard" className="cursor-pointer">
+          <Logo size="md" variant="default" />
+        </Link>
       </div>
 
       {/* Scrollable content area */}
@@ -408,39 +412,116 @@ export default function HubSidebar() {
         <h3 className="text-xs font-semibold uppercase mb-3" style={{ color: '#394B67' }}>ANALYTICS</h3>
         <nav className="space-y-1">
           {analyticsItems.map((item, idx) => (
-            isManagerNotApproved ? (
-              <div
-                key={idx}
-                className="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium whitespace-nowrap cursor-not-allowed opacity-50"
-                style={{ color: '#9CA3AF' }}
-                title="Waiting for admin approval"
-              >
-                <span style={{ color: '#9CA3AF' }}>
-                  {item.icon}
-                </span>
-                <span className="text-left">{item.label}</span>
-              </div>
-            ) : (
-              <Link
-                key={idx}
-                href={item.href || '#'}
-                onClick={(e) => handleLinkClick(e, item.href)}
-                className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
-                  isActive(item.href)
-                    ? 'text-white'
-                    : ''
-                }`}
-                style={{
-                  backgroundColor: isActive(item.href) ? '#4D6DBE' : 'transparent',
-                  color: isActive(item.href) ? '#FFFFFF' : '#394B67',
-                }}
-              >
-                <span style={{ color: isActive(item.href) ? '#FFFFFF' : '#394B67' }}>
-                  {item.icon}
-                </span>
-                <span className="text-left">{item.label}</span>
-              </Link>
-            )
+            <div key={idx}>
+              {item.href ? (
+                <>
+                  {isManagerNotApproved ? (
+                    <div
+                      className="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium whitespace-nowrap cursor-not-allowed opacity-50"
+                      style={{ color: '#9CA3AF' }}
+                      title="Waiting for admin approval"
+                    >
+                      <span style={{ color: '#9CA3AF' }}>
+                        {item.icon}
+                      </span>
+                      <span className="text-left">{item.label}</span>
+                    </div>
+                  ) : (
+                    <Link
+                      href={item.href}
+                      onClick={(e) => handleLinkClick(e, item.href)}
+                      className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
+                        isActive(item.href)
+                          ? 'text-white'
+                          : ''
+                      }`}
+                      style={{
+                        backgroundColor: isActive(item.href) ? '#4D6DBE' : 'transparent',
+                        color: isActive(item.href) ? '#FFFFFF' : '#394B67',
+                      }}
+                    >
+                      <span style={{ color: isActive(item.href) ? '#FFFFFF' : '#394B67' }}>
+                        {item.icon}
+                      </span>
+                      <span className="text-left">{item.label}</span>
+                    </Link>
+                  )}
+                  {item.children && (
+                    <div className="ml-8 mt-1 space-y-1">
+                      {item.children.map((child, childIdx) => (
+                        isManagerNotApproved ? (
+                          <div
+                            key={childIdx}
+                            className="block px-3 py-2 rounded-md text-sm whitespace-nowrap text-left cursor-not-allowed opacity-50"
+                            style={{ color: '#9CA3AF' }}
+                            title="Waiting for admin approval"
+                          >
+                            {child.label}
+                          </div>
+                        ) : (
+                          <Link
+                            key={childIdx}
+                            href={child.href}
+                            onClick={(e) => handleLinkClick(e, child.href)}
+                            className={`block px-3 py-2 rounded-md text-sm transition-colors whitespace-nowrap text-left ${
+                              isActive(child.href)
+                                ? 'text-white'
+                                : ''
+                            }`}
+                            style={{
+                              backgroundColor: isActive(child.href) ? '#4D6DBE' : 'transparent',
+                              color: isActive(child.href) ? '#FFFFFF' : '#394B67',
+                            }}
+                          >
+                            {child.label}
+                          </Link>
+                        )
+                      ))}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <>
+                  <div className="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium whitespace-nowrap text-left" style={{ color: '#394B67' }}>
+                    <span style={{ color: '#394B67' }}>{item.icon}</span>
+                    <span className="text-left">{item.label}</span>
+                  </div>
+                  {item.children && (
+                    <div className="ml-8 mt-1 space-y-1">
+                      {item.children.map((child, childIdx) => (
+                        isManagerNotApproved ? (
+                          <div
+                            key={childIdx}
+                            className="block px-3 py-2 rounded-md text-sm whitespace-nowrap text-left cursor-not-allowed opacity-50"
+                            style={{ color: '#9CA3AF' }}
+                            title="Waiting for admin approval"
+                          >
+                            {child.label}
+                          </div>
+                        ) : (
+                          <Link
+                            key={childIdx}
+                            href={child.href}
+                            onClick={(e) => handleLinkClick(e, child.href)}
+                            className={`block px-3 py-2 rounded-md text-sm transition-colors whitespace-nowrap text-left ${
+                              isActive(child.href)
+                                ? 'text-white'
+                                : ''
+                            }`}
+                            style={{
+                              backgroundColor: isActive(child.href) ? '#4D6DBE' : 'transparent',
+                              color: isActive(child.href) ? '#FFFFFF' : '#394B67',
+                            }}
+                          >
+                            {child.label}
+                          </Link>
+                        )
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
           ))}
         </nav>
       </div>
@@ -536,53 +617,11 @@ export default function HubSidebar() {
         </div>
       )}
 
-      {/* PAYMENT */}
-      <div className="px-4 pb-4 border-t pt-4" style={{ borderColor: '#D1D5DB' }}>
-        <h3 className="text-xs font-semibold uppercase mb-3" style={{ color: '#394B67' }}>PAYMENT</h3>
-        <nav className="space-y-1">
-          {paymentItems.map((item, idx) => (
-            isManagerNotApproved ? (
-              <div
-                key={idx}
-                className="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium whitespace-nowrap cursor-not-allowed opacity-50"
-                style={{ color: '#9CA3AF' }}
-                title="Waiting for admin approval"
-              >
-                <span style={{ color: '#9CA3AF' }}>
-                  {item.icon}
-                </span>
-                <span className="text-left">{item.label}</span>
-              </div>
-            ) : (
-              <Link
-                key={idx}
-                href={item.href || '#'}
-                onClick={(e) => handleLinkClick(e, item.href)}
-                className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
-                  isActive(item.href)
-                    ? 'text-white'
-                    : ''
-                }`}
-                style={{
-                  backgroundColor: isActive(item.href) ? '#4D6DBE' : 'transparent',
-                  color: isActive(item.href) ? '#FFFFFF' : '#394B67',
-                }}
-              >
-                <span style={{ color: isActive(item.href) ? '#FFFFFF' : '#394B67' }}>
-                  {item.icon}
-                </span>
-                <span className="text-left">{item.label}</span>
-              </Link>
-            )
-          ))}
-        </nav>
-      </div>
-
       </div>
 
       {/* User Profile - Fixed at bottom */}
       <div className="mt-auto px-4 pb-4 border-t pt-4 relative flex-shrink-0" style={{ borderColor: '#D1D5DB' }}>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 mb-3">
           <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ backgroundColor: '#D1D5DB' }}>
             <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24" style={{ color: '#394B67' }}>
               <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
@@ -627,24 +666,62 @@ export default function HubSidebar() {
                   </Link>
                 )}
                 {!isManagerNotApproved && (
-                  <Link
-                    href="/support"
-                    onClick={() => setShowUserMenu(false)}
-                    className={`flex items-center gap-3 px-4 py-2 text-sm font-medium transition-colors whitespace-nowrap ${
-                      isActive('/support')
-                        ? 'text-white'
-                        : ''
-                    }`}
-                    style={{
-                      backgroundColor: isActive('/support') ? '#4D6DBE' : 'transparent',
-                      color: isActive('/support') ? '#FFFFFF' : '#394B67',
-                    }}
-                  >
-                    <span style={{ color: isActive('/support') ? '#FFFFFF' : '#394B67' }}>
-                      <HelpIcon />
-                    </span>
-                    <span className="text-left">Help & Support</span>
-                  </Link>
+                  <>
+                    <Link
+                      href="/subscription"
+                      onClick={() => setShowUserMenu(false)}
+                      className={`flex items-center gap-3 px-4 py-2 text-sm font-medium transition-colors whitespace-nowrap hover:bg-gray-50 ${
+                        isActive('/subscription')
+                          ? 'text-white'
+                          : ''
+                      }`}
+                      style={{
+                        backgroundColor: isActive('/subscription') ? '#4D6DBE' : 'transparent',
+                        color: isActive('/subscription') ? '#FFFFFF' : '#394B67',
+                      }}
+                    >
+                      <span style={{ color: isActive('/subscription') ? '#FFFFFF' : '#394B67' }}>
+                        <SubscriptionIcon />
+                      </span>
+                      <span className="text-left">Subscription</span>
+                    </Link>
+                    <Link
+                      href="/settings"
+                      onClick={() => setShowUserMenu(false)}
+                      className={`flex items-center gap-3 px-4 py-2 text-sm font-medium transition-colors whitespace-nowrap hover:bg-gray-50 ${
+                        isActive('/settings')
+                          ? 'text-white'
+                          : ''
+                      }`}
+                      style={{
+                        backgroundColor: isActive('/settings') ? '#4D6DBE' : 'transparent',
+                        color: isActive('/settings') ? '#FFFFFF' : '#394B67',
+                      }}
+                    >
+                      <span style={{ color: isActive('/settings') ? '#FFFFFF' : '#394B67' }}>
+                        <SettingsIcon />
+                      </span>
+                      <span className="text-left">Settings</span>
+                    </Link>
+                    <Link
+                      href="/support"
+                      onClick={() => setShowUserMenu(false)}
+                      className={`flex items-center gap-3 px-4 py-2 text-sm font-medium transition-colors whitespace-nowrap hover:bg-gray-50 ${
+                        isActive('/support')
+                          ? 'text-white'
+                          : ''
+                      }`}
+                      style={{
+                        backgroundColor: isActive('/support') ? '#4D6DBE' : 'transparent',
+                        color: isActive('/support') ? '#FFFFFF' : '#394B67',
+                      }}
+                    >
+                      <span style={{ color: isActive('/support') ? '#FFFFFF' : '#394B67' }}>
+                        <HelpIcon />
+                      </span>
+                      <span className="text-left">Help & Support</span>
+                    </Link>
+                  </>
                 )}
                 <div style={{ borderTop: '1px solid #E5E7EB', marginTop: '4px', marginBottom: '4px' }}></div>
                 <button

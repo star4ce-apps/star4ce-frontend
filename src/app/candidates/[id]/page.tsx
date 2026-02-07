@@ -59,143 +59,6 @@ type CandidateProfile = {
   notes: string;
 };
 
-// Mock data - in real app, this would come from API
-const mockCandidates: Record<number, CandidateProfile> = {
-  1: {
-    id: 1,
-    name: 'Priscilla Lopez',
-    email: 'Pris.lez@gmail.com',
-    phone: '+1-555-0001',
-    gender: 'Female',
-    birthday: 'January 15, 1990',
-    address: 'New York, NY, 10001, United States',
-    overallScore: 7.2,
-    stage: 'Interviewing',
-    origin: 'Career Site',
-    appliedDate: '08 Sep 2025',
-    jobPosition: 'Technician',
-    university: 'State University',
-    degree: 'Bachelor of Science',
-    referral: 'Not Provided',
-    interviewHistory: [],
-    notes: '',
-  },
-  2: {
-    id: 2,
-    name: 'Ryan Clark',
-    email: 'Ryry.cl@gmail.com',
-    phone: '+1-555-0002',
-    gender: 'Male',
-    birthday: 'March 20, 1988',
-    address: 'Los Angeles, CA, 90001, United States',
-    overallScore: 5.3,
-    stage: 'Review',
-    origin: 'Career Site',
-    appliedDate: '01 Jul 2025',
-    jobPosition: 'Sales Manager',
-    university: 'Business School',
-    degree: 'MBA',
-    referral: 'Not Provided',
-    interviewHistory: [],
-    notes: '',
-  },
-  3: {
-    id: 3,
-    name: 'Jaehun Lee',
-    email: 'Jaehun.L@gmail.com',
-    phone: '+1-555-0003',
-    gender: 'Male',
-    birthday: 'June 10, 1992',
-    address: 'Chicago, IL, 60601, United States',
-    overallScore: 5.3,
-    stage: 'Interviewing',
-    origin: 'Career Site',
-    appliedDate: '15 Aug 2025',
-    jobPosition: 'Service Advisor',
-    university: 'Tech Institute',
-    degree: 'Associate Degree',
-    referral: 'Not Provided',
-    interviewHistory: [],
-    notes: '',
-  },
-  4: {
-    id: 4,
-    name: 'Klein Morreti',
-    email: 'kmtti@gmail.com',
-    phone: '+1-555-0004',
-    gender: 'Male',
-    birthday: 'September 5, 1985',
-    address: 'Houston, TX, 77001, United States',
-    overallScore: 9.7,
-    stage: 'Offer',
-    origin: 'Career Site',
-    appliedDate: '20 Jun 2025',
-    jobPosition: 'General Manager',
-    university: 'Business University',
-    degree: 'Master of Business',
-    referral: 'Not Provided',
-    interviewHistory: [],
-    notes: '',
-  },
-  5: {
-    id: 5,
-    name: 'Sarah Johnson',
-    email: 'sarah.j@gmail.com',
-    phone: '+1-555-0005',
-    gender: 'Female',
-    birthday: 'April 12, 1991',
-    address: 'Phoenix, AZ, 85001, United States',
-    overallScore: 2.2,
-    stage: 'Reject',
-    origin: 'Career Site',
-    appliedDate: '10 Jul 2025',
-    jobPosition: 'Parts Manager',
-    university: 'State College',
-    degree: 'Bachelor Degree',
-    referral: 'Not Provided',
-    interviewHistory: [],
-    notes: '',
-  },
-  6: {
-    id: 6,
-    name: 'Michael Chen',
-    email: 'mchen@gmail.com',
-    phone: '+1-555-0006',
-    gender: 'Male',
-    birthday: 'November 8, 1989',
-    address: 'Philadelphia, PA, 19101, United States',
-    overallScore: 8.8,
-    stage: 'Ready',
-    origin: 'Career Site',
-    appliedDate: '05 Aug 2025',
-    jobPosition: 'Finance Manager',
-    university: 'Finance University',
-    degree: 'Master of Finance',
-    referral: 'Not Provided',
-    interviewHistory: [],
-    notes: '',
-  },
-  7: {
-    id: 7,
-    name: 'Emily Davis',
-    email: 'emily.d@gmail.com',
-    phone: '+1-555-0007',
-    gender: 'Female',
-    birthday: 'February 14, 1993',
-    address: 'San Antonio, TX, 78201, United States',
-    overallScore: 0,
-    stage: 'Applied',
-    origin: 'Career Site',
-    appliedDate: '25 Aug 2025',
-    jobPosition: 'HR Manager',
-    university: 'Human Resources College',
-    degree: 'Bachelor of HR',
-    referral: 'Not Provided',
-    interviewHistory: [],
-    notes: '',
-  },
-};
-
 export default function CandidateProfilePage() {
   const router = useRouter();
   const params = useParams();
@@ -822,69 +685,6 @@ export default function CandidateProfilePage() {
       console.log('Recommendation:', recommendation);
       console.log('Additional notes:', additionalNotes ? 'Yes (' + additionalNotes.length + ' chars)' : 'No');
       
-      // Only add example data if there's truly no data at all (no scores, no notes, nothing)
-      // Check if we have ANY real data from parsing
-      const hasRealData = categoryScores.length > 0 || additionalNotes || sumScore || recommendation || totalScore;
-      
-      console.log('Has real data?', hasRealData);
-      
-      let displayCategoryScores = categoryScores;
-      let displayAdditionalNotes = additionalNotes;
-      
-      // Only show examples if there's absolutely no real data AND it's the first interview
-      // This is a fallback for demonstration purposes only
-      if (interviewNumber === 1 && !hasRealData && categoryScores.length === 0 && !totalScore) {
-        console.log('⚠️ Showing example data (no real data found)');
-        // Add example category scores with comments for demonstration
-        displayCategoryScores = [
-          {
-            category: 'Strategic Vision & Planning',
-            score: '8/10',
-            weighted: '0.96',
-            comment: 'Candidate demonstrated strong strategic thinking and provided clear examples of long-term planning initiatives from previous roles.',
-          },
-          {
-            category: 'Financial Acumen',
-            score: '7/10',
-            weighted: '0.70',
-            comment: 'Good understanding of financial statements and P&L management. Some gaps in advanced financial analysis techniques.',
-          },
-          {
-            category: 'Industry Knowledge & Market Awareness',
-            score: '9/10',
-            weighted: '0.72',
-            comment: 'Excellent knowledge of automotive retail trends and competitive landscape. Well-versed in OEM relationships and market dynamics.',
-          },
-          {
-            category: 'Executive Presence & Influence',
-            score: '8/10',
-            weighted: '0.80',
-            comment: 'Strong executive presence. Communicates effectively with stakeholders at all levels. Good leadership presence.',
-          },
-          {
-            category: 'Organizational Development',
-            score: '7/10',
-            weighted: '0.70',
-            comment: 'Has experience building teams and developing talent. Could benefit from more structured development programs.',
-          },
-        ];
-        
-        // Add example additional notes if none exist
-        if (!displayAdditionalNotes) {
-          displayAdditionalNotes = 'Overall, the candidate shows strong potential for the C-Level Manager position. Key strengths include strategic vision and industry knowledge. Areas for development include advanced financial analysis and structured talent development programs. Recommend proceeding to Interview 2 to assess cultural fit and specific dealership experience.';
-        }
-        
-        // Set example sum score if not found
-        if (!sumScore) {
-          sumScore = 75;
-        }
-        
-        // Set example recommendation if not found
-        if (!recommendation) {
-          recommendation = 'Next Stage';
-        }
-      }
-      
       events.push({
         type: 'interview',
         title: `Interview ${interviewNumber} Completed`,
@@ -892,8 +692,8 @@ export default function CandidateProfilePage() {
         manager: manager,
         score: sumScore,
         recommendation: recommendation,
-        categoryScores: displayCategoryScores.length > 0 ? displayCategoryScores : undefined,
-        additionalNotes: displayAdditionalNotes || undefined,
+        categoryScores: categoryScores.length > 0 ? categoryScores : undefined,
+        additionalNotes: additionalNotes || undefined,
         details: `${role ? `Role: ${role}\n` : ''}${totalScore ? `Total Score: ${totalScore}\n` : ''}${recommendation ? `Recommendation: ${recommendation}\n` : ''}`,
       });
       

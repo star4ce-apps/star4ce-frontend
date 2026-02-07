@@ -446,7 +446,7 @@ function AdminRegisterPageContent() {
                       <div>
                         <input
                           type="text"
-                          placeholder="First Name *"
+                          placeholder="First Name"
                           autoComplete="given-name"
                           className="w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#0B2E65] focus:border-transparent"
                           value={firstName}
@@ -457,7 +457,7 @@ function AdminRegisterPageContent() {
                       <div>
                         <input
                           type="text"
-                          placeholder="Last Name *"
+                          placeholder="Last Name"
                           autoComplete="family-name"
                           className="w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#0B2E65] focus:border-transparent"
                           value={lastName}

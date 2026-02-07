@@ -350,7 +350,13 @@ function SubscriptionPageContent() {
                         {sub.subscription_plan && (
                           <div className="flex items-center justify-between py-2" style={{ borderTop: '1px solid #E5E7EB', borderBottom: '1px solid #E5E7EB' }}>
                             <span className="text-sm font-medium" style={{ color: '#6B7280' }}>Plan:</span>
-                            <span className="text-sm font-semibold capitalize" style={{ color: '#232E40' }}>{sub.subscription_plan}</span>
+                            <span className="text-sm font-semibold" style={{ color: '#232E40' }}>{
+                              (sub.subscription_plan.toLowerCase() === 'monthly' || sub.subscription_plan.toLowerCase() === 'pro') 
+                                ? 'Dealer Flex' 
+                                : (sub.subscription_plan.toLowerCase() === 'annual' || sub.subscription_plan.toLowerCase() === 'yearly') 
+                                  ? 'Dealer Success' 
+                                  : sub.subscription_plan.charAt(0).toUpperCase() + sub.subscription_plan.slice(1)
+                            }</span>
                           </div>
                         )}
                         {sub.subscription_status === 'trial' && sub.days_remaining_in_trial > 0 && (
@@ -400,7 +406,7 @@ function SubscriptionPageContent() {
                               </button>
                               <button
                                 onClick={() => setShowSubscriptionDetails({ ...showSubscriptionDetails, [sub.dealership_id]: true })}
-                                className="px-6 py-3 rounded-xl font-semibold transition-all duration-200 border-2"
+                                className="px-6 py-3 rounded-xl font-semibold transition-all duration-200 border-2 cursor-pointer"
                                 style={{ 
                                   borderColor: '#D1D5DB',
                                   color: '#6B7280',
@@ -466,7 +472,13 @@ function SubscriptionPageContent() {
                                   {sub.subscription_plan && (
                                     <div className="flex justify-between items-center py-2" style={{ borderBottom: '1px solid #E5E7EB' }}>
                                       <span className="text-sm font-medium" style={{ color: '#6B7280' }}>Plan:</span>
-                                      <span className="text-sm font-semibold capitalize" style={{ color: '#232E40' }}>{sub.subscription_plan}</span>
+                                      <span className="text-sm font-semibold" style={{ color: '#232E40' }}>{
+                                        (sub.subscription_plan.toLowerCase() === 'monthly' || sub.subscription_plan.toLowerCase() === 'pro') 
+                                          ? 'Dealer Flex' 
+                                          : (sub.subscription_plan.toLowerCase() === 'annual' || sub.subscription_plan.toLowerCase() === 'yearly') 
+                                            ? 'Dealer Success' 
+                                            : sub.subscription_plan.charAt(0).toUpperCase() + sub.subscription_plan.slice(1)
+                                      }</span>
                                     </div>
                                   )}
                                   {sub.subscription_ends_at && (
@@ -623,7 +635,13 @@ function SubscriptionPageContent() {
                 <div className="flex flex-wrap gap-4 text-sm" style={{ color: '#6B7280' }}>
                   {status.subscription_plan && (
                     <span>
-                      <span className="font-medium" style={{ color: '#232E40' }}>Plan:</span> {status.subscription_plan.charAt(0).toUpperCase() + status.subscription_plan.slice(1)}
+                      <span className="font-medium" style={{ color: '#232E40' }}>Plan:</span> {
+                        (status.subscription_plan.toLowerCase() === 'monthly' || status.subscription_plan.toLowerCase() === 'pro') 
+                          ? 'Dealer Flex' 
+                          : (status.subscription_plan.toLowerCase() === 'annual' || status.subscription_plan.toLowerCase() === 'yearly') 
+                            ? 'Dealer Success' 
+                            : status.subscription_plan.charAt(0).toUpperCase() + status.subscription_plan.slice(1)
+                      }
                     </span>
                   )}
                   {status.subscription_status === 'trial' && status.days_remaining_in_trial > 0 && (
@@ -651,7 +669,7 @@ function SubscriptionPageContent() {
                         <button
                           onClick={() => handleResume(0)}
                           disabled={resuming[0]}
-                          className="ml-2 text-amber-700 font-semibold hover:text-amber-800 underline"
+                          className="ml-2 text-amber-700 font-semibold hover:text-amber-800 underline cursor-pointer"
                         >
                           {resuming[0] ? 'Resuming...' : 'Continue renewal'}
                         </button>
@@ -661,12 +679,12 @@ function SubscriptionPageContent() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                     {/* Monthly Plan */}
                     <div className={`bg-white rounded-xl border-2 p-6 transition-all flex flex-col ${
-                      status.subscription_plan?.toLowerCase() === 'monthly'
+                      (status.subscription_plan?.toLowerCase() === 'monthly' || status.subscription_plan?.toLowerCase() === 'pro')
                         ? 'border-[#0B2E65] shadow-lg'
                         : 'border-gray-200 hover:border-gray-300'
                     }`}>
                       <div className="text-center mb-4 flex-shrink-0">
-                        <h3 className="text-2xl font-bold mb-2" style={{ color: '#232E40' }}>Monthly</h3>
+                        <h3 className="text-2xl font-bold mb-2" style={{ color: '#232E40' }}>Dealer Flex</h3>
                         <div className="mb-2">
                           <span className="text-4xl font-bold" style={{ color: '#0B2E65' }}>$199</span>
                           <span className="text-gray-600 ml-2">/ month</span>
@@ -674,14 +692,14 @@ function SubscriptionPageContent() {
                         <p className="text-sm text-gray-600 min-h-[20px]">Billed monthly, cancel anytime</p>
                       </div>
                       <div className="mt-auto">
-                        {status.subscription_plan?.toLowerCase() === 'monthly' ? (
+                        {(status.subscription_plan?.toLowerCase() === 'monthly' || status.subscription_plan?.toLowerCase() === 'pro') ? (
                           <div className="text-center">
                             <div className="inline-block bg-[#0B2E65] text-white px-4 py-2 rounded-full text-sm font-semibold mb-4">
                               Current Plan
                             </div>
                             <button
                               onClick={() => setShowSubscriptionDetails({ ...showSubscriptionDetails, [0]: true })}
-                              className="w-full bg-gray-100 text-gray-700 py-2.5 rounded-lg font-semibold hover:bg-gray-200 transition-colors text-sm"
+                              className="w-full bg-gray-100 text-gray-700 py-2.5 rounded-lg font-semibold hover:bg-gray-200 transition-colors text-sm cursor-pointer"
                             >
                               View Details
                             </button>
@@ -690,7 +708,7 @@ function SubscriptionPageContent() {
                           <button
                             onClick={() => handleSubscribe('monthly')}
                             disabled={creatingCheckout}
-                            className="w-full bg-[#0B2E65] text-white py-2.5 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-colors disabled:opacity-60 disabled:cursor-not-allowed text-sm"
+                            className="w-full bg-[#0B2E65] text-white py-2.5 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-colors disabled:opacity-60 disabled:cursor-not-allowed text-sm cursor-pointer"
                           >
                             {creatingCheckout ? 'Processing...' : status.subscription_status === 'trial' ? 'Subscribe to Monthly' : 'Upgrade to Monthly'}
                           </button>
@@ -700,7 +718,7 @@ function SubscriptionPageContent() {
 
                     {/* Annual Plan */}
                     <div className={`bg-white rounded-xl border-2 p-6 transition-all relative flex flex-col ${
-                      status.subscription_plan?.toLowerCase() === 'annual'
+                      (status.subscription_plan?.toLowerCase() === 'annual' || status.subscription_plan?.toLowerCase() === 'yearly')
                         ? 'border-[#0B2E65] shadow-lg'
                         : 'border-gray-200 hover:border-gray-300'
                     }`}>
@@ -708,7 +726,7 @@ function SubscriptionPageContent() {
                         BEST VALUE
                       </div>
                       <div className="text-center mb-4 flex-shrink-0">
-                        <h3 className="text-2xl font-bold mb-2" style={{ color: '#232E40' }}>Annual</h3>
+                        <h3 className="text-2xl font-bold mb-2" style={{ color: '#232E40' }}>Dealer Success</h3>
                         <div className="mb-2">
                           <span className="text-4xl font-bold" style={{ color: '#0B2E65' }}>$166</span>
                           <span className="text-gray-600 ml-2">/ month</span>
@@ -717,14 +735,14 @@ function SubscriptionPageContent() {
                         <p className="text-sm font-semibold text-red-600 min-h-[20px]">Save $396/year!</p>
                       </div>
                       <div className="mt-auto">
-                        {status.subscription_plan?.toLowerCase() === 'annual' ? (
+                        {(status.subscription_plan?.toLowerCase() === 'annual' || status.subscription_plan?.toLowerCase() === 'yearly') ? (
                           <div className="text-center">
                             <div className="inline-block bg-[#0B2E65] text-white px-4 py-2 rounded-full text-sm font-semibold mb-4">
                               Current Plan
                             </div>
                             <button
                               onClick={() => setShowSubscriptionDetails({ ...showSubscriptionDetails, [0]: true })}
-                              className="w-full bg-gray-100 text-gray-700 py-2.5 rounded-lg font-semibold hover:bg-gray-200 transition-colors text-sm"
+                              className="w-full bg-gray-100 text-gray-700 py-2.5 rounded-lg font-semibold hover:bg-gray-200 transition-colors text-sm cursor-pointer"
                             >
                               View Details
                             </button>
@@ -733,7 +751,7 @@ function SubscriptionPageContent() {
                           <button
                             onClick={() => handleSubscribe('annual')}
                             disabled={creatingCheckout}
-                            className="w-full bg-[#0B2E65] text-white py-2.5 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-colors disabled:opacity-60 disabled:cursor-not-allowed text-sm"
+                            className="w-full bg-[#0B2E65] text-white py-2.5 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-colors disabled:opacity-60 disabled:cursor-not-allowed text-sm cursor-pointer"
                           >
                             {creatingCheckout ? 'Processing...' : status.subscription_status === 'trial' ? 'Subscribe to Annual' : 'Upgrade to Annual'}
                           </button>
@@ -808,18 +826,6 @@ function SubscriptionPageContent() {
                   ))}
                 </div>
               </div>
-
-              {/* Cancel Subscription Link - Small and Subtle */}
-              {status.is_active && !status.cancel_at_period_end && (
-                <div className="text-center pt-4">
-                  <button
-                    onClick={() => setShowSubscriptionDetails({ ...showSubscriptionDetails, [0]: true })}
-                    className="text-xs text-gray-500 hover:text-gray-700 underline transition-colors"
-                  >
-                    Cancel subscription
-                  </button>
-                </div>
-              )}
             </div>
           )}
 
@@ -873,7 +879,13 @@ function SubscriptionPageContent() {
                         {status.subscription_plan && (
                           <div className="flex justify-between items-center py-2" style={{ borderBottom: '1px solid #E5E7EB' }}>
                             <span className="text-sm font-medium" style={{ color: '#6B7280' }}>Plan:</span>
-                            <span className="text-sm font-semibold capitalize" style={{ color: '#232E40' }}>{status.subscription_plan}</span>
+                            <span className="text-sm font-semibold" style={{ color: '#232E40' }}>{
+                              (status.subscription_plan.toLowerCase() === 'monthly' || status.subscription_plan.toLowerCase() === 'pro') 
+                                ? 'Dealer Flex' 
+                                : (status.subscription_plan.toLowerCase() === 'annual' || status.subscription_plan.toLowerCase() === 'yearly') 
+                                  ? 'Dealer Success' 
+                                  : status.subscription_plan.charAt(0).toUpperCase() + status.subscription_plan.slice(1)
+                            }</span>
                           </div>
                         )}
 
@@ -907,21 +919,21 @@ function SubscriptionPageContent() {
                         </button>
                       </div>
                     ) : (
-                      <div className="p-6 rounded-xl border-2 border-red-200" style={{ backgroundColor: '#FEF2F2' }}>
-                        <h3 className="text-lg font-semibold mb-2" style={{ color: '#991B1B' }}>Cancel Subscription</h3>
-                        <p className="text-sm mb-4" style={{ color: '#7F1D1D' }}>
-                          If you cancel, your subscription will remain active until {status?.subscription_ends_at ? new Date(status.subscription_ends_at).toLocaleDateString() : 'the end of your billing period'}. After that, you'll lose admin access.
-                        </p>
-                        <button
-                          onClick={() => {
-                            setShowSubscriptionDetails({ ...showSubscriptionDetails, [0]: false });
-                            setShowCancelConfirm({ ...showCancelConfirm, [0]: true });
-                          }}
-                          className="w-full cursor-pointer bg-red-600 text-white px-6 py-3 rounded-xl font-semibold hover:bg-red-700 transition-all duration-200"
-                        >
-                          Cancel Subscription
-                        </button>
-                      </div>
+                      <>
+                        {status.is_active && !status.cancel_at_period_end && (
+                          <div className="text-center pt-2 pb-4">
+                            <button
+                              onClick={() => {
+                                setShowSubscriptionDetails({ ...showSubscriptionDetails, [0]: false });
+                                setShowCancelConfirm({ ...showCancelConfirm, [0]: true });
+                              }}
+                              className="text-xs text-gray-500 hover:text-gray-700 underline transition-colors cursor-pointer"
+                            >
+                              Cancel subscription
+                            </button>
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
                 </div>

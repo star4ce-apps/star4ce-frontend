@@ -20,6 +20,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
                           pathname?.startsWith('/support') ||
                           pathname?.startsWith('/surveys') ||
                           pathname?.startsWith('/access-codes') ||
+                          pathname?.startsWith('/settings') ||
                           (pathname?.startsWith('/admin') && !pathname?.startsWith('/admin-register'));
   
   // Survey page should not have footer and should not have padding

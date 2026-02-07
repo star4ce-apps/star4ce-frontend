@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import RequireAuth from '@/components/layout/RequireAuth';
 import HubSidebar from '@/components/sidebar/HubSidebar';
 import { API_BASE, getToken } from '@/lib/auth';
@@ -84,6 +85,7 @@ type Employee = {
 };
 
 export default function EmployeesPage() {
+  const router = useRouter();
   const [role, setRole] = useState<string | null>(null);
   const [isApproved, setIsApproved] = useState<boolean | null>(null);
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -171,10 +173,10 @@ export default function EmployeesPage() {
         return;
       }
 
-      // Use getJsonAuth to include X-Dealership-Id header for corporate users
       const data = await getJsonAuth<{ ok: boolean; items: any[] }>('/employees');
       setEmployees(data.items || []);
     } catch (err: unknown) {
+      setEmployees([]);
       setError(err instanceof Error ? err.message : 'Failed to load employees');
     } finally {
       setLoading(false);
@@ -321,9 +323,8 @@ export default function EmployeesPage() {
   }
 
   function openViewModal(employee: Employee) {
-    setViewingEmployee(employee);
-    setShowViewModal(true);
-    loadPerformanceScore(employee.id);
+    // Navigate to employee profile page
+    router.push(`/employees/${employee.id}`);
   }
 
   function openEditModal(employee: Employee) {
@@ -783,7 +784,6 @@ export default function EmployeesPage() {
                       </div>
                     </th>
                     <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider text-white">
-                      Actions
                     </th>
                   </tr>
                 </thead>
@@ -856,9 +856,8 @@ export default function EmployeesPage() {
                                 style={{ color: '#4D6DBE' }}
                                 title="Edit Employee"
                               >
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                                  <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" />
                                 </svg>
                               </button>
                             ) : (

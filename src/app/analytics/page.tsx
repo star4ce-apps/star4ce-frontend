@@ -442,7 +442,7 @@ export default function AnalyticsPage() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as typeof activeTab)}
-                className="px-5 py-3 text-sm font-medium transition-all relative"
+                className="px-5 py-3 text-sm font-medium transition-all relative cursor-pointer"
                 style={{
                   color: activeTab === tab.id ? COLORS.primary : COLORS.gray[500],
                 }}

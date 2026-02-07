@@ -115,6 +115,16 @@ function ManagerRegisterContent() {
     setError('');
 
     // Validation
+    if (!firstName.trim()) {
+      setError('First name is required');
+      return;
+    }
+
+    if (!lastName.trim()) {
+      setError('Last name is required');
+      return;
+    }
+
     if (!email.trim()) {
       setError('Email is required');
       return;
@@ -140,8 +150,8 @@ function ManagerRegisterContent() {
             body: JSON.stringify({
               token: inviteToken,
               password,
-              first_name: firstName.trim() || null,
-              last_name: lastName.trim() || null,
+              first_name: firstName.trim(),
+              last_name: lastName.trim(),
             }),
         });
 
@@ -168,6 +178,8 @@ function ManagerRegisterContent() {
             email: email.trim().toLowerCase(),
             password,
             dealership_id: dealershipId,
+            first_name: firstName.trim(),
+            last_name: lastName.trim(),
           }),
         });
 
@@ -211,8 +223,8 @@ function ManagerRegisterContent() {
       />
 
       {/* Register Modal */}
-      <div className="relative z-10 w-full max-w-2xl mx-4 max-h-[95vh]">
-        <div className="bg-white rounded-lg shadow-2xl overflow-hidden flex max-h-[95vh] isolate">
+      <div className="relative z-10 w-full max-w-2xl mx-4 max-h-[90vh] overflow-hidden">
+        <div className="bg-white rounded-lg shadow-2xl overflow-hidden flex max-h-[90vh] isolate">
           {/* Left Section - Gradient Blue Sidebar */}
           <div 
             className="w-1/4 hidden md:block"
@@ -223,7 +235,7 @@ function ManagerRegisterContent() {
           ></div>
 
           {/* Right Section - Form */}
-          <div className="bg-[#E6E6E6] flex-1 p-6 md:p-8 flex flex-col justify-center overflow-y-auto max-h-[95vh] relative">
+          <div className="bg-[#E6E6E6] flex-1 p-6 md:p-8 flex flex-col overflow-y-auto max-h-[90vh] relative">
             {/* Back Button */}
             <Link
               href="/register"
@@ -241,33 +253,59 @@ function ManagerRegisterContent() {
             </Link>
 
             {/* Logo and Tagline */}
-            <div className="text-center mb-6">
+            <div className="text-center mb-4 flex-shrink-0">
               <Link href="/" className="inline-block">
-                <Logo size="md" className="justify-center mb-4" />
+                <Logo size="md" className="justify-center mb-3" />
               </Link>
-              <p className="text-gray-700 text-base font-medium mb-2">
+              <p className="text-gray-700 text-base font-medium mb-1">
                 Manager Registration
               </p>
-              <p className="text-gray-600">
+              <p className="text-gray-600 text-sm">
                 Create your account and request access to a dealership
               </p>
             </div>
 
             {/* Error Messages */}
             {error && (
-              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700">
+              <div className="mb-3 p-2.5 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm flex-shrink-0">
                 {error}
               </div>
             )}
 
             {/* Registration Form */}
-            <form onSubmit={handleSubmit} className="space-y-5">
+            <form onSubmit={handleSubmit} className="space-y-4 flex-1 min-h-0">
               {/* Loading Invite */}
               {loadingInvite && (
                 <div className="text-center py-4">
                   <p className="text-gray-600">Validating invitation...</p>
                 </div>
               )}
+
+              {/* First Name and Last Name Fields */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <input
+                    type="text"
+                    placeholder="First Name"
+                    autoComplete="given-name"
+                    className="w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none"
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    required
+                  />
+                </div>
+                <div>
+                  <input
+                    type="text"
+                    placeholder="Last Name"
+                    autoComplete="family-name"
+                    className="w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none"
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
 
               {/* Email Field */}
               <div>
@@ -282,32 +320,6 @@ function ManagerRegisterContent() {
                   disabled={isInviteMode}
                 />
               </div>
-
-              {/* First Name and Last Name Fields (for invite mode) */}
-              {isInviteMode && (
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <input
-                      type="text"
-                      placeholder="First Name (Optional)"
-                      autoComplete="given-name"
-                      className="w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none"
-                      value={firstName}
-                      onChange={(e) => setFirstName(e.target.value)}
-                    />
-                  </div>
-                  <div>
-                    <input
-                      type="text"
-                      placeholder="Last Name (Optional)"
-                      autoComplete="family-name"
-                      className="w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none"
-                      value={lastName}
-                      onChange={(e) => setLastName(e.target.value)}
-                    />
-                  </div>
-                </div>
-              )}
 
               {/* Password Field */}
               <div>
@@ -361,7 +373,7 @@ function ManagerRegisterContent() {
                     </div>
 
                     {/* Dealership List */}
-                    <div className="max-h-48 overflow-y-auto rounded-lg border border-gray-300 bg-white">
+                    <div className="max-h-40 overflow-y-auto rounded-lg border border-gray-300 bg-white">
                       {filteredDealerships.length === 0 ? (
                         <div className="p-4 text-center">
                           <p className="text-gray-500">
@@ -426,16 +438,16 @@ function ManagerRegisterContent() {
 
               {/* Info Box */}
               {isInviteMode ? (
-                <div className="rounded-lg bg-blue-50 border border-blue-200 p-4 space-y-3">
-                  <h3 className="text-sm font-semibold text-[#0B2E65]">Invited Account:</h3>
-                  <p className="text-sm text-gray-700">
+                <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 flex-shrink-0">
+                  <h3 className="text-xs font-semibold text-[#0B2E65] mb-1">Invited Account:</h3>
+                  <p className="text-xs text-gray-700">
                     Your account will be automatically approved and you'll have immediate access once you complete registration.
                   </p>
                 </div>
               ) : (
-                <div className="rounded-lg bg-blue-50 border border-blue-200 p-4 space-y-3">
-                  <h3 className="text-sm font-semibold text-[#0B2E65]">Note:</h3>
-                  <p className="text-sm text-gray-700">
+                <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 flex-shrink-0">
+                  <h3 className="text-xs font-semibold text-[#0B2E65] mb-1">Note:</h3>
+                  <p className="text-xs text-gray-700">
                     After registration, verify your email. Your account will be pending admin approval. 
                     Once approved, you can request admin status or subscribe to become an admin.
                   </p>

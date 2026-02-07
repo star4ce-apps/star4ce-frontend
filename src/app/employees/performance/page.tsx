@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import HubSidebar from '@/components/sidebar/HubSidebar';
 import RequireAuth from '@/components/layout/RequireAuth';
 import { API_BASE, getToken } from '@/lib/auth';
@@ -58,27 +59,10 @@ type PerformanceReview = {
   reviewer_name?: string;
 };
 
-// Mock data for demonstration
-const mockEmployeesWithReviews: (Employee & { lastReview?: string; reviewStatus: 'overdue' | 'due' | 'completed' })[] = [
-  { id: 1, name: 'Alice Johnson', email: 'alice@example.com', phone: null, department: 'Marketing', position: 'Marketing Manager', hired_date: '2021-05-15', status: 'Full-Time', dealership_id: 1, is_active: true, created_at: '2021-05-15', updated_at: '2024-01-01', lastReview: 'March 2023', reviewStatus: 'overdue' },
-  { id: 2, name: 'Bob Smith', email: 'bob@example.com', phone: null, department: 'Sales', position: 'Sales Representative', hired_date: '2020-03-20', status: 'Full-Time', dealership_id: 1, is_active: true, created_at: '2020-03-20', updated_at: '2024-01-01', lastReview: 'January 2023', reviewStatus: 'overdue' },
-  { id: 3, name: 'Catherine Lee', email: 'catherine@example.com', phone: null, department: 'Development', position: 'Software Developer', hired_date: '2022-01-10', status: 'Full-Time', dealership_id: 1, is_active: true, created_at: '2022-01-10', updated_at: '2024-01-01', lastReview: 'February 2023', reviewStatus: 'due' },
-  { id: 4, name: 'David Brown', email: 'david@example.com', phone: null, department: 'HR', position: 'HR Specialist', hired_date: '2019-08-01', status: 'Full-Time', dealership_id: 1, is_active: true, created_at: '2019-08-01', updated_at: '2024-01-01', lastReview: 'April 2023', reviewStatus: 'completed' },
-  { id: 5, name: 'Frank White', email: 'frank@example.com', phone: null, department: 'IT', position: 'IT Support', hired_date: '2018-11-15', status: 'Full-Time', dealership_id: 1, is_active: true, created_at: '2018-11-15', updated_at: '2024-01-01', lastReview: 'November 2022', reviewStatus: 'completed' },
-  { id: 6, name: 'Eva Green', email: 'eva@example.com', phone: null, department: 'Finance', position: 'Accountant', hired_date: '2020-06-01', status: 'Full-Time', dealership_id: 1, is_active: true, created_at: '2020-06-01', updated_at: '2024-01-01', lastReview: 'December 2022', reviewStatus: 'completed' },
-  { id: 7, name: 'Grace Black', email: 'grace@example.com', phone: null, department: 'Customer Support', position: 'Support Lead', hired_date: '2021-09-01', status: 'Full-Time', dealership_id: 1, is_active: true, created_at: '2021-09-01', updated_at: '2024-01-01', lastReview: 'September 2023', reviewStatus: 'completed' },
-  { id: 8, name: 'Isabella Clark', email: 'isabella@example.com', phone: null, department: 'Research', position: 'Research Analyst', hired_date: '2022-04-15', status: 'Full-Time', dealership_id: 1, is_active: true, created_at: '2022-04-15', updated_at: '2024-01-01', lastReview: 'May 2023', reviewStatus: 'completed' },
-  { id: 9, name: 'Henry Adams', email: 'henry@example.com', phone: null, department: 'Logistics', position: 'Logistics Coordinator', hired_date: '2019-02-20', status: 'Full-Time', dealership_id: 1, is_active: true, created_at: '2019-02-20', updated_at: '2024-01-01', lastReview: 'October 2022', reviewStatus: 'completed' },
-];
-
-const mockUpcomingReviews = [
-  { name: 'David Brown', date: '04/29' },
-  { name: 'Frank White', date: '05/28' },
-  { name: 'Grace Black', date: '06/21' },
-];
-
 export default function PerformanceReviewsPage() {
-  const [employees, setEmployees] = useState<(Employee & { lastReview?: string; reviewStatus: 'overdue' | 'due' | 'completed' })[]>(mockEmployeesWithReviews);
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [employees, setEmployees] = useState<(Employee & { lastReview?: string; reviewStatus: 'overdue' | 'due' | 'completed' })[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -107,35 +91,52 @@ export default function PerformanceReviewsPage() {
     loadEmployees();
   }, []);
 
+  // Auto-open review modal if employeeId is in URL
+  useEffect(() => {
+    const employeeIdParam = searchParams.get('employeeId');
+    if (employeeIdParam && employees.length > 0 && !showReviewModal) {
+      const employeeId = parseInt(employeeIdParam);
+      const employee = employees.find(emp => emp.id === employeeId);
+      if (employee) {
+        setSelectedEmployee(employee);
+        setRatings({ jobKnowledge: 0, workQuality: 0, servicePerformance: 0, teamwork: 0, attendance: 0 });
+        setStrengths([]);
+        setImprovements([]);
+        setStrengthInput('');
+        setImprovementInput('');
+        setManagerNotes('');
+        setShowReviewModal(true);
+        // Remove the query parameter from URL
+        router.replace('/employees/performance');
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, employees]);
+
   async function loadEmployees() {
     setLoading(true);
     setError(null);
     try {
       const token = getToken();
       if (!token) {
-        // Use mock data if not logged in
-        setEmployees(mockEmployeesWithReviews);
+        setEmployees([]);
         setLoading(false);
         return;
       }
 
-      // Use getJsonAuth to include X-Dealership-Id header for corporate users
       const data = await getJsonAuth<{ ok: boolean; items: any[] }>('/employees');
       if (data.items && data.items.length > 0) {
-        // Map real employees with mock review data
-        const employeesWithReviews = data.items.map((emp: Employee, idx: number) => ({
+        const employeesWithReviews = data.items.map((emp: Employee) => ({
           ...emp,
-          lastReview: mockEmployeesWithReviews[idx % mockEmployeesWithReviews.length]?.lastReview || 'Never',
-          reviewStatus: mockEmployeesWithReviews[idx % mockEmployeesWithReviews.length]?.reviewStatus || 'due',
+          lastReview: 'Never',
+          reviewStatus: 'due' as const,
         }));
         setEmployees(employeesWithReviews);
       } else {
-        // Use mock data if no employees from API
-        setEmployees(mockEmployeesWithReviews);
+        setEmployees([]);
       }
     } catch (err) {
-      // Use mock data on error
-      setEmployees(mockEmployeesWithReviews);
+      setEmployees([]);
     } finally {
       setLoading(false);
     }
@@ -156,16 +157,14 @@ export default function PerformanceReviewsPage() {
   const departments = ['All Departments', ...Array.from(new Set(employees.map(emp => emp.department)))];
 
   const overdueCount = employees.filter(emp => emp.reviewStatus === 'overdue').length;
-  const upcomingCount = 18; // Mock upcoming reviews count
-  const averageScore = 3.6; // Mock average score
-
-  const overdueEmployees = employees.filter(emp => emp.reviewStatus === 'overdue');
+  const upcomingCount = employees.filter(emp => emp.reviewStatus === 'due').length;
+  const averageScore = 0; // TODO: Calculate from actual review data when available
 
   function openReviewModal(employee?: (Employee & { lastReview?: string; reviewStatus: 'overdue' | 'due' | 'completed' })) {
     setSelectedEmployee(employee || null);
     setRatings({ jobKnowledge: 0, workQuality: 0, servicePerformance: 0, teamwork: 0, attendance: 0 });
-    setStrengths(['Communication', 'Knowledgeable', 'Assisting other coworkers', 'Always arriving on time']);
-    setImprovements(['Training new hires', 'Friendliness', 'Attitude']);
+    setStrengths([]);
+    setImprovements([]);
     setStrengthInput('');
     setImprovementInput('');
     setManagerNotes('');
@@ -217,29 +216,6 @@ export default function PerformanceReviewsPage() {
     closeReviewModal();
   }
 
-  const getStatusBadge = (status: 'overdue' | 'due' | 'completed') => {
-    const styles = {
-      overdue: { bg: '#FEE2E2', color: '#DC2626', border: '#FECACA' },
-      due: { bg: '#FEF3C7', color: '#D97706', border: '#FDE68A' },
-      completed: { bg: '#D1FAE5', color: '#059669', border: '#A7F3D0' },
-    };
-    const labels = { overdue: 'Overdue', due: 'Due', completed: 'Completed' };
-    const style = styles[status];
-    
-    return (
-      <span 
-        className="text-xs font-semibold px-3 py-1 rounded-full inline-block"
-        style={{ 
-          backgroundColor: style.bg, 
-          color: style.color,
-          border: `1px solid ${style.border}`
-        }}
-      >
-        {labels[status]}
-      </span>
-    );
-  };
-
   return (
     <RequireAuth>
       <div className="flex min-h-screen" style={{ backgroundColor: COLORS.gray[50] }}>
@@ -275,9 +251,9 @@ export default function PerformanceReviewsPage() {
           </div>
 
           {/* Main Content */}
-          <div className="flex gap-6">
+          <div>
             {/* Employee Table */}
-            <div className="flex-1 rounded-xl p-6" style={{ backgroundColor: '#FFFFFF', border: '1px solid #E5E7EB' }}>
+            <div className="rounded-xl p-6" style={{ backgroundColor: '#FFFFFF', border: '1px solid #E5E7EB' }}>
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-semibold" style={{ color: '#232E40' }}>Employees</h2>
                 <div className="flex items-center gap-3">
@@ -318,20 +294,21 @@ export default function PerformanceReviewsPage() {
                     <tr style={{ borderBottom: '1px solid #E5E7EB' }}>
                       <th className="text-left py-3 px-2 text-xs font-semibold" style={{ color: '#6B7280' }}>Name</th>
                       <th className="text-left py-3 px-2 text-xs font-semibold" style={{ color: '#6B7280' }}>Department</th>
+                      <th className="text-left py-3 px-2 text-xs font-semibold" style={{ color: '#6B7280' }}>Role</th>
                       <th className="text-left py-3 px-2 text-xs font-semibold" style={{ color: '#6B7280' }}>Last Review</th>
-                      <th className="text-left py-3 px-2 text-xs font-semibold" style={{ color: '#6B7280' }}>Status</th>
+                      <th className="text-left py-3 px-2 text-xs font-semibold" style={{ color: '#6B7280' }}></th>
                     </tr>
                   </thead>
                   <tbody>
                     {loading ? (
                       <tr>
-                        <td colSpan={4} className="py-8 text-center text-sm" style={{ color: '#6B7280' }}>
+                        <td colSpan={5} className="py-8 text-center text-sm" style={{ color: '#6B7280' }}>
                           Loading employees...
                         </td>
                       </tr>
                     ) : paginatedEmployees.length === 0 ? (
                       <tr>
-                        <td colSpan={4} className="py-8 text-center text-sm" style={{ color: '#6B7280' }}>
+                        <td colSpan={5} className="py-8 text-center text-sm" style={{ color: '#6B7280' }}>
                           No employees found.
                         </td>
                       </tr>
@@ -339,21 +316,35 @@ export default function PerformanceReviewsPage() {
                       paginatedEmployees.map((emp) => (
                         <tr 
                           key={emp.id} 
-                          className="hover:bg-gray-50 cursor-pointer transition-colors"
+                          className="hover:bg-gray-50 transition-colors"
                           style={{ borderBottom: '1px solid #F3F4F6' }}
-                          onClick={() => openReviewModal(emp)}
                         >
                           <td className="py-3 px-2">
-                            <span className="text-sm font-medium" style={{ color: '#232E40' }}>{emp.name}</span>
+                            <button
+                              onClick={() => router.push(`/employees/${emp.id}`)}
+                              className="text-sm font-medium hover:underline cursor-pointer text-left"
+                              style={{ color: '#232E40' }}
+                            >
+                              {emp.name}
+                            </button>
                           </td>
                           <td className="py-3 px-2">
                             <span className="text-sm" style={{ color: '#6B7280' }}>{emp.department}</span>
                           </td>
                           <td className="py-3 px-2">
+                            <span className="text-sm" style={{ color: '#6B7280' }}>{emp.position || '—'}</span>
+                          </td>
+                          <td className="py-3 px-2">
                             <span className="text-sm" style={{ color: '#6B7280' }}>{emp.lastReview}</span>
                           </td>
                           <td className="py-3 px-2">
-                            {getStatusBadge(emp.reviewStatus)}
+                            <button
+                              onClick={() => openReviewModal(emp)}
+                              className="px-3 py-1.5 text-xs font-semibold rounded-lg transition-all hover:opacity-90 cursor-pointer text-white"
+                              style={{ backgroundColor: '#4D6DBE' }}
+                            >
+                              Review
+                            </button>
                           </td>
                         </tr>
                       ))
@@ -401,49 +392,6 @@ export default function PerformanceReviewsPage() {
                   </button>
                 </div>
               )}
-            </div>
-
-            {/* Reminders Panel */}
-            <div className="w-72 rounded-xl p-5" style={{ backgroundColor: '#FFFFFF', border: '1px solid #E5E7EB' }}>
-              <h2 className="text-lg font-semibold mb-4" style={{ color: '#232E40' }}>Reminders</h2>
-              
-              {/* Overdue Reminders */}
-              <div className="mb-5">
-                <h3 className="text-sm font-medium mb-3" style={{ color: '#6B7280' }}>Overdue Reminders</h3>
-                <div className="space-y-2">
-                  {overdueEmployees.slice(0, 3).map((emp) => (
-                    <div key={emp.id} className="flex items-center gap-2">
-                      <div className="w-2 h-2 rounded-full" style={{ backgroundColor: '#DC2626' }}></div>
-                      <span className="text-sm" style={{ color: '#232E40' }}>{emp.name}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Divider */}
-              <div className="border-t mb-5" style={{ borderColor: '#E5E7EB' }}></div>
-
-              {/* Upcoming Reviews */}
-              <div className="mb-5">
-                <h3 className="text-sm font-medium mb-3" style={{ color: '#6B7280' }}>Upcoming Reviews</h3>
-                <div className="space-y-2">
-                  {mockUpcomingReviews.map((review, idx) => (
-                    <div key={idx} className="flex items-center justify-between">
-                      <span className="text-sm" style={{ color: '#232E40' }}>{review.name}</span>
-                      <span className="text-sm" style={{ color: '#9CA3AF' }}>{review.date}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Start Review Button */}
-              <button
-                onClick={() => openReviewModal()}
-                className="w-full py-2.5 rounded-lg text-sm font-semibold text-white transition-all hover:opacity-90"
-                style={{ backgroundColor: '#4D6DBE' }}
-              >
-                Start Review
-              </button>
             </div>
           </div>
         </main>

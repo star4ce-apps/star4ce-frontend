@@ -189,8 +189,8 @@ function AdminSubscribePageContent() {
         <div className="bg-white rounded-lg shadow-2xl overflow-hidden">
           {/* Header */}
           <div className="bg-gradient-to-r from-[#071F45] to-[#203F70] p-8 text-white text-center">
-            <h1 className="text-3xl font-bold mb-2">🎉 Email Verified!</h1>
-            <p className="text-lg opacity-90">
+            <h1 className="text-3xl font-bold mb-2 text-white">Email Verified!</h1>
+            <p className="text-lg opacity-90 text-white">
               Your email has been verified. Please choose a subscription plan to become an admin.
             </p>
              <p className="text-sm text-white opacity-90 mt-2">
@@ -212,33 +212,35 @@ function AdminSubscribePageContent() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
               {/* Monthly Plan */}
               <div 
-                className={`bg-white rounded-xl border-2 p-6 cursor-pointer transition-all ${
+                className={`bg-white rounded-xl border-2 p-6 cursor-pointer transition-all min-h-[240px] flex flex-col ${
                   selectedPlan === 'monthly'
-                    ? 'border-[#0B2E65] shadow-lg scale-105'
+                    ? 'border-[#0B2E65] shadow-lg'
                     : 'border-gray-300 hover:border-gray-400'
                 }`}
                 onClick={() => setSelectedPlan('monthly')}
               >
-                <div className="text-center">
+                <div className="text-center flex-grow flex flex-col justify-center">
                   <h3 className="text-2xl font-bold text-gray-900 mb-2">Monthly</h3>
                   <div className="mb-4">
                     <span className="text-4xl font-bold text-[#0B2E65]">$199</span>
                     <span className="text-gray-600 ml-2">/ month</span>
                   </div>
-                  {selectedPlan === 'monthly' && (
-                    <div className="inline-block bg-[#0B2E65] text-white px-3 py-1 rounded-full text-sm font-semibold mb-4">
-                      Selected
-                    </div>
-                  )}
+                  <div className="h-8 mb-4 flex items-center justify-center">
+                    {selectedPlan === 'monthly' && (
+                      <div className="inline-block bg-[#0B2E65] text-white px-3 py-1 rounded-full text-sm font-semibold">
+                        Selected
+                      </div>
+                    )}
+                  </div>
                   <p className="text-sm text-gray-600">Billed monthly, cancel anytime</p>
                 </div>
               </div>
 
               {/* Annual Plan */}
               <div 
-                className={`bg-white rounded-xl border-2 p-6 cursor-pointer transition-all relative ${
+                className={`bg-white rounded-xl border-2 p-6 cursor-pointer transition-all relative min-h-[240px] flex flex-col ${
                   selectedPlan === 'annual'
-                    ? 'border-[#0B2E65] shadow-lg scale-105'
+                    ? 'border-[#0B2E65] shadow-lg'
                     : 'border-gray-300 hover:border-gray-400'
                 }`}
                 onClick={() => setSelectedPlan('annual')}
@@ -246,17 +248,19 @@ function AdminSubscribePageContent() {
                 <div className="absolute top-0 right-0 bg-[#e74c3c] text-white text-xs font-bold px-3 py-1 rounded-bl-lg rounded-tr-xl">
                   BEST VALUE
                 </div>
-                <div className="text-center">
+                <div className="text-center flex-grow flex flex-col justify-center">
                   <h3 className="text-2xl font-bold text-gray-900 mb-2">Annual</h3>
                   <div className="mb-4">
                     <span className="text-4xl font-bold text-[#0B2E65]">$166</span>
                     <span className="text-gray-600 ml-2">/ month</span>
                   </div>
-                  {selectedPlan === 'annual' && (
-                    <div className="inline-block bg-[#0B2E65] text-white px-3 py-1 rounded-full text-sm font-semibold mb-4">
-                      Selected
-                    </div>
-                  )}
+                  <div className="h-8 mb-4 flex items-center justify-center">
+                    {selectedPlan === 'annual' && (
+                      <div className="inline-block bg-[#0B2E65] text-white px-3 py-1 rounded-full text-sm font-semibold">
+                        Selected
+                      </div>
+                    )}
+                  </div>
                   <p className="text-sm text-gray-600 mb-1">Billed annually</p>
                   <p className="text-sm font-semibold text-[#e74c3c]">Save $396/year!</p>
                 </div>
@@ -267,7 +271,7 @@ function AdminSubscribePageContent() {
             <button
               onClick={() => handleSubscribe(selectedPlan)}
               disabled={loading || !email}
-              className="w-full bg-[#0B2E65] text-white py-4 rounded-lg font-semibold text-lg hover:bg-[#2c5aa0] transition-colors disabled:opacity-60 disabled:cursor-not-allowed mb-4"
+              className="w-full bg-[#0B2E65] text-white py-4 rounded-lg font-semibold text-lg hover:bg-[#2c5aa0] transition-colors disabled:opacity-60 disabled:cursor-not-allowed mb-4 cursor-pointer"
             >
               {loading ? 'Processing...' : `Subscribe to ${selectedPlan === 'monthly' ? 'Monthly' : 'Annual'} Plan`}
             </button>

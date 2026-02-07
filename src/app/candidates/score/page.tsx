@@ -2594,17 +2594,32 @@ export default function ScoreCandidatePage() {
       
       if (!userRes.ok) return;
       
-      const userData = await userRes.json();
-      const userDealershipId = userData.dealership_id;
+      const userResponse = await userRes.json();
+      // Handle different response structures: data.user or data
+      const userData = userResponse.user || userResponse;
+      const userDealershipId = userData.dealership_id || userData.dealershipId;
+      const currentUserId = userData.id;
+      const currentUserRole = userData.role;
+      const currentUserEmail = userData.email || '';
+      const currentUserFullName = userData.full_name || userData.first_name && userData.last_name 
+        ? `${userData.first_name} ${userData.last_name}`.trim() 
+        : null;
 
-      // Always include current user if they're a manager or admin
-      if (userData.role === 'manager' || userData.role === 'hiring_manager' || userData.role === 'admin') {
-        allManagers.push({
-          id: userData.id || 0,
-          email: userData.email || '',
-          full_name: userData.full_name || null,
-          role: userData.role || 'manager'
-        });
+      // Helper function to check if a manager already exists in the list
+      const managerExists = (id: number) => {
+        return allManagers.some(m => m.id === id);
+      };
+
+      // Always include current user if they're a manager, hiring_manager, or admin
+      if (currentUserRole === 'manager' || currentUserRole === 'hiring_manager' || currentUserRole === 'admin') {
+        if (!managerExists(currentUserId)) {
+          allManagers.push({
+            id: currentUserId || 0,
+            email: currentUserEmail,
+            full_name: currentUserFullName,
+            role: currentUserRole || 'manager'
+          });
+        }
       }
 
       // Try to get managers from admin endpoint
@@ -2615,14 +2630,33 @@ export default function ScoreCandidatePage() {
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
         // Filter to include managers and admins from the same dealership
-        const managers = (data.managers || []).filter((m: any) => 
-          (m.role === 'manager' || m.role === 'admin') && m.dealership_id === userDealershipId
-        );
-        const pending = (data.pending || []).filter((m: any) => 
-          (m.role === 'manager' || m.role === 'admin') && m.dealership_id === userDealershipId
-        );
+        // If userDealershipId is null/undefined, include all managers/admins
+        const managers = (data.managers || []).filter((m: any) => {
+          const isManagerOrAdmin = (m.role === 'manager' || m.role === 'admin');
+          const sameDealership = userDealershipId == null || m.dealership_id === userDealershipId;
+          return isManagerOrAdmin && sameDealership;
+        });
+        const pending = (data.pending || []).filter((m: any) => {
+          const isManagerOrAdmin = (m.role === 'manager' || m.role === 'admin');
+          const sameDealership = userDealershipId == null || m.dealership_id === userDealershipId;
+          return isManagerOrAdmin && sameDealership;
+        });
         
-        allManagers.push(...managers, ...pending);
+        // Add managers that aren't already in the list (check by id)
+        [...managers, ...pending].forEach((m: any) => {
+          if (!managerExists(m.id)) {
+            // Construct full_name from first_name and last_name if full_name is not available
+            const fullName = m.full_name || (m.first_name && m.last_name 
+              ? `${m.first_name} ${m.last_name}`.trim() 
+              : null);
+            allManagers.push({
+              id: m.id,
+              email: m.email || '',
+              full_name: fullName,
+              role: m.role || 'manager'
+            });
+          }
+        });
       }
 
       // Also try to get managers from /admin/users endpoint (only managers, not admins)
@@ -2634,18 +2668,27 @@ export default function ScoreCandidatePage() {
         if (usersRes.ok) {
           const usersData = await usersRes.json();
           // Filter for managers and admins from the same dealership
+          // If userDealershipId is null/undefined, include all managers/admins
           const managers = (usersData.users || []).filter((u: any) => {
-            return (u.role === 'manager' || u.role === 'admin') && u.dealership_id === userDealershipId;
-          }).map((u: any) => ({
-            id: u.id,
-            email: u.email || '',
-            full_name: u.full_name || null,
-            role: u.role || 'manager'
-          }));
+            const isManagerOrAdmin = (u.role === 'manager' || u.role === 'admin');
+            const sameDealership = userDealershipId == null || u.dealership_id === userDealershipId;
+            return isManagerOrAdmin && sameDealership;
+          }).map((u: any) => {
+            // Construct full_name from first_name and last_name if full_name is not available
+            const fullName = u.full_name || (u.first_name && u.last_name 
+              ? `${u.first_name} ${u.last_name}`.trim() 
+              : null);
+            return {
+              id: u.id,
+              email: u.email || '',
+              full_name: fullName,
+              role: u.role || 'manager'
+            };
+          });
 
           // Add managers that aren't already in the list (check by id)
           managers.forEach((manager: Manager) => {
-            if (!allManagers.find(m => m.id === manager.id)) {
+            if (!managerExists(manager.id)) {
               allManagers.push(manager);
             }
           });
@@ -2654,7 +2697,7 @@ export default function ScoreCandidatePage() {
         console.error('Failed to load managers from users endpoint:', usersErr);
       }
 
-      // Remove duplicates based on id
+      // Final deduplication pass based on id (safety check)
       const uniqueManagers = allManagers.filter((manager, index, self) =>
         index === self.findIndex((m) => m.id === manager.id)
       );
@@ -3055,11 +3098,14 @@ ${additionalNotes}` : ''}`;
                 disabled={loading}
               >
                 <option value="">Please choose...</option>
-                {managers.map(manager => (
-                  <option key={manager.id} value={manager.id.toString()}>
-                    {manager.full_name || manager.email}
-                  </option>
-                ))}
+                {managers.map(manager => {
+                  const displayName = manager.full_name || manager.email || 'Unknown';
+                  return (
+                    <option key={manager.id} value={manager.id.toString()}>
+                      {displayName}
+                    </option>
+                  );
+                })}
               </select>
             </div>
             <div>
@@ -3075,7 +3121,7 @@ ${additionalNotes}` : ''}`;
                       key={num}
                       type="button"
                       onClick={() => handleStageSelection(num.toString())}
-                      className="w-10 h-10 rounded-full text-xs font-semibold transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 relative"
+                      className="w-10 h-10 rounded-full text-xs font-semibold transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 relative cursor-pointer"
                       style={{
                         border: isSelected ? '2px solid #4D6DBE' : isCompleted ? '2px solid #10B981' : '1px solid #D1D5DB',
                         color: isSelected ? '#FFFFFF' : '#374151',
@@ -3112,7 +3158,7 @@ ${additionalNotes}` : ''}`;
             </div>
             <button
               onClick={handlePreviewPDF}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all hover:opacity-90"
+              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all hover:opacity-90 cursor-pointer"
               style={{
                 backgroundColor: '#4D6DBE',
                 color: '#FFFFFF',
@@ -3364,7 +3410,7 @@ ${additionalNotes}` : ''}`;
               </div>
               <button
                 onClick={handleReset}
-                className="px-6 py-2.5 rounded-lg text-sm font-semibold transition-all hover:bg-gray-50"
+                className="px-6 py-2.5 rounded-lg text-sm font-semibold transition-all hover:bg-gray-50 cursor-pointer"
                 style={{
                   border: '1px solid #E5E7EB',
                   color: '#374151',
@@ -3377,7 +3423,7 @@ ${additionalNotes}` : ''}`;
               <button
                 onClick={handleSubmit}
                   disabled={isSubmitDisabled}
-                  className="px-8 py-2.5 rounded-lg text-sm font-semibold transition-all hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-8 py-2.5 rounded-lg text-sm font-semibold transition-all hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                 style={{
                   backgroundColor: '#10B981',
                   color: '#FFFFFF',
