@@ -953,7 +953,7 @@ export default function UserManagementPage() {
                           </td>
                           <td className="py-4 px-6">
                             <span className="text-sm" style={{ color: '#6B7280' }}>
-                              {new Date(manager.created_at).toLocaleDateString()}
+                              {manager.created_at ? (() => { const d = new Date(manager.created_at); return isNaN(d.getTime()) ? '—' : d.toLocaleDateString(); })() : '—'}
                             </span>
                           </td>
                           <td className="py-4 px-6 text-center">
@@ -1044,11 +1044,11 @@ export default function UserManagementPage() {
                           </td>
                           <td className="py-4 px-6">
                             <span className="text-sm" style={{ color: '#6B7280' }}>
-                              {new Date(manager.created_at).toLocaleDateString()}
+                              {manager.created_at ? (() => { const d = new Date(manager.created_at); return isNaN(d.getTime()) ? '—' : d.toLocaleDateString(); })() : '—'}
                             </span>
                           </td>
-                          <td className="py-4 px-6">
-                            <div className="flex gap-2 justify-end items-center">
+                          <td className="py-4 px-6 text-center">
+                            <div className="flex gap-2 justify-center items-center">
                               {!isAdmin && (
                                 <button
                               onClick={() => {

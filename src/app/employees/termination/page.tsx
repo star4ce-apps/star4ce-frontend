@@ -102,130 +102,89 @@ export default function TerminationPage() {
       const token = getToken();
       if (!token) return;
 
-      const allUsers: Manager[] = [];
-
-      // Fetch managers from admin endpoint
-      let res = await fetch(`${API_BASE}/admin/managers`, {
+      // Get current user first so we can skip admin-only calls for managers
+      const userRes = await fetch(`${API_BASE}/auth/me`, {
         headers: { Authorization: `Bearer ${token}` },
       });
+      if (!userRes.ok) return;
+      const userData = await userRes.json();
+      const currentUser = userData.user || userData;
+      const role = currentUser.role || '';
+      const currentUserEmail = currentUser.email || '';
+      const currentUserDealershipId = currentUser.dealership_id ?? null;
 
-      // If admin endpoint doesn't work, try a general managers endpoint
-      if (!res.ok && res.status !== 403) {
-        res = await fetch(`${API_BASE}/managers`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-      }
-
-      if (res.ok) {
-        const data = await res.json();
-        // Filter for approved managers only and map to our format
-        const managerList = (data.managers || data.items || []).filter((m: any) => 
-          m.is_approved !== false && (m.role === 'manager' || m.role === 'hiring_manager')
-        ).map((m: any) => ({
-          id: m.id,
-          name: m.name || m.user?.name || '',
-          email: m.email || m.user?.email || '',
-          role: m.role || 'manager',
-          is_approved: m.is_approved !== false,
-        }));
-        allUsers.push(...managerList);
-      }
-
-      // First, get current user info to know their dealership
-      let currentUserEmail = '';
-      let currentUserDealershipId: number | null = null;
-      
-      try {
-        const userRes = await fetch(`${API_BASE}/auth/me`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        
-        if (userRes.ok) {
-          const userData = await userRes.json();
-          const currentUser = userData.user || userData;
-          currentUserEmail = currentUser.email || '';
-          currentUserDealershipId = currentUser.dealership_id || null;
+      // Manager/hiring_manager: only current user for "Terminated by" (no /admin/managers or /admin/users)
+      if (role === 'manager' || role === 'hiring_manager') {
+        const name = getUserDisplayName(currentUser);
+        const list = [{
+          id: currentUser.id || 0,
+          name: name || currentUserEmail.split('@')[0] || currentUserEmail,
+          email: currentUserEmail,
+          role,
+          is_approved: true,
+        }];
+        setManagers(list);
+        if (list.length > 0) {
+          const defaultName = list[0].name || list[0].email;
+          setFormData(prev => (prev.terminatedBy ? prev : { ...prev, terminatedBy: defaultName }));
         }
-      } catch (userErr) {
-        console.error('Failed to load current user:', userErr);
+        return;
       }
 
-      // Fetch all users to get admins (including current user)
-      try {
-        const usersRes = await fetch(`${API_BASE}/admin/users`, {
+      const allUsers: Manager[] = [];
+
+      if (role === 'admin' || role === 'corporate') {
+        const res = await fetch(`${API_BASE}/admin/managers`, {
           headers: { Authorization: `Bearer ${token}` },
         });
-        
-        if (usersRes.ok) {
-          const usersData = await usersRes.json();
-          // Filter for admins from the same dealership (or all if no dealership filter)
-          const admins = (usersData.users || []).filter((u: any) => {
-            const isAdmin = u.role === 'admin';
-            const isApproved = u.is_approved !== false || u.is_approved === undefined;
-            // If we have a dealership_id, filter by it; otherwise include all admins
-            const sameDealership = currentUserDealershipId === null || u.dealership_id === currentUserDealershipId;
-            return isAdmin && isApproved && sameDealership;
-          }).map((u: any) => ({
-            id: u.id,
-            name: getUserDisplayName(u),
-            email: u.email || '',
-            role: 'admin',
-            is_approved: u.is_approved !== false,
+        if (res.ok) {
+          const data = await res.json();
+          const managerList = (data.managers || data.items || []).filter((m: any) =>
+            m.is_approved !== false && (m.role === 'manager' || m.role === 'hiring_manager')
+          ).map((m: any) => ({
+            id: m.id,
+            name: getUserDisplayName(m) || m.name || m.user?.name || '',
+            email: m.email || m.user?.email || '',
+            role: m.role || 'manager',
+            is_approved: m.is_approved !== false,
           }));
-          
-          // Add admins that aren't already in the list (check by email)
-          admins.forEach((admin: Manager) => {
-            if (!allUsers.find(u => u.email === admin.email)) {
-              allUsers.push(admin);
-            }
-          });
+          allUsers.push(...managerList);
         }
-      } catch (usersErr) {
-        console.error('Failed to load all users:', usersErr);
-      }
 
-      // Ensure current user is included if they're an admin
-      if (currentUserEmail) {
-        const currentUserInList = allUsers.find(u => u.email === currentUserEmail);
-        if (!currentUserInList) {
-          // Try to find them in the users list, or add as fallback
-          try {
-            const usersRes = await fetch(`${API_BASE}/admin/users`, {
-              headers: { Authorization: `Bearer ${token}` },
-            });
-            if (usersRes.ok) {
-              const usersData = await usersRes.json();
-              const currentUserFromList = (usersData.users || []).find((u: any) => u.email === currentUserEmail && u.role === 'admin');
-              if (currentUserFromList) {
-                allUsers.push({
-                  id: currentUserFromList.id,
-                  name: getUserDisplayName(currentUserFromList),
-                  email: currentUserEmail,
-                  role: 'admin',
-                  is_approved: currentUserFromList.is_approved !== false,
-                });
-              } else {
-                // Fallback: add current user even if not in the list
-                allUsers.push({
-                  id: 0,
-                  name: currentUserEmail.split('@')[0] || currentUserEmail,
-                  email: currentUserEmail,
-                  role: 'admin',
-                  is_approved: true,
-                });
-              }
-            }
-          } catch (err) {
-            // Final fallback
-            allUsers.push({
-              id: 0,
-              name: currentUserEmail.split('@')[0] || currentUserEmail,
-              email: currentUserEmail,
+        try {
+          const usersRes = await fetch(`${API_BASE}/admin/users`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (usersRes.ok) {
+            const usersData = await usersRes.json();
+            const admins = (usersData.users || []).filter((u: any) => {
+              const isAdmin = u.role === 'admin';
+              const sameDealership = currentUserDealershipId === null || u.dealership_id === currentUserDealershipId;
+              return isAdmin && sameDealership;
+            }).map((u: any) => ({
+              id: u.id,
+              name: getUserDisplayName(u),
+              email: u.email || '',
               role: 'admin',
-              is_approved: true,
+              is_approved: u.is_approved !== false,
+            }));
+            admins.forEach((admin: Manager) => {
+              if (!allUsers.find(u => u.email === admin.email)) allUsers.push(admin);
             });
           }
+        } catch {
+          // ignore
         }
+      }
+
+      if (currentUserEmail && !allUsers.find(u => u.email === currentUserEmail)) {
+        allUsers.push({
+          id: currentUser.id || 0,
+          name: getUserDisplayName(currentUser) || currentUserEmail.split('@')[0] || currentUserEmail,
+          email: currentUserEmail,
+          role: role || 'admin',
+          is_approved: true,
+        });
       }
 
       // Remove duplicates and sort (admins first, then managers)

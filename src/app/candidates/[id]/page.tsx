@@ -58,6 +58,7 @@ type CandidateProfile = {
   interviewHistory: InterviewHistory[];
   notes: string;
   resumeUrl?: string | null;
+  dealership_id?: number | null;
 };
 
 export default function CandidateProfilePage() {
@@ -283,6 +284,7 @@ export default function CandidateProfilePage() {
           interviewHistory: [],
           notes: c.notes || '',
           resumeUrl: c.resume_url ? `${API_BASE}${c.resume_url}` : undefined,
+          dealership_id: c.dealership_id ?? undefined,
         };
         setCandidate(candidateData);
         const sortedIds = allCandidates.map(c => c.id).sort((a, b) => a - b);
@@ -373,9 +375,9 @@ export default function CandidateProfilePage() {
   async function handleConvertToEmployee() {
     if (!candidate) return;
     
-    // Block corporate users
-    if (role === 'corporate') {
-      toast.error('Corporate users have view-only access. Cannot convert candidates to employees.');
+    // Only admin, hiring_manager, and corporate can board as employee
+    if (role !== 'admin' && role !== 'hiring_manager' && role !== 'corporate') {
+      toast.error('Only admin, hiring manager, and corporate can board candidates as employees.');
       return;
     }
 
@@ -400,13 +402,13 @@ export default function CandidateProfilePage() {
       const today = new Date().toISOString().split('T')[0];
 
       // Create employee data from candidate data
-      const employeeData = {
+      const employeeData: Record<string, unknown> = {
         name: candidate.name,
         email: candidate.email,
         phone: candidate.phone || null,
-        department: 'General', // Default department, can be updated later
+        department: 'General',
         position: candidate.jobPosition || null,
-        employee_id: `EMP-${candidate.id}`, // Generate employee ID from candidate ID
+        employee_id: `EMP-${candidate.id}`,
         hired_date: today,
         status: 'Active',
         street: null,
@@ -416,23 +418,15 @@ export default function CandidateProfilePage() {
         date_of_birth: null,
         gender: null,
       };
-
-      // Create employee
-      const res = await fetch(`${API_BASE}/employees`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(employeeData),
-      });
-
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(data.error || data.message || 'Failed to create employee');
+      // Corporate must send candidate's dealership so backend creates employee in correct dealership
+      if (role === 'corporate' && candidate.dealership_id != null) {
+        employeeData.dealership_id = candidate.dealership_id;
       }
 
-      const employeeId = data.employee?.id || data.id;
+      // Create employee (postJsonAuth sends X-Dealership-Id for corporate)
+      const data = await postJsonAuth<{ ok: boolean; employee?: { id: number }; id?: number }>('/employees', employeeData, { method: 'POST' });
+
+      const employeeId = data.employee?.id ?? data.id;
 
       // Get current user info for role history
       let changedBy = 'Unknown';
@@ -1253,8 +1247,8 @@ export default function CandidateProfilePage() {
                 </div>
               </div>
 
-              {/* Hiring Decision Actions */}
-              {role !== 'corporate' && (
+              {/* Hiring Decision Actions - only admin, hiring manager, and corporate can board */}
+              {(role === 'admin' || role === 'hiring_manager' || role === 'corporate') && (
                 <div className="rounded-xl p-5" style={{ backgroundColor: '#FFFFFF', border: '1px solid #E5E7EB' }}>
                   <h3 className="text-sm font-bold mb-4" style={{ color: '#232E40' }}>Hiring Decision</h3>
                   <div className="space-y-3">

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import React from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import HubSidebar from '@/components/sidebar/HubSidebar';
@@ -2405,8 +2405,18 @@ type Manager = {
   id: number;
   email: string;
   full_name?: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
   role: string;
 };
+
+function managerDisplayName(m: Manager): string {
+  if (m.first_name && m.last_name) return `${m.first_name} ${m.last_name}`.trim();
+  if (m.first_name) return m.first_name;
+  if (m.last_name) return m.last_name;
+  if (m.full_name && m.full_name.trim()) return m.full_name.trim();
+  return 'Unknown';
+}
 
 export default function ScoreCandidatePage() {
   const router = useRouter();
@@ -2431,6 +2441,8 @@ export default function ScoreCandidatePage() {
   const [candidateSearch, setCandidateSearch] = useState('');
   const [showCandidateDropdown, setShowCandidateDropdown] = useState(false);
   const [interviewerRecommendation, setInterviewerRecommendation] = useState('');
+  const hasAppliedUrlRoleStage = useRef(false);
+  const hasAppliedUrlCandidate = useRef(false);
 
   // Get criteria and map interview questions
   const rawCriteria = criteriaDataRaw[selectedRole] || [];
@@ -2453,31 +2465,29 @@ export default function ScoreCandidatePage() {
     }
   }, [selectedCandidate]);
 
-  // Auto-fill from query parameters
+  // Set role and stage from URL on load (so ?role=office-clerk&stage=1 pre-fills)
   useEffect(() => {
-    if (candidates.length > 0 && searchParams) {
-      const candidateId = searchParams.get('candidateId');
-      const role = searchParams.get('role');
-      const stage = searchParams.get('stage');
+    if (hasAppliedUrlRoleStage.current || !searchParams) return;
+    const role = searchParams.get('role');
+    const stage = searchParams.get('stage');
+    if (role && roles.some((r) => r.id === role)) setSelectedRole(role);
+    if (stage) setSelectedStage(stage);
+    hasAppliedUrlRoleStage.current = true;
+  }, [searchParams]);
 
-      if (candidateId && !selectedCandidate) {
-        setSelectedCandidate(candidateId);
-        const candidate = candidates.find(c => c.id.toString() === candidateId);
-        if (candidate) {
-          setCandidateSearch(candidate.name);
-          setShowCandidateDropdown(false);
-        }
-      }
-
-      if (role && !selectedRole) {
-        setSelectedRole(role);
-      }
-
-      if (stage && !selectedStage) {
-        setSelectedStage(stage);
-      }
+  // Auto-fill candidate from query once when candidates list is loaded (so clearing the field stays blank)
+  useEffect(() => {
+    if (hasAppliedUrlCandidate.current || candidates.length === 0 || !searchParams) return;
+    const candidateId = searchParams.get('candidateId');
+    if (!candidateId) return;
+    hasAppliedUrlCandidate.current = true;
+    setSelectedCandidate(candidateId);
+    const candidate = candidates.find((c) => c.id.toString() === candidateId);
+    if (candidate) {
+      setCandidateSearch(candidate.name);
+      setShowCandidateDropdown(false);
     }
-  }, [candidates, searchParams, selectedCandidate, selectedRole, selectedStage]);
+  }, [candidates, searchParams]);
 
   async function loadCompletedStages(candidateId: string) {
     try {
@@ -2601,100 +2611,54 @@ export default function ScoreCandidatePage() {
       const currentUserId = userData.id;
       const currentUserRole = userData.role;
       const currentUserEmail = userData.email || '';
-      const currentUserFullName = userData.full_name || userData.first_name && userData.last_name 
-        ? `${userData.first_name} ${userData.last_name}`.trim() 
-        : null;
+      const currentUserFullName = (userData.full_name && userData.full_name.trim()) ||
+        (userData.first_name && userData.last_name ? `${userData.first_name} ${userData.last_name}`.trim() : null) ||
+        (userData.first_name || userData.last_name) ||
+        (currentUserEmail && currentUserEmail.includes('@') ? currentUserEmail.split('@')[0].replace(/[._]/g, ' ') : null);
 
       // Helper function to check if a manager already exists in the list
       const managerExists = (id: number) => {
         return allManagers.some(m => m.id === id);
       };
 
-      // Always include current user if they're a manager, hiring_manager, or admin
-      if (currentUserRole === 'manager' || currentUserRole === 'hiring_manager' || currentUserRole === 'admin') {
-        if (!managerExists(currentUserId)) {
+      // Always include current user if they're a manager, hiring_manager, admin, or corporate
+      if (currentUserRole === 'manager' || currentUserRole === 'hiring_manager' || currentUserRole === 'admin' || currentUserRole === 'corporate') {
+        const uid = currentUserId ?? 0;
+        if (!managerExists(uid)) {
           allManagers.push({
-            id: currentUserId || 0,
+            id: uid,
             email: currentUserEmail,
-            full_name: currentUserFullName,
+            full_name: currentUserFullName ?? undefined,
+            first_name: userData.first_name,
+            last_name: userData.last_name,
             role: currentUserRole || 'manager'
           });
         }
       }
 
-      // Try to get managers from admin endpoint
-      const res = await fetch(`${API_BASE}/admin/managers`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      const data = await res.json().catch(() => ({}));
-      if (res.ok) {
-        // Filter to include managers and admins from the same dealership
-        // If userDealershipId is null/undefined, include all managers/admins
-        const managers = (data.managers || []).filter((m: any) => {
-          const isManagerOrAdmin = (m.role === 'manager' || m.role === 'admin');
-          const sameDealership = userDealershipId == null || m.dealership_id === userDealershipId;
-          return isManagerOrAdmin && sameDealership;
-        });
-        const pending = (data.pending || []).filter((m: any) => {
-          const isManagerOrAdmin = (m.role === 'manager' || m.role === 'admin');
-          const sameDealership = userDealershipId == null || m.dealership_id === userDealershipId;
-          return isManagerOrAdmin && sameDealership;
-        });
-        
-        // Add managers that aren't already in the list (check by id)
-        [...managers, ...pending].forEach((m: any) => {
-          if (!managerExists(m.id)) {
-            // Construct full_name from first_name and last_name if full_name is not available
-            const fullName = m.full_name || (m.first_name && m.last_name 
-              ? `${m.first_name} ${m.last_name}`.trim() 
-              : null);
-            allManagers.push({
-              id: m.id,
-              email: m.email || '',
-              full_name: fullName,
-              role: m.role || 'manager'
-            });
-          }
-        });
-      }
-
-      // Also try to get managers from /admin/users endpoint (only managers, not admins)
+      // Fetch all interviewers (admin, manager, hiring_manager, corporate) for this dealership
       try {
-        const usersRes = await fetch(`${API_BASE}/admin/users`, {
+        const res = await fetch(`${API_BASE}/interviewers`, {
           headers: { Authorization: `Bearer ${token}` },
         });
-        
-        if (usersRes.ok) {
-          const usersData = await usersRes.json();
-          // Filter for managers and admins from the same dealership
-          // If userDealershipId is null/undefined, include all managers/admins
-          const managers = (usersData.users || []).filter((u: any) => {
-            const isManagerOrAdmin = (u.role === 'manager' || u.role === 'admin');
-            const sameDealership = userDealershipId == null || u.dealership_id === userDealershipId;
-            return isManagerOrAdmin && sameDealership;
-          }).map((u: any) => {
-            // Construct full_name from first_name and last_name if full_name is not available
-            const fullName = u.full_name || (u.first_name && u.last_name 
-              ? `${u.first_name} ${u.last_name}`.trim() 
-              : null);
-            return {
-              id: u.id,
-              email: u.email || '',
-              full_name: fullName,
-              role: u.role || 'manager'
-            };
-          });
-
-          // Add managers that aren't already in the list (check by id)
-          managers.forEach((manager: Manager) => {
-            if (!managerExists(manager.id)) {
-              allManagers.push(manager);
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && data.interviewers) {
+          (data.interviewers as any[]).forEach((u: any) => {
+            if (!managerExists(u.id)) {
+              const fullName = u.full_name || (u.first_name && u.last_name ? `${u.first_name} ${u.last_name}`.trim() : null);
+              allManagers.push({
+                id: u.id,
+                email: u.email || '',
+                full_name: fullName,
+                first_name: u.first_name,
+                last_name: u.last_name,
+                role: u.role || 'manager'
+              });
             }
           });
         }
-      } catch (usersErr) {
-        console.error('Failed to load managers from users endpoint:', usersErr);
+      } catch (interviewersErr) {
+        console.error('Failed to load interviewers:', interviewersErr);
       }
 
       // Final deduplication pass based on id (safety check)
@@ -2702,7 +2666,6 @@ export default function ScoreCandidatePage() {
         index === self.findIndex((m) => m.id === manager.id)
       );
 
-      console.log('Loaded managers/admins for interviewer:', uniqueManagers);
       setManagers(uniqueManagers);
     } catch (err) {
       console.error('Failed to load managers:', err);
@@ -2812,7 +2775,7 @@ export default function ScoreCandidatePage() {
       // Create structured interview notes with clear formatting
       // This format is designed to work with the backend once it supports multiple interviews
       const newInterviewNotes = `Interview Stage: ${selectedStage}
-Interviewer: ${manager?.full_name || manager?.email || 'Unknown'}
+Interviewer: ${manager ? managerDisplayName(manager) : 'Unknown'}
 Role: ${selectedRoleData?.name || selectedRole}
 Interviewer Recommendation: ${recommendationText}
 
@@ -3056,7 +3019,7 @@ ${additionalNotes}` : ''}`;
               </div>
               {showCandidateDropdown && (
                 <div 
-                  className="fixed inset-0 z-40" 
+                  className="fixed inset-0 z-40 cursor-pointer" 
                   onClick={() => setShowCandidateDropdown(false)}
                 />
               )}
@@ -3068,7 +3031,7 @@ ${additionalNotes}` : ''}`;
               <select
                 value={selectedRole}
                 onChange={(e) => setSelectedRole(e.target.value)}
-                className="w-full px-4 py-2.5 rounded-lg text-sm transition-all focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-2.5 rounded-lg text-sm transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
                 style={{
                   border: '1px solid #D1D5DB',
                   color: '#374151',
@@ -3089,7 +3052,7 @@ ${additionalNotes}` : ''}`;
               <select
                 value={selectedManager}
                 onChange={(e) => setSelectedManager(e.target.value)}
-                className="w-full px-4 py-2.5 rounded-lg text-sm transition-all focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-2.5 rounded-lg text-sm transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
                 style={{
                   border: '1px solid #D1D5DB',
                   color: '#374151',
@@ -3099,7 +3062,7 @@ ${additionalNotes}` : ''}`;
               >
                 <option value="">Please choose...</option>
                 {managers.map(manager => {
-                  const displayName = manager.full_name || manager.email || 'Unknown';
+                  const displayName = managerDisplayName(manager);
                   return (
                     <option key={manager.id} value={manager.id.toString()}>
                       {displayName}
@@ -3894,7 +3857,7 @@ ${additionalNotes}` : ''}`;
             <div className="flex gap-3 justify-end">
               <button
                 onClick={handleCancelRedo}
-                className="px-4 py-2 rounded-lg font-semibold transition-colors"
+                className="px-4 py-2 rounded-lg font-semibold transition-colors cursor-pointer"
                 style={{
                   backgroundColor: '#F3F4F6',
                   color: '#374151',
@@ -3904,7 +3867,7 @@ ${additionalNotes}` : ''}`;
               </button>
               <button
                 onClick={handleConfirmRedo}
-                className="px-4 py-2 rounded-lg font-semibold text-white transition-colors"
+                className="px-4 py-2 rounded-lg font-semibold text-white transition-colors cursor-pointer"
                 style={{
                   backgroundColor: '#4D6DBE',
                 }}

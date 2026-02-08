@@ -198,73 +198,74 @@ export default function CorporateRegisterPage() {
               </div>
             )}
 
-            {/* Registration Form */}
+            {/* Registration Form - like admin register */}
             <form onSubmit={handleSubmit} className="space-y-4 flex-1 min-h-0">
-              {/* First Name and Last Name Fields */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
+              <div className="mb-4">
+                <h3 className="font-semibold text-gray-700 mb-3">Account Information</h3>
+                <div className="grid grid-cols-2 gap-4 mb-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">First Name *</label>
+                    <input
+                      type="text"
+                      placeholder="First Name"
+                      autoComplete="given-name"
+                      className="w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#0B2E65] focus:border-transparent"
+                      value={firstName}
+                      onChange={(e) => setFirstName(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Last Name *</label>
+                    <input
+                      type="text"
+                      placeholder="Last Name"
+                      autoComplete="family-name"
+                      className="w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#0B2E65] focus:border-transparent"
+                      value={lastName}
+                      onChange={(e) => setLastName(e.target.value)}
+                      required
+                    />
+                  </div>
+                </div>
+                <div className="mb-3">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Email *</label>
                   <input
-                    type="text"
-                    placeholder="First Name"
-                    autoComplete="given-name"
-                    className="w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none"
-                    value={firstName}
-                    onChange={(e) => setFirstName(e.target.value)}
+                    type="email"
+                    placeholder="Email"
+                    autoComplete="email"
+                    className="w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#0B2E65] focus:border-transparent"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
                     required
                   />
                 </div>
-                <div>
+                <div className="mb-3">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Password *</label>
                   <input
-                    type="text"
-                    placeholder="Last Name"
-                    autoComplete="family-name"
-                    className="w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none"
-                    value={lastName}
-                    onChange={(e) => setLastName(e.target.value)}
-                    required
-                  />
-                </div>
-              </div>
-
-              {/* Email Field */}
-              <div>
-                <input
-                  type="email"
-                  placeholder="Email"
-                  autoComplete="email"
-                  className="w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                />
-              </div>
-
-              {/* Password Field */}
-              <div>
-                <input
-                  type="password"
-                  placeholder="Password (min 8 chars, letters & numbers)"
-                  autoComplete="new-password"
-                  className="w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none"
+                    type="password"
+                    placeholder="Password (min 8 chars, letters & numbers)"
+                    autoComplete="new-password"
+                    className="w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#0B2E65] focus:border-transparent"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
                   minLength={8}
                 />
-              </div>
-
-              {/* Confirm Password Field */}
-              <div>
-                <input
-                  type="password"
-                  placeholder="Confirm Password"
-                  autoComplete="new-password"
-                  className="w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  required
-                  minLength={8}
-                />
+                </div>
+                <div className="mb-3">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Confirm Password *</label>
+                  <input
+                    type="password"
+                    placeholder="Confirm Password"
+                    autoComplete="new-password"
+                    className="w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#0B2E65] focus:border-transparent"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    required
+                    minLength={8}
+                  />
+                </div>
               </div>
 
               {/* Info Box */}
