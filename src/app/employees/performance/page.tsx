@@ -5,7 +5,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import HubSidebar from '@/components/sidebar/HubSidebar';
 import RequireAuth from '@/components/layout/RequireAuth';
 import { API_BASE, getToken } from '@/lib/auth';
-import { getJsonAuth } from '@/lib/http';
+import { deleteJsonAuth, getJsonAuth, postJsonAuth } from '@/lib/http';
+import toast from 'react-hot-toast';
 
 // Modern color palette - matching surveys page
 const COLORS = {
@@ -59,18 +60,48 @@ type PerformanceReview = {
   reviewer_name?: string;
 };
 
+type ReviewLogItem = {
+  id: number;
+  review_date: string;
+  overall_rating: number;
+  job_knowledge: number;
+  work_quality: number;
+  service_performance: number;
+  teamwork: number;
+  attendance: number;
+  strengths?: string[];
+  improvements?: string[];
+  notes?: string | null;
+  created_at?: string | null;
+};
+
 export default function PerformanceReviewsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [employees, setEmployees] = useState<(Employee & { lastReview?: string; reviewStatus: 'overdue' | 'due' | 'completed' })[]>([]);
+  const [employees, setEmployees] = useState<(Employee & { lastReview?: string; reviewStatus: 'overdue' | 'due' | 'completed'; avg_performance_score?: number | null })[]>([]);
   const [loading, setLoading] = useState(false);
+  const [submittingReview, setSubmittingReview] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDepartment, setSelectedDepartment] = useState('All Departments');
   const [currentPage, setCurrentPage] = useState(1);
   const [showReviewModal, setShowReviewModal] = useState(false);
-  const [selectedEmployee, setSelectedEmployee] = useState<(Employee & { lastReview?: string; reviewStatus: 'overdue' | 'due' | 'completed' }) | null>(null);
-  
+  const [selectedEmployee, setSelectedEmployee] = useState<(Employee & { lastReview?: string; reviewStatus: 'overdue' | 'due' | 'completed'; avg_performance_score?: number | null }) | null>(null);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [historyEmployee, setHistoryEmployee] = useState<(Employee & { lastReview?: string }) | null>(null);
+  const [reviewLogs, setReviewLogs] = useState<ReviewLogItem[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [editingReview, setEditingReview] = useState<ReviewLogItem | null>(null);
+  const [editRatings, setEditRatings] = useState({ jobKnowledge: 0, workQuality: 0, servicePerformance: 0, teamwork: 0, attendance: 0 });
+  const [editStrengths, setEditStrengths] = useState<string[]>([]);
+  const [editImprovements, setEditImprovements] = useState<string[]>([]);
+  const [editNotes, setEditNotes] = useState('');
+  const [editReviewDate, setEditReviewDate] = useState('');
+  const [submittingEdit, setSubmittingEdit] = useState(false);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [editStrengthInput, setEditStrengthInput] = useState('');
+  const [editImprovementInput, setEditImprovementInput] = useState('');
+
   // Review form state
   const [ratings, setRatings] = useState({
     jobKnowledge: 0,
@@ -119,23 +150,31 @@ export default function PerformanceReviewsPage() {
     try {
       const token = getToken();
       if (!token) {
+        setError('Not logged in');
         setEmployees([]);
         setLoading(false);
         return;
       }
 
-      const data = await getJsonAuth<{ ok: boolean; items: any[] }>('/employees');
-      if (data.items && data.items.length > 0) {
-        const employeesWithReviews = data.items.map((emp: Employee) => ({
-          ...emp,
-          lastReview: 'Never',
-          reviewStatus: 'due' as const,
-        }));
-        setEmployees(employeesWithReviews);
-      } else {
-        setEmployees([]);
-      }
+      const data = await getJsonAuth<{ ok?: boolean; items?: any[]; employees?: any[] }>('/employees');
+      const list = data?.items ?? data?.employees ?? [];
+      const employeesWithReviews = Array.isArray(list)
+        ? list.map((emp: any) => {
+            const lastDate = emp.last_review_date;
+            return {
+              ...emp,
+              name: emp.name ?? ([emp.first_name, emp.last_name].filter(Boolean).join(' ') || 'Unknown'),
+              department: emp.department ?? '—',
+              lastReview: lastDate ? new Date(lastDate).toLocaleDateString() : 'Never',
+              reviewStatus: (emp.reviewStatus || 'due') as 'overdue' | 'due' | 'completed',
+              avg_performance_score: emp.avg_performance_score ?? null,
+            };
+          })
+        : [];
+      setEmployees(employeesWithReviews);
     } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to load employees';
+      setError(message.includes('403') ? 'You don’t have permission to view employees.' : 'Failed to load employees. Try again.');
       setEmployees([]);
     } finally {
       setLoading(false);
@@ -158,9 +197,12 @@ export default function PerformanceReviewsPage() {
 
   const overdueCount = employees.filter(emp => emp.reviewStatus === 'overdue').length;
   const upcomingCount = employees.filter(emp => emp.reviewStatus === 'due').length;
-  const averageScore = 0; // TODO: Calculate from actual review data when available
+  const scoresWithValue = employees.filter(emp => typeof emp.avg_performance_score === 'number');
+  const averageScore = scoresWithValue.length > 0
+    ? scoresWithValue.reduce((sum, emp) => sum + (emp.avg_performance_score ?? 0), 0) / scoresWithValue.length
+    : 0;
 
-  function openReviewModal(employee?: (Employee & { lastReview?: string; reviewStatus: 'overdue' | 'due' | 'completed' })) {
+  function openReviewModal(employee?: (Employee & { lastReview?: string; reviewStatus: 'overdue' | 'due' | 'completed'; avg_performance_score?: number | null })) {
     setSelectedEmployee(employee || null);
     setRatings({ jobKnowledge: 0, workQuality: 0, servicePerformance: 0, teamwork: 0, attendance: 0 });
     setStrengths([]);
@@ -174,6 +216,96 @@ export default function PerformanceReviewsPage() {
   function closeReviewModal() {
     setShowReviewModal(false);
     setSelectedEmployee(null);
+  }
+
+  async function openHistoryModal(emp: Employee & { lastReview?: string }) {
+    setHistoryEmployee(emp);
+    setShowHistoryModal(true);
+    setReviewLogs([]);
+    setLoadingHistory(true);
+    try {
+      const data = await getJsonAuth<{ ok?: boolean; items?: ReviewLogItem[] }>(`/employees/${emp.id}/performance-reviews`);
+      setReviewLogs(Array.isArray(data?.items) ? data.items : []);
+    } catch {
+      setReviewLogs([]);
+    } finally {
+      setLoadingHistory(false);
+    }
+  }
+
+  function closeHistoryModal() {
+    setShowHistoryModal(false);
+    setHistoryEmployee(null);
+    setReviewLogs([]);
+    setEditingReview(null);
+  }
+
+  function openEditModal(log: ReviewLogItem) {
+    setEditingReview(log);
+    setEditRatings({
+      jobKnowledge: log.job_knowledge ?? 0,
+      workQuality: log.work_quality ?? 0,
+      servicePerformance: log.service_performance ?? 0,
+      teamwork: log.teamwork ?? 0,
+      attendance: log.attendance ?? 0,
+    });
+    setEditStrengths(Array.isArray(log.strengths) ? [...log.strengths] : (log.strengths ? [String(log.strengths)] : []));
+    setEditImprovements(Array.isArray(log.improvements) ? [...log.improvements] : (log.improvements ? [String(log.improvements)] : []));
+    setEditNotes(log.notes ?? '');
+    setEditReviewDate(log.review_date ? new Date(log.review_date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]);
+  }
+
+  function closeEditModal() {
+    setEditingReview(null);
+  }
+
+  async function handleSaveEdit() {
+    if (!editingReview || !historyEmployee) return;
+    setSubmittingEdit(true);
+    try {
+      await postJsonAuth(
+        `/employees/${historyEmployee.id}/performance-reviews/${editingReview.id}`,
+        {
+          review_date: editReviewDate,
+          job_knowledge: editRatings.jobKnowledge || 0,
+          work_quality: editRatings.workQuality || 0,
+          service_performance: editRatings.servicePerformance || 0,
+          teamwork: editRatings.teamwork || 0,
+          attendance: editRatings.attendance || 0,
+          strengths: editStrengths.length ? editStrengths : undefined,
+          improvements: editImprovements.length ? editImprovements : undefined,
+          notes: editNotes.trim() || undefined,
+        },
+        { method: 'PUT' }
+      );
+      toast.success('Review updated.');
+      closeEditModal();
+      const data = await getJsonAuth<{ ok?: boolean; items?: ReviewLogItem[] }>(`/employees/${historyEmployee.id}/performance-reviews`);
+      setReviewLogs(Array.isArray(data?.items) ? data.items : []);
+      await loadEmployees();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to update review';
+      toast.error(message);
+    } finally {
+      setSubmittingEdit(false);
+    }
+  }
+
+  async function handleDeleteReview(log: ReviewLogItem) {
+    if (!historyEmployee) return;
+    if (!confirm('Delete this review? This cannot be undone.')) return;
+    setDeletingId(log.id);
+    try {
+      await deleteJsonAuth(`/employees/${historyEmployee.id}/performance-reviews/${log.id}`);
+      toast.success('Review deleted.');
+      setReviewLogs(prev => prev.filter(r => r.id !== log.id));
+      await loadEmployees();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to delete review';
+      toast.error(message);
+    } finally {
+      setDeletingId(null);
+    }
   }
 
   function handleAddStrength(e: React.KeyboardEvent<HTMLInputElement>) {
@@ -204,16 +336,30 @@ export default function PerformanceReviewsPage() {
     setImprovements(improvements.filter(i => i !== improvement));
   }
 
-  function handleSubmitReview() {
-    // TODO: Submit review to API
-    console.log('Submitting review:', {
-      employee: selectedEmployee,
-      ratings,
-      strengths,
-      improvements,
-      managerNotes,
-    });
-    closeReviewModal();
+  async function handleSubmitReview() {
+    if (!selectedEmployee) return;
+    setSubmittingReview(true);
+    try {
+      await postJsonAuth(`/employees/${selectedEmployee.id}/performance-reviews`, {
+        review_date: new Date().toISOString().split('T')[0],
+        job_knowledge: ratings.jobKnowledge || 0,
+        work_quality: ratings.workQuality || 0,
+        service_performance: ratings.servicePerformance || 0,
+        teamwork: ratings.teamwork || 0,
+        attendance: ratings.attendance || 0,
+        strengths: strengths.length ? strengths : (strengthInput.trim() ? [strengthInput.trim()] : []),
+        improvements: improvements.length ? improvements : (improvementInput.trim() ? [improvementInput.trim()] : []),
+        notes: managerNotes.trim() || undefined,
+      });
+      toast.success('Performance review saved.');
+      closeReviewModal();
+      await loadEmployees();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to save review';
+      toast.error(message);
+    } finally {
+      setSubmittingReview(false);
+    }
   }
 
   return (
@@ -233,6 +379,12 @@ export default function PerformanceReviewsPage() {
               </div>
             </div>
           </div>
+
+          {error && (
+            <div className="mb-6 rounded-lg p-4" style={{ backgroundColor: '#FEF2F2', border: '1px solid #FECACA' }}>
+              <p className="text-sm" style={{ color: '#991B1B' }}>{error}</p>
+            </div>
+          )}
 
           {/* Stats Cards */}
           <div className="grid grid-cols-3 gap-4 mb-6">
@@ -296,7 +448,7 @@ export default function PerformanceReviewsPage() {
                       <th className="text-left py-3 px-2 text-xs font-semibold" style={{ color: '#6B7280' }}>Department</th>
                       <th className="text-left py-3 px-2 text-xs font-semibold" style={{ color: '#6B7280' }}>Role</th>
                       <th className="text-left py-3 px-2 text-xs font-semibold" style={{ color: '#6B7280' }}>Last Review</th>
-                      <th className="text-left py-3 px-2 text-xs font-semibold" style={{ color: '#6B7280' }}></th>
+                      <th className="text-right py-3 px-2 text-xs font-semibold" style={{ color: '#6B7280' }}>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -338,13 +490,23 @@ export default function PerformanceReviewsPage() {
                             <span className="text-sm" style={{ color: '#6B7280' }}>{emp.lastReview}</span>
                           </td>
                           <td className="py-3 px-2">
-                            <button
-                              onClick={() => openReviewModal(emp)}
-                              className="px-3 py-1.5 text-xs font-semibold rounded-lg transition-all hover:opacity-90 cursor-pointer text-white"
-                              style={{ backgroundColor: '#4D6DBE' }}
-                            >
-                              Review
-                            </button>
+                            <div className="flex gap-2 justify-end items-center">
+                              <button
+                                type="button"
+                                onClick={() => openHistoryModal(emp)}
+                                className="cursor-pointer px-3 py-1.5 text-xs font-semibold rounded-lg transition-all hover:opacity-90 border"
+                                style={{ borderColor: '#4D6DBE', color: '#4D6DBE', backgroundColor: 'transparent' }}
+                              >
+                                History
+                              </button>
+                              <button
+                                onClick={() => openReviewModal(emp)}
+                                className="px-3 py-1.5 text-xs font-semibold rounded-lg transition-all hover:opacity-90 cursor-pointer text-white"
+                                style={{ backgroundColor: '#4D6DBE' }}
+                              >
+                                Review
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))
@@ -610,7 +772,7 @@ export default function PerformanceReviewsPage() {
                   <button
                     type="button"
                     onClick={closeReviewModal}
-                    className="px-6 py-2 text-sm font-semibold rounded-lg transition-all hover:bg-gray-50"
+                    className="cursor-pointer px-6 py-2 text-sm font-semibold rounded-lg transition-all hover:bg-gray-50"
                     style={{ color: '#4D6DBE' }}
                   >
                     Cancel
@@ -618,12 +780,282 @@ export default function PerformanceReviewsPage() {
                   <button
                     type="button"
                     onClick={handleSubmitReview}
-                    className="px-6 py-2 text-sm font-semibold text-white rounded-lg transition-all hover:opacity-90"
+                    disabled={submittingReview}
+                    className="cursor-pointer px-6 py-2 text-sm font-semibold text-white rounded-lg transition-all hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed"
                     style={{ backgroundColor: '#4D6DBE' }}
                   >
-                    Confirm
+                    {submittingReview ? 'Saving...' : 'Confirm'}
                   </button>
                 </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Review History Modal */}
+        {showHistoryModal && historyEmployee && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
+            onClick={(e) => e.target === e.currentTarget && closeHistoryModal()}
+          >
+            <div
+              className="rounded-xl shadow-xl max-h-[85vh] flex flex-col w-full max-w-2xl overflow-hidden"
+              style={{ backgroundColor: '#FFFFFF' }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-6 border-b" style={{ borderColor: '#E5E7EB' }}>
+                <div className="flex items-center justify-between">
+                  <h2 className="text-xl font-semibold" style={{ color: '#232E40' }}>
+                    Review history – {historyEmployee.name}
+                  </h2>
+                  <button
+                    type="button"
+                    onClick={closeHistoryModal}
+                    className="cursor-pointer p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                    aria-label="Close"
+                  >
+                    <svg className="w-5 h-5" style={{ color: '#6B7280' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+              <div className="p-6 overflow-y-auto flex-1">
+                {loadingHistory ? (
+                  <p className="text-sm text-center py-8" style={{ color: '#6B7280' }}>Loading review history...</p>
+                ) : reviewLogs.length === 0 ? (
+                  <p className="text-sm text-center py-8" style={{ color: '#6B7280' }}>No reviews recorded yet.</p>
+                ) : (
+                  <ul className="space-y-4">
+                    {reviewLogs.map((log) => (
+                      <li
+                        key={log.id}
+                        className="rounded-lg p-4 border"
+                        style={{ borderColor: '#E5E7EB', backgroundColor: '#F9FAFB' }}
+                      >
+                        <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
+                          <span className="text-sm font-medium" style={{ color: '#232E40' }}>
+                            {log.review_date ? new Date(log.review_date).toLocaleDateString() : '—'}
+                          </span>
+                          <span className="text-sm font-semibold" style={{ color: '#4D6DBE' }}>
+                            Score: {typeof log.overall_rating === 'number' ? log.overall_rating.toFixed(1) : '—'}/5
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs mb-2" style={{ color: '#6B7280' }}>
+                          <span>Job knowledge: {log.job_knowledge ?? '—'}</span>
+                          <span>Work quality: {log.work_quality ?? '—'}</span>
+                          <span>Service: {log.service_performance ?? '—'}</span>
+                          <span>Teamwork: {log.teamwork ?? '—'}</span>
+                          <span>Attendance: {log.attendance ?? '—'}</span>
+                        </div>
+                        {(log.strengths && log.strengths.length > 0) && (
+                          <p className="text-xs mt-2"><span className="font-medium" style={{ color: '#232E40' }}>Strengths:</span> {(log.strengths as string[]).join(', ')}</p>
+                        )}
+                        {(log.improvements && (log.improvements as string[]).length > 0) && (
+                          <p className="text-xs mt-1"><span className="font-medium" style={{ color: '#232E40' }}>Improvements:</span> {(log.improvements as string[]).join(', ')}</p>
+                        )}
+                        {log.notes && (
+                          <p className="text-xs mt-1"><span className="font-medium" style={{ color: '#232E40' }}>Notes:</span> {log.notes}</p>
+                        )}
+                        <div className="flex gap-2 mt-3 justify-end">
+                          <button
+                            type="button"
+                            onClick={() => openEditModal(log)}
+                            className="cursor-pointer px-3 py-1.5 text-xs font-semibold rounded-lg transition-all hover:opacity-90 border"
+                            style={{ borderColor: '#4D6DBE', color: '#4D6DBE', backgroundColor: 'transparent' }}
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteReview(log)}
+                            disabled={deletingId === log.id}
+                            className="cursor-pointer px-3 py-1.5 text-xs font-semibold rounded-lg transition-all hover:opacity-90 disabled:opacity-60"
+                            style={{ backgroundColor: '#DC2626', color: '#FFFFFF' }}
+                          >
+                            {deletingId === log.id ? 'Deleting...' : 'Delete'}
+                          </button>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+              <div className="p-4 border-t flex justify-end" style={{ borderColor: '#E5E7EB' }}>
+                <button
+                  type="button"
+                  onClick={closeHistoryModal}
+                  className="cursor-pointer px-4 py-2 text-sm font-semibold rounded-lg transition-all hover:opacity-90"
+                  style={{ backgroundColor: '#4D6DBE', color: '#FFFFFF' }}
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Edit Review Modal */}
+        {editingReview && historyEmployee && (
+          <div
+            className="fixed inset-0 z-[60] flex items-center justify-center p-4"
+            style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
+            onClick={(e) => e.target === e.currentTarget && closeEditModal()}
+          >
+            <div
+              className="rounded-xl shadow-xl max-h-[90vh] flex flex-col w-full max-w-2xl overflow-hidden"
+              style={{ backgroundColor: '#FFFFFF' }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-6 border-b" style={{ borderColor: '#E5E7EB' }}>
+                <div className="flex items-center justify-between">
+                  <h2 className="text-xl font-semibold" style={{ color: '#232E40' }}>
+                    Edit review – {historyEmployee.name}
+                  </h2>
+                  <button
+                    type="button"
+                    onClick={closeEditModal}
+                    className="cursor-pointer p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                    aria-label="Close"
+                  >
+                    <svg className="w-5 h-5" style={{ color: '#6B7280' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+              <div className="p-6 overflow-y-auto flex-1">
+                <div className="mb-4">
+                  <label className="block text-sm font-medium mb-1" style={{ color: '#374151' }}>Review date</label>
+                  <input
+                    type="date"
+                    value={editReviewDate}
+                    onChange={(e) => setEditReviewDate(e.target.value)}
+                    className="w-full px-3 py-2 text-sm rounded-lg border"
+                    style={{ borderColor: '#D1D5DB', color: '#374151', backgroundColor: '#FFFFFF' }}
+                  />
+                </div>
+                <div className="rounded-lg p-4 mb-4" style={{ border: '1px dashed #D1D5DB' }}>
+                  <h3 className="text-sm font-semibold mb-3" style={{ color: '#232E40' }}>Rating Categories</h3>
+                  {[
+                    { key: 'jobKnowledge', label: 'Job Knowledge & Skills' },
+                    { key: 'workQuality', label: 'Work Quality' },
+                    { key: 'servicePerformance', label: 'Service Performance' },
+                    { key: 'teamwork', label: 'Teamwork & Collaboration' },
+                    { key: 'attendance', label: 'Attendance & Punctuality' },
+                  ].map(({ key, label }) => (
+                    <div key={key} className="flex items-center justify-between mb-3">
+                      <span className="text-sm" style={{ color: '#374151' }}>{label}</span>
+                      <div className="flex items-center gap-1">
+                        {[1, 2, 3, 4, 5].map((num) => (
+                          <button
+                            key={num}
+                            type="button"
+                            onClick={() => setEditRatings({ ...editRatings, [key]: num })}
+                            className="cursor-pointer flex flex-col items-center"
+                          >
+                            <div
+                              className="w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all"
+                              style={{
+                                borderColor: editRatings[key as keyof typeof editRatings] === num ? '#4D6DBE' : '#D1D5DB',
+                                backgroundColor: editRatings[key as keyof typeof editRatings] === num ? '#4D6DBE' : 'transparent',
+                              }}
+                            >
+                              {editRatings[key as keyof typeof editRatings] === num && (
+                                <div className="w-2 h-2 rounded-full bg-white"></div>
+                              )}
+                            </div>
+                            <span className="text-xs mt-0.5" style={{ color: '#6B7280' }}>{num}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="grid grid-cols-2 gap-4 mb-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-1" style={{ color: '#374151' }}>Strengths</label>
+                    <input
+                      type="text"
+                      value={editStrengthInput}
+                      onChange={(e) => setEditStrengthInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          const v = editStrengthInput.trim();
+                          if (v) { setEditStrengths([...editStrengths, v]); setEditStrengthInput(''); }
+                        }
+                      }}
+                      placeholder="Add then press Enter"
+                      className="w-full px-3 py-2 text-sm rounded-lg border"
+                      style={{ borderColor: '#D1D5DB', color: '#374151', backgroundColor: '#FFFFFF' }}
+                    />
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {editStrengths.map((s, i) => (
+                        <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs" style={{ backgroundColor: '#E5E7EB' }}>
+                          {s}
+                          <button type="button" onClick={() => setEditStrengths(editStrengths.filter((_, j) => j !== i))} className="cursor-pointer hover:opacity-70">×</button>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1" style={{ color: '#374151' }}>Improvements</label>
+                    <input
+                      type="text"
+                      value={editImprovementInput}
+                      onChange={(e) => setEditImprovementInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          const v = editImprovementInput.trim();
+                          if (v) { setEditImprovements([...editImprovements, v]); setEditImprovementInput(''); }
+                        }
+                      }}
+                      placeholder="Add then press Enter"
+                      className="w-full px-3 py-2 text-sm rounded-lg border"
+                      style={{ borderColor: '#D1D5DB', color: '#374151', backgroundColor: '#FFFFFF' }}
+                    />
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {editImprovements.map((s, i) => (
+                        <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs" style={{ backgroundColor: '#E5E7EB' }}>
+                          {s}
+                          <button type="button" onClick={() => setEditImprovements(editImprovements.filter((_, j) => j !== i))} className="cursor-pointer hover:opacity-70">×</button>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium mb-1" style={{ color: '#374151' }}>Notes</label>
+                  <textarea
+                    value={editNotes}
+                    onChange={(e) => setEditNotes(e.target.value)}
+                    rows={3}
+                    className="w-full px-3 py-2 text-sm rounded-lg border resize-none"
+                    style={{ borderColor: '#D1D5DB', color: '#374151', backgroundColor: '#FFFFFF' }}
+                  />
+                </div>
+              </div>
+              <div className="p-4 border-t flex justify-end gap-2" style={{ borderColor: '#E5E7EB' }}>
+                <button
+                  type="button"
+                  onClick={closeEditModal}
+                  className="cursor-pointer px-4 py-2 text-sm font-semibold rounded-lg border hover:bg-gray-50"
+                  style={{ borderColor: '#4D6DBE', color: '#4D6DBE' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveEdit}
+                  disabled={submittingEdit}
+                  className="cursor-pointer px-4 py-2 text-sm font-semibold rounded-lg text-white hover:opacity-90 disabled:opacity-60"
+                  style={{ backgroundColor: '#4D6DBE' }}
+                >
+                  {submittingEdit ? 'Saving...' : 'Save'}
+                </button>
               </div>
             </div>
           </div>

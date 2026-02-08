@@ -12,6 +12,20 @@
   
   p, li { @apply text-slate-800; }
   small, .muted { @apply text-slate-700; }
+
+  /* All buttons and button-like elements show pointer on hover */
+  button,
+  [type="button"],
+  [type="submit"],
+  [type="reset"],
+  [role="button"],
+  a[href],
+  select,
+  label[for],
+  input[type="checkbox"],
+  input[type="radio"] {
+    cursor: pointer;
+  }
 }
 
 @keyframes scroll {

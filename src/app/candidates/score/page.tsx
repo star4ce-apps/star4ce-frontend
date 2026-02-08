@@ -2601,7 +2601,7 @@ export default function ScoreCandidatePage() {
       const userRes = await fetch(`${API_BASE}/auth/me`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      
+
       if (!userRes.ok) return;
       
       const userResponse = await userRes.json();
@@ -3064,9 +3064,9 @@ ${additionalNotes}` : ''}`;
                 {managers.map(manager => {
                   const displayName = managerDisplayName(manager);
                   return (
-                    <option key={manager.id} value={manager.id.toString()}>
+                  <option key={manager.id} value={manager.id.toString()}>
                       {displayName}
-                    </option>
+                  </option>
                   );
                 })}
               </select>
@@ -3085,7 +3085,7 @@ ${additionalNotes}` : ''}`;
                       type="button"
                       onClick={() => handleStageSelection(num.toString())}
                       className="w-10 h-10 rounded-full text-xs font-semibold transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 relative cursor-pointer"
-                      style={{
+                style={{
                         border: isSelected ? '2px solid #4D6DBE' : isCompleted ? '2px solid #10B981' : '1px solid #D1D5DB',
                         color: isSelected ? '#FFFFFF' : '#374151',
                         backgroundColor: isSelected ? '#4D6DBE' : isCompleted ? '#D1FAE5' : '#FFFFFF',
@@ -3190,14 +3190,14 @@ ${additionalNotes}` : ''}`;
                     <div className="flex-1">
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-base font-semibold" style={{ color: '#232E40' }}>
-                          {criterion.name}
-                        </span>
-                        <span className="text-sm font-bold px-3 py-1 rounded-lg" style={{ 
-                          color: '#232E40',
-                          backgroundColor: '#F3F4F6'
-                        }}>
-                          {criterion.weight}%
-                        </span>
+                              {criterion.name}
+                            </span>
+                          <span className="text-sm font-bold px-3 py-1 rounded-lg" style={{ 
+                            color: '#232E40',
+                            backgroundColor: '#F3F4F6'
+                          }}>
+                            {criterion.weight}%
+                          </span>
                       </div>
                       {criterion.questions.length > 0 && (
                         <div className="space-y-0.5 mt-2">
