@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import HubSidebar from '@/components/sidebar/HubSidebar';
 import RequireAuth from '@/components/layout/RequireAuth';
 import { API_BASE, getToken } from '@/lib/auth';
@@ -105,6 +105,8 @@ export default function CandidatesPage() {
   });
   const [customDepartment, setCustomDepartment] = useState('');
   const [resumeFile, setResumeFile] = useState<File | null>(null);
+  const [resumeDragActive, setResumeDragActive] = useState(false);
+  const resumeInputRef = useRef<HTMLInputElement>(null);
 
   const departments = [
     'Sales Department',
@@ -215,10 +217,9 @@ export default function CandidatesPage() {
         throw new Error('Not logged in');
       }
 
-      // Prepare JSON data (backend expects JSON, not FormData)
-      // Note: Address fields and resume upload are not currently supported by the backend
-      const candidateData = {
-        name: `${formData.firstName} ${formData.lastName}`,
+      const name = `${formData.firstName} ${formData.lastName}`;
+      const payload = {
+        name,
         email: formData.email,
         phone: formData.phoneNumber || null,
         position: formData.position,
@@ -226,14 +227,31 @@ export default function CandidatesPage() {
         notes: formData.notes || null,
       };
 
-      const res = await fetch(`${API_BASE}/candidates`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(candidateData),
-      });
+      let res: Response;
+      if (resumeFile) {
+        const formDataToSend = new FormData();
+        formDataToSend.append('name', name);
+        formDataToSend.append('email', payload.email);
+        formDataToSend.append('phone', payload.phone ?? '');
+        formDataToSend.append('position', payload.position);
+        formDataToSend.append('status', payload.status);
+        formDataToSend.append('notes', payload.notes ?? '');
+        formDataToSend.append('resume', resumeFile);
+        res = await fetch(`${API_BASE}/candidates`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+          body: formDataToSend,
+        });
+      } else {
+        res = await fetch(`${API_BASE}/candidates`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(payload),
+        });
+      }
 
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -764,25 +782,56 @@ export default function CandidatesPage() {
                       </div>
                       <div>
                         <label className="block text-sm font-semibold mb-1.5" style={{ color: '#374151' }}>Resume</label>
-                        <div className="mt-1">
-                          <input
-                            type="file"
-                            accept=".pdf,.doc,.docx"
-                            onChange={(e) => {
-                              const file = e.target.files?.[0] || null;
-                              setResumeFile(file);
-                            }}
-                            className="w-full px-3 py-2 text-sm rounded-lg transition-all focus:outline-none focus:ring-2"
-                            style={{ 
-                              border: '1px solid #D1D5DB', 
-                              color: '#374151', 
-                              backgroundColor: '#FFFFFF',
-                            }}
-                          />
-                          {resumeFile && (
-                            <p className="mt-1 text-xs" style={{ color: '#6B7280' }}>
-                              Selected: {resumeFile.name}
-                            </p>
+                        <input
+                          ref={resumeInputRef}
+                          type="file"
+                          accept=".pdf,.doc,.docx"
+                          className="sr-only"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0] || null;
+                            if (file && !/\.(pdf|doc|docx)$/i.test(file.name)) return;
+                            setResumeFile(file);
+                          }}
+                        />
+                        <div
+                          role="button"
+                          tabIndex={0}
+                          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') resumeInputRef.current?.click(); }}
+                          onClick={() => resumeInputRef.current?.click()}
+                          onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setResumeDragActive(true); }}
+                          onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setResumeDragActive(false); }}
+                          onDrop={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setResumeDragActive(false);
+                            const file = e.dataTransfer.files?.[0];
+                            if (file && /\.(pdf|doc|docx)$/i.test(file.name)) setResumeFile(file);
+                            else if (file) toast.error('Please use PDF, DOC, or DOCX.');
+                          }}
+                          className="mt-1 rounded-lg border-2 border-dashed transition-colors cursor-pointer flex flex-col items-center justify-center gap-2 py-6 px-4 min-h-[120px]"
+                          style={{
+                            borderColor: resumeDragActive ? '#4D6DBE' : '#D1D5DB',
+                            backgroundColor: resumeDragActive ? '#EEF2FF' : '#F9FAFB',
+                          }}
+                        >
+                          {resumeFile ? (
+                            <>
+                              <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: '#4D6DBE' }}>
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                              </svg>
+                              <p className="text-sm font-medium truncate max-w-full" style={{ color: '#374151' }} title={resumeFile.name}>
+                                {resumeFile.name}
+                              </p>
+                              <p className="text-xs" style={{ color: '#6B7280' }}>PDF, DOC, or DOCX • Click or drag to replace</p>
+                            </>
+                          ) : (
+                            <>
+                              <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: '#9CA3AF' }}>
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                              </svg>
+                              <p className="text-sm font-medium" style={{ color: '#374151' }}>Drop resume here or click to upload</p>
+                              <p className="text-xs" style={{ color: '#6B7280' }}>PDF, DOC, or DOCX</p>
+                            </>
                           )}
                         </div>
                       </div>

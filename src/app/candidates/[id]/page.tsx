@@ -57,6 +57,7 @@ type CandidateProfile = {
   referral?: string;
   interviewHistory: InterviewHistory[];
   notes: string;
+  resumeUrl?: string | null;
 };
 
 export default function CandidateProfilePage() {
@@ -72,6 +73,10 @@ export default function CandidateProfilePage() {
   const [allCandidates, setAllCandidates] = useState<CandidateProfile[]>([]);
   const [role, setRole] = useState<string | null>(null);
   const notesTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const resumeBlobUrlRef = useRef<string | null>(null);
+  const [resumePreviewUrl, setResumePreviewUrl] = useState<string | null>(null);
+  const [resumePreviewIsPdf, setResumePreviewIsPdf] = useState(false);
+  const [resumePreviewLoading, setResumePreviewLoading] = useState(false);
 
   useEffect(() => {
     // Load user role
@@ -144,6 +149,61 @@ export default function CandidateProfilePage() {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [candidateId]);
+
+  // Fetch resume with auth for preview (iframe cannot send Authorization header)
+  useEffect(() => {
+    if (activeTab !== 'resume' || !candidate?.resumeUrl) {
+      if (resumeBlobUrlRef.current) {
+        URL.revokeObjectURL(resumeBlobUrlRef.current);
+        resumeBlobUrlRef.current = null;
+      }
+      setResumePreviewUrl(null);
+      setResumePreviewIsPdf(false);
+      setResumePreviewLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setResumePreviewLoading(true);
+    if (resumeBlobUrlRef.current) {
+      URL.revokeObjectURL(resumeBlobUrlRef.current);
+      resumeBlobUrlRef.current = null;
+    }
+    setResumePreviewUrl(null);
+    const token = getToken();
+    if (!token) {
+      setResumePreviewLoading(false);
+      return;
+    }
+    fetch(candidate.resumeUrl!, { headers: { Authorization: `Bearer ${token}` } })
+      .then((res) => {
+        if (!res.ok) throw new Error('Failed to load resume');
+        const contentType = (res.headers.get('content-type') || '').toLowerCase();
+        setResumePreviewIsPdf(contentType.includes('pdf'));
+        return res.blob();
+      })
+      .then((blob) => {
+        if (cancelled) {
+          URL.revokeObjectURL(URL.createObjectURL(blob));
+          return;
+        }
+        const url = URL.createObjectURL(blob);
+        resumeBlobUrlRef.current = url;
+        setResumePreviewUrl(url);
+      })
+      .catch(() => {
+        if (!cancelled) toast.error('Could not load resume');
+      })
+      .finally(() => {
+        if (!cancelled) setResumePreviewLoading(false);
+      });
+    return () => {
+      cancelled = true;
+      if (resumeBlobUrlRef.current) {
+        URL.revokeObjectURL(resumeBlobUrlRef.current);
+        resumeBlobUrlRef.current = null;
+      }
+    };
+  }, [activeTab, candidate?.id, candidate?.resumeUrl]);
 
   async function loadCandidates() {
     try {
@@ -222,6 +282,7 @@ export default function CandidateProfilePage() {
           referral: 'Not Provided',
           interviewHistory: [],
           notes: c.notes || '',
+          resumeUrl: c.resume_url ? `${API_BASE}${c.resume_url}` : undefined,
         };
         setCandidate(candidateData);
         const sortedIds = allCandidates.map(c => c.id).sort((a, b) => a - b);
@@ -1077,15 +1138,35 @@ export default function CandidateProfilePage() {
                       </p>
                     </div>
                     {candidate.resumeUrl ? (
-                      <div className="w-full h-[600px] border border-gray-300 rounded-lg overflow-hidden">
-                        {candidate.resumeUrl.endsWith('.pdf') ? (
-                          <iframe src={candidate.resumeUrl} className="w-full h-full" title="Resume Preview"></iframe>
+                      <>
+                        {resumePreviewLoading ? (
+                          <div className="w-full border border-gray-300 rounded-lg flex items-center justify-center bg-gray-50" style={{ height: '85vh' }}>
+                            <p className="text-gray-500">Loading resume…</p>
+                          </div>
+                        ) : resumePreviewUrl ? (
+                          <div className="w-full border border-gray-300 rounded-lg overflow-hidden" style={{ height: '85vh' }}>
+                            {resumePreviewIsPdf ? (
+                              <iframe src={resumePreviewUrl} className="w-full h-full" title="Resume Preview" />
+                            ) : (
+                              <div className="flex flex-col items-center justify-center h-full bg-gray-50 gap-3 p-6">
+                                <p className="text-gray-600">Preview not available for this file type.</p>
+                                <a
+                                  href={resumePreviewUrl}
+                                  download
+                                  className="px-4 py-2 rounded-lg text-white font-medium"
+                                  style={{ backgroundColor: '#4D6DBE' }}
+                                >
+                                  Download resume
+                                </a>
+                              </div>
+                            )}
+                          </div>
                         ) : (
-                          <div className="flex items-center justify-center h-full bg-gray-50 text-gray-500">
-                            <p>Preview not available for this file type. Download to view.</p>
+                          <div className="w-full h-[400px] border border-gray-300 rounded-lg flex items-center justify-center bg-gray-50">
+                            <p className="text-gray-500">Could not load resume.</p>
                           </div>
                         )}
-                      </div>
+                      </>
                     ) : (
                       <div className="p-8 text-center flex flex-col items-center justify-center h-full">
                         <svg className="w-16 h-16 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: '#9CA3AF' }}>
