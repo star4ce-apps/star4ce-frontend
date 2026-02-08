@@ -30,6 +30,13 @@ export default function RequireAuth({ children }: Props) {
         const data = await res.json().catch(() => ({}));
 
         if (res.ok) {
+          // When subscription is inactive, only allow the subscription page (so they can pay to restore access)
+          const subscriptionActive = data?.subscription_active !== false;
+          const onSubscriptionPage = pathname?.startsWith('/subscription');
+          if (!subscriptionActive && !onSubscriptionPage) {
+            router.replace('/subscription');
+            return;
+          }
           // Corporate users must select an active dealership before using the app
           const role = data?.user?.role || data?.role || null;
           if (role === 'corporate') {

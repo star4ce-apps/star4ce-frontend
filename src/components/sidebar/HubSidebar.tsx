@@ -117,6 +117,7 @@ export default function HubSidebar() {
   const [name, setName] = useState<string | null>(null);
   const [role, setRole] = useState<string | null>(null);
   const [isApproved, setIsApproved] = useState<boolean | null>(null);
+  const [subscriptionActive, setSubscriptionActive] = useState<boolean>(true);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [selectedDealership, setSelectedDealership] = useState<{ id: number; name: string } | null>(null);
   const [dealerships, setDealerships] = useState<Array<{ id: number; name: string }>>([]);
@@ -210,6 +211,7 @@ export default function HubSidebar() {
         } else {
           setIsApproved(data.is_approved !== false);
         }
+        setSubscriptionActive(data.subscription_active !== false);
       } else {
         // Handle manager_not_approved error
         if (data.error === 'manager_not_approved') {
@@ -316,13 +318,15 @@ export default function HubSidebar() {
     <aside className="w-64 flex flex-col h-screen fixed left-0 top-0" style={{ backgroundColor: '#EDEDED' }}>
       {/* Logo - Fixed at top */}
       <div className="p-4 border-b flex-shrink-0" style={{ borderColor: '#D1D5DB' }}>
-        <Link href="/dashboard" className="cursor-pointer">
+        <Link href={subscriptionActive ? '/dashboard' : '/subscription'} className="cursor-pointer">
           <Logo size="md" variant="default" />
         </Link>
       </div>
 
       {/* Scrollable content area */}
       <div className="flex-1 overflow-y-auto overflow-x-hidden">
+        {subscriptionActive ? (
+        <>
         {/* MAIN MENU */}
         <div className="px-4 py-2">
         <h3 className="text-xs font-semibold uppercase mb-2" style={{ color: '#394B67' }}>MAIN MENU</h3>
@@ -617,6 +621,15 @@ export default function HubSidebar() {
         </div>
       )}
 
+        </>
+        ) : (
+        /* Subscription locked: show message only (no subscription link) */
+        <div className="px-4 py-2">
+          <p className="text-xs px-2" style={{ color: '#6B7280' }}>
+            Your subscription has expired or been canceled. Renew to access all pages.
+          </p>
+        </div>
+        )}
       </div>
 
       {/* User Profile - Fixed at bottom */}

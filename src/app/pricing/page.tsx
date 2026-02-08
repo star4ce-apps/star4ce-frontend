@@ -70,10 +70,10 @@ export default function PricingPage() {
 
             {/* Pricing Cards with Features in the Middle */}
             <div className="grid grid-cols-1 md:grid-cols-[1fr_1.5fr_1fr] gap-4 items-stretch flex-1 min-h-0">
-              {/* Dealer Flex Plan */}
+              {/* Monthly Plan */}
               <div className="bg-white rounded-xl border-2 border-gray-200 p-6 shadow-lg hover:shadow-xl hover:border-[#0B2E65]/30 transition-all duration-300 flex flex-col hover:-translate-y-1">
                 <div className="mb-4">
-                  <h3 className="text-2xl font-bold text-gray-700 mb-3">Dealer Flex</h3>
+                  <h3 className="text-2xl font-bold text-gray-700 mb-3">Monthly</h3>
                   <div className="mb-2">
                     <span className="text-5xl font-bold text-[#0B2E65]">$199</span>
                     <span className="text-gray-600 text-xl ml-1">/ month</span>
@@ -108,13 +108,13 @@ export default function PricingPage() {
                 </ul>
               </div>
 
-              {/* Dealer Success Plan */}
+              {/* Yearly Plan */}
               <div className="bg-white rounded-xl border-2 border-[#e74c3c]/30 p-6 shadow-lg hover:shadow-xl hover:border-[#e74c3c]/50 transition-all duration-300 flex flex-col hover:-translate-y-1 relative">
                 <div className="absolute top-0 right-0 bg-[#e74c3c] text-white text-sm font-bold px-2 py-0.5 rounded-bl-lg rounded-tr-xl">
                   BEST VALUE
                 </div>
                 <div className="mb-4">
-                  <h3 className="text-2xl font-bold text-[#e74c3c] mb-3">Dealer Success</h3>
+                  <h3 className="text-2xl font-bold text-[#e74c3c] mb-3">Yearly</h3>
                   <div className="mb-2">
                     <span className="text-5xl font-bold text-[#e74c3c]">$166</span>
                     <span className="text-gray-600 text-xl ml-1">/ month</span>

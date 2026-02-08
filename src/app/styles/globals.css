@@ -37,6 +37,16 @@
   }
 }
 
+/* Toast countdown progress line */
+@keyframes toast-progress-shrink {
+  from {
+    width: 100%;
+  }
+  to {
+    width: 0%;
+  }
+}
+
 .carousel-track {
   animation: scroll 20s infinite linear;
 }
