@@ -394,11 +394,19 @@ export default function UserManagementPage() {
     return labels[key] || key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
   }
 
+  // Map modify_/manage_ permission keys to the correct view_ key (backend uses view_surveys, view_employees, view_candidates)
+  function getViewKeyForPermission(permissionKey: string): string | null {
+    if (!permissionKey.startsWith('modify_') && !permissionKey.startsWith('manage_')) return null;
+    if (permissionKey.includes('survey')) return 'view_surveys';
+    if (permissionKey.includes('employee')) return 'view_employees';
+    if (permissionKey.includes('candidate')) return 'view_candidates';
+    return permissionKey.replace('modify_', 'view_').replace('manage_', 'view_');
+  }
+
   // Check if a modify/manage permission should be disabled based on view permission
   function shouldDisableModify(permissionKey: string, permissions: { [key: string]: boolean } | undefined): boolean {
-    if (!permissionKey.startsWith('modify_') && !permissionKey.startsWith('manage_')) return false;
-    // Handle both modify_ and manage_ prefixes
-    const viewKey = permissionKey.replace('modify_', 'view_').replace('manage_', 'view_');
+    const viewKey = getViewKeyForPermission(permissionKey);
+    if (!viewKey) return false;
     const viewValue = permissions?.[viewKey] ?? false;
     return !viewValue; // Disable modify/manage if view is false
   }
@@ -866,8 +874,8 @@ export default function UserManagementPage() {
                               {roles.filter(r => r !== 'admin' && r !== 'corporate').map(role => {
                                 const isAllowed = permissions[role]?.[permissionKey] ?? false;
                                 const isModify = permissionKey.startsWith('modify_') || permissionKey.startsWith('manage_');
-                                const viewKey = permissionKey.replace('modify_', 'view_').replace('manage_', 'view_');
-                                const viewAllowed = permissions[role]?.[viewKey] ?? false;
+                                const viewKey = getViewKeyForPermission(permissionKey);
+                                const viewAllowed = viewKey ? (permissions[role]?.[viewKey] ?? false) : true;
                                 const isDisabled = isModify && !viewAllowed;
                                 return (
                                   <td key={role} className="py-4 px-6">
@@ -1270,16 +1278,18 @@ export default function UserManagementPage() {
                             }
                             
                             const isModify = permissionKey.startsWith('modify_') || permissionKey.startsWith('manage_');
-                            const viewKey = permissionKey.replace('modify_', 'view_').replace('manage_', 'view_');
+                            const viewKey = getViewKeyForPermission(permissionKey);
                             // Check if view permission is enabled (check pending first, then current permissions, then role permissions)
                             let viewValue: boolean | undefined;
-                            if (pendingPermissions && pendingPermissions[viewKey] !== undefined) {
-                              viewValue = pendingPermissions[viewKey];
-                            } else {
-                              viewValue = selectedManager.permissions?.[viewKey];
+                            if (viewKey) {
+                              if (pendingPermissions && pendingPermissions[viewKey] !== undefined) {
+                                viewValue = pendingPermissions[viewKey];
+                              } else {
+                                viewValue = selectedManager.permissions?.[viewKey];
+                              }
                             }
                             // Need to check role permissions if view is not explicitly set
-                            const roleViewValue = permissions[selectedManager.role]?.[viewKey] ?? false;
+                            const roleViewValue = viewKey ? (permissions[selectedManager.role]?.[viewKey] ?? false) : true;
                             const viewAllowed = viewValue !== undefined ? viewValue : roleViewValue;
                             const isDisabled = isModify && !viewAllowed;
                             
