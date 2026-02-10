@@ -28,32 +28,10 @@ function AdminSubscribePageContent() {
       return;
     }
 
-    // Check if coming from canceled subscription
+    // Coming from canceled checkout: keep account, they can try again
     if (subscriptionParam === 'canceled') {
-      toast.error('Subscription canceled. Your account will be deleted.');
-      // Delete the account
-      setTimeout(async () => {
-        try {
-          await fetch(`${API_BASE}/admin/delete-unsubscribed`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-              email: emailParam,
-              user_id: userIdParam ? parseInt(userIdParam) : null
-            }),
-          });
-          toast.success('Account deleted. You can register again anytime.');
-          setTimeout(() => {
-            router.push('/');
-          }, 2000);
-        } catch (err) {
-          toast.error('Failed to delete account');
-          console.error(err);
-        }
-      }, 1000);
+      toast.error('Subscription canceled. You can try again whenever you\'re ready.');
     }
-
-    // No warning needed - system will handle cleanup automatically
   }, [searchParams, router]);
 
   async function handleSubscribe(plan: 'monthly' | 'annual') {
