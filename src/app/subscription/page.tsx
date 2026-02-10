@@ -7,12 +7,14 @@ import HubSidebar from '@/components/sidebar/HubSidebar';
 import { API_BASE, getToken } from '@/lib/auth';
 import toast from 'react-hot-toast';
 
-/** Format period-end date to match Stripe "Next invoice" (previous calendar day in UTC). */
-function formatRenewalOrInvoiceDate(isoEndsAt: string | null | undefined): string {
+/** Format Stripe-backed renewal date in user's local timezone. Optional addDays (e.g. 1 for "switch on" date). */
+function formatRenewalOrInvoiceDate(isoEndsAt: string | null | undefined, addDays: number = 0): string {
   if (!isoEndsAt) return '';
   const d = new Date(isoEndsAt);
-  const prev = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() - 1));
-  return prev.toLocaleDateString(undefined, { timeZone: 'UTC' });
+  if (addDays !== 0) {
+    d.setDate(d.getDate() + addDays);
+  }
+  return d.toLocaleDateString();
 }
 
 type SubscriptionStatus = {
@@ -760,7 +762,7 @@ function SubscriptionPageContent() {
                   {status.scheduled_plan && status.current_plan && (
                     <div className="mb-4 p-4 rounded-lg bg-blue-50 border border-blue-200">
                       <p className="text-sm mb-2" style={{ color: '#1e40af' }}>
-                        Your plan will switch to {status.scheduled_plan === 'annual' ? 'Yearly' : 'Monthly'} on {status.subscription_ends_at ? formatRenewalOrInvoiceDate(status.subscription_ends_at) : 'the renewal date'}.
+                        Your plan will switch to {status.scheduled_plan === 'annual' ? 'Yearly' : 'Monthly'} on {status.subscription_ends_at ? formatRenewalOrInvoiceDate(status.subscription_ends_at, 1) : 'the renewal date'}.
                       </p>
                       <div className="flex flex-wrap gap-2">
                         <button
