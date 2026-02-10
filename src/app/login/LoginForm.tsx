@@ -38,7 +38,10 @@ export default function LoginForm() {
     try {
       const data = await loginApi(email, password);
       saveSession(data);
-      
+      // Notify layout/sidebar to re-fetch /auth/me so subscription state is correct without refresh
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('auth-session-updated'));
+      }
       // Check if we need to redirect to subscription after login
       if (redirect === 'subscription' || adminReg === 'true') {
         router.push('/subscription');
