@@ -735,8 +735,12 @@ function SubscriptionPageContent() {
                           ? 'Cancels On:'
                           : (status.subscription_status === 'canceled' || status.subscription_status === 'expired')
                             ? 'Ended:'
-                            : 'Renews On:'}
-                      </span> {formatRenewalOrInvoiceDate(status.subscription_ends_at)}
+                            : status.scheduled_plan === 'annual'
+                              ? 'Switching to Yearly on'
+                              : status.scheduled_plan === 'monthly'
+                                ? 'Switching to Monthly on'
+                                : 'Renews On:'}
+                      </span> {formatRenewalOrInvoiceDate(status.subscription_ends_at, (status.scheduled_plan === 'annual' || status.scheduled_plan === 'monthly') ? 1 : 0)}
                     </span>
                   )}
                 </div>
@@ -805,6 +809,16 @@ function SubscriptionPageContent() {
                               View Details
                             </button>
                           </div>
+                        ) : scheduledToMonthly ? (
+                          <div className="text-center">
+                            <button
+                              onClick={() => setShowSubscriptionDetails({ ...showSubscriptionDetails, [0]: true })}
+                              className="w-full bg-gray-100 text-gray-700 py-2.5 rounded-lg font-semibold hover:bg-gray-200 transition-colors text-sm cursor-pointer"
+                            >
+                              View Details
+                            </button>
+                            <p className="text-xs text-gray-500 mt-2 text-center">Switching to this plan at end of billing period</p>
+                          </div>
                         ) : (
                           <>
                             <button
@@ -865,18 +879,12 @@ function SubscriptionPageContent() {
                                 </button>
                               </>
                             ) : (
-                              <>
-                                <button
-                                  onClick={() => (status.subscription_status === 'active' ? handleChangePlan('monthly') : handleSubscribe('monthly'))}
-                                  disabled={creatingCheckout || changingPlan !== null}
-                                  className="w-full bg-[#0B2E65] text-white py-2.5 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-colors disabled:opacity-60 disabled:cursor-not-allowed text-sm cursor-pointer"
-                                >
-                                  {changingPlan === 'monthly' ? 'Updating...' : creatingCheckout ? 'Processing...' : status.subscription_status === 'trial' ? 'Subscribe to Monthly' : 'Switch to Monthly'}
-                                </button>
-                                {status.subscription_status === 'active' && (
-                                  <p className="text-xs text-gray-500 mt-2 text-center">Takes effect at end of billing period</p>
-                                )}
-                              </>
+                              <button
+                                onClick={() => setShowSubscriptionDetails({ ...showSubscriptionDetails, [0]: true })}
+                                className="w-full bg-gray-100 text-gray-700 py-2.5 rounded-lg font-semibold hover:bg-gray-200 transition-colors text-sm cursor-pointer"
+                              >
+                                View Details
+                              </button>
                             )}
                           </div>
                         ) : scheduledToMonthly ? (
@@ -1055,10 +1063,14 @@ function SubscriptionPageContent() {
                                 ? 'Cancels On:'
                                 : (status.subscription_status === 'canceled' || status.subscription_status === 'expired')
                                   ? 'Ended:'
-                                  : 'Renews On:'}
+                                    : status.scheduled_plan === 'annual'
+                                    ? 'Switching to Yearly on'
+                                    : status.scheduled_plan === 'monthly'
+                                      ? 'Switching to Monthly on'
+                                      : 'Renews On:'}
                             </span>
                             <span className={`text-sm font-semibold ${status.cancel_at_period_end ? 'text-amber-600' : ''}`} style={!status.cancel_at_period_end ? { color: '#232E40' } : {}}>
-                              {formatRenewalOrInvoiceDate(status.subscription_ends_at)}
+                              {formatRenewalOrInvoiceDate(status.subscription_ends_at, (status.scheduled_plan === 'annual' || status.scheduled_plan === 'monthly') ? 1 : 0)}
                             </span>
                           </div>
                         )}
