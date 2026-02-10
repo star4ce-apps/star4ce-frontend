@@ -231,7 +231,7 @@ function SubscriptionPageContent() {
       });
       const data = await res.json();
       if (res.ok) {
-        const dateStr = data.subscription_ends_at ? formatRenewalOrInvoiceDate(data.subscription_ends_at) : 'the end of your billing period';
+        const dateStr = data.subscription_ends_at ? formatRenewalOrInvoiceDate(data.subscription_ends_at, plan === 'annual' ? 1 : 0) : 'the end of your billing period';
         const planLabel = plan === 'annual' ? 'Yearly' : 'Monthly';
         const currentLabel = plan === 'annual' ? 'Monthly' : 'Yearly';
         toast.success(
@@ -740,7 +740,7 @@ function SubscriptionPageContent() {
                               : status.scheduled_plan === 'monthly'
                                 ? 'Switching to Monthly on'
                                 : 'Renews On:'}
-                      </span> {formatRenewalOrInvoiceDate(status.subscription_ends_at, (status.scheduled_plan === 'annual' || status.scheduled_plan === 'monthly') ? 1 : 0)}
+                      </span> {formatRenewalOrInvoiceDate(status.subscription_ends_at, status.scheduled_plan === 'annual' ? 1 : 0)}
                     </span>
                   )}
                 </div>
@@ -1070,7 +1070,7 @@ function SubscriptionPageContent() {
                                       : 'Renews On:'}
                             </span>
                             <span className={`text-sm font-semibold ${status.cancel_at_period_end ? 'text-amber-600' : ''}`} style={!status.cancel_at_period_end ? { color: '#232E40' } : {}}>
-                              {formatRenewalOrInvoiceDate(status.subscription_ends_at, (status.scheduled_plan === 'annual' || status.scheduled_plan === 'monthly') ? 1 : 0)}
+                              {formatRenewalOrInvoiceDate(status.subscription_ends_at, status.scheduled_plan === 'annual' ? 1 : 0)}
                             </span>
                           </div>
                         )}
