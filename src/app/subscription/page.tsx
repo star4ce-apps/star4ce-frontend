@@ -738,17 +738,7 @@ function SubscriptionPageContent() {
                     </span>
                   )}
                 </div>
-                {status.is_active && !status.cancel_at_period_end && (
-                  <div className="mt-3 pt-3" style={{ borderTop: '1px solid #E5E7EB' }}>
-                    <button
-                      onClick={() => setShowCancelConfirm({ ...showCancelConfirm, [0]: true })}
-                      className="text-sm text-red-600 hover:text-red-700 font-medium hover:underline cursor-pointer"
-                    >
-                      Cancel subscription
-                    </button>
-                  </div>
-                )}
-              </div>
+                </div>
 
               {/* Pricing Plans Comparison */}
               {(status.is_active || status.subscription_status === 'trial') && (
