@@ -151,6 +151,10 @@ export default function HubSidebar() {
       
       // Always fetch role from API to ensure it's up-to-date (especially important on first login)
       fetchUserRole();
+      // Re-fetch when session is updated (e.g. after login) so subscription_active is correct without refresh
+      const onSessionUpdated = () => fetchUserRole();
+      window.addEventListener('auth-session-updated', onSessionUpdated);
+      return () => window.removeEventListener('auth-session-updated', onSessionUpdated);
     }
   }, []);
 
