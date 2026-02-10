@@ -759,28 +759,17 @@ function SubscriptionPageContent() {
                       </p>
                     </div>
                   )}
-                  {status.scheduled_plan && status.current_plan && (
-                    <div className="mb-4 p-4 rounded-lg bg-blue-50 border border-blue-200">
-                      <p className="text-sm mb-2" style={{ color: '#1e40af' }}>
-                        Your plan will switch to {status.scheduled_plan === 'annual' ? 'Yearly' : 'Monthly'} on {status.subscription_ends_at ? formatRenewalOrInvoiceDate(status.subscription_ends_at, 1) : 'the renewal date'}.
-                      </p>
-                      <div className="flex flex-wrap gap-2">
-                        <button
-                          onClick={handleRevertPlanChange}
-                          disabled={revertingPlan}
-                          className="bg-[#0B2E65] text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-[#2c5aa0] transition-colors disabled:opacity-60 cursor-pointer"
-                        >
-                          {revertingPlan ? 'Reverting...' : `Switch back to ${status.current_plan === 'annual' ? 'Yearly' : 'Monthly'}`}
-                        </button>
-                      </div>
-                    </div>
-                  )}
+                  {(() => {
+                    const effectivePlan = (status.current_plan || status.subscription_plan || '').toLowerCase();
+                    const isMonthlyCurrent = effectivePlan === 'monthly' || effectivePlan === 'pro';
+                    const isYearlyCurrent = effectivePlan === 'annual' || effectivePlan === 'yearly';
+                    const scheduledToYearly = status.scheduled_plan === 'annual' && isMonthlyCurrent;
+                    const scheduledToMonthly = status.scheduled_plan === 'monthly' && isYearlyCurrent;
+                    return (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                     {/* Monthly Plan */}
                     <div className={`bg-white rounded-xl border-2 p-6 transition-all flex flex-col ${
-                      (status.subscription_plan?.toLowerCase() === 'monthly' || status.subscription_plan?.toLowerCase() === 'pro')
-                        ? 'border-[#0B2E65] shadow-lg'
-                        : 'border-gray-200 hover:border-gray-300'
+                      isMonthlyCurrent ? 'border-[#0B2E65] shadow-lg' : 'border-gray-200 hover:border-gray-300'
                     }`}>
                       <div className="text-center mb-4 flex-shrink-0">
                         <h3 className="text-2xl font-bold mb-2" style={{ color: '#232E40' }}>Monthly</h3>
@@ -791,7 +780,20 @@ function SubscriptionPageContent() {
                         <p className="text-sm text-gray-600 min-h-[20px]">Billed monthly, cancel anytime</p>
                       </div>
                       <div className="mt-auto">
-                        {(status.subscription_plan?.toLowerCase() === 'monthly' || status.subscription_plan?.toLowerCase() === 'pro') ? (
+                        {scheduledToYearly ? (
+                          <div className="text-center">
+                            <div className="inline-block bg-[#0B2E65] text-white px-4 py-2 rounded-full text-sm font-semibold mb-4">
+                              Current Plan
+                            </div>
+                            <button
+                              onClick={handleRevertPlanChange}
+                              disabled={revertingPlan}
+                              className="w-full bg-[#0B2E65] text-white py-2.5 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-colors disabled:opacity-60 disabled:cursor-not-allowed text-sm cursor-pointer"
+                            >
+                              {revertingPlan ? 'Reverting...' : 'Switch back to Monthly'}
+                            </button>
+                          </div>
+                        ) : isMonthlyCurrent ? (
                           <div className="text-center">
                             <div className="inline-block bg-[#0B2E65] text-white px-4 py-2 rounded-full text-sm font-semibold mb-4">
                               Current Plan
@@ -822,9 +824,7 @@ function SubscriptionPageContent() {
 
                     {/* Yearly Plan */}
                     <div className={`bg-white rounded-xl border-2 p-6 transition-all relative flex flex-col ${
-                      (status.subscription_plan?.toLowerCase() === 'annual' || status.subscription_plan?.toLowerCase() === 'yearly')
-                        ? 'border-[#0B2E65] shadow-lg'
-                        : 'border-gray-200 hover:border-gray-300'
+                      isYearlyCurrent ? 'border-[#0B2E65] shadow-lg' : 'border-gray-200 hover:border-gray-300'
                     }`}>
                       <div className="absolute top-0 right-0 bg-red-600 text-white text-xs font-bold px-3 py-1 rounded-bl-lg rounded-tr-xl">
                         BEST VALUE
@@ -839,17 +839,55 @@ function SubscriptionPageContent() {
                         <p className="text-sm font-semibold text-red-600 min-h-[20px]">Save $396/year!</p>
                       </div>
                       <div className="mt-auto">
-                        {(status.subscription_plan?.toLowerCase() === 'annual' || status.subscription_plan?.toLowerCase() === 'yearly') ? (
+                        {scheduledToYearly ? (
                           <div className="text-center">
-                            <div className="inline-block bg-[#0B2E65] text-white px-4 py-2 rounded-full text-sm font-semibold mb-4">
-                              Current Plan
-                            </div>
                             <button
                               onClick={() => setShowSubscriptionDetails({ ...showSubscriptionDetails, [0]: true })}
                               className="w-full bg-gray-100 text-gray-700 py-2.5 rounded-lg font-semibold hover:bg-gray-200 transition-colors text-sm cursor-pointer"
                             >
                               View Details
                             </button>
+                            <p className="text-xs text-gray-500 mt-2 text-center">Switching to this plan at end of billing period</p>
+                          </div>
+                        ) : isYearlyCurrent ? (
+                          <div className="text-center">
+                            <div className="inline-block bg-[#0B2E65] text-white px-4 py-2 rounded-full text-sm font-semibold mb-4">
+                              Current Plan
+                            </div>
+                            {scheduledToMonthly ? (
+                              <>
+                                <button
+                                  onClick={handleRevertPlanChange}
+                                  disabled={revertingPlan}
+                                  className="w-full bg-[#0B2E65] text-white py-2.5 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-colors disabled:opacity-60 disabled:cursor-not-allowed text-sm cursor-pointer"
+                                >
+                                  {revertingPlan ? 'Reverting...' : 'Switch back to Yearly'}
+                                </button>
+                              </>
+                            ) : (
+                              <>
+                                <button
+                                  onClick={() => (status.subscription_status === 'active' ? handleChangePlan('monthly') : handleSubscribe('monthly'))}
+                                  disabled={creatingCheckout || changingPlan !== null}
+                                  className="w-full bg-[#0B2E65] text-white py-2.5 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-colors disabled:opacity-60 disabled:cursor-not-allowed text-sm cursor-pointer"
+                                >
+                                  {changingPlan === 'monthly' ? 'Updating...' : creatingCheckout ? 'Processing...' : status.subscription_status === 'trial' ? 'Subscribe to Monthly' : 'Switch to Monthly'}
+                                </button>
+                                {status.subscription_status === 'active' && (
+                                  <p className="text-xs text-gray-500 mt-2 text-center">Takes effect at end of billing period</p>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        ) : scheduledToMonthly ? (
+                          <div className="text-center">
+                            <button
+                              onClick={() => setShowSubscriptionDetails({ ...showSubscriptionDetails, [0]: true })}
+                              className="w-full bg-gray-100 text-gray-700 py-2.5 rounded-lg font-semibold hover:bg-gray-200 transition-colors text-sm cursor-pointer"
+                            >
+                              View Details
+                            </button>
+                            <p className="text-xs text-gray-500 mt-2 text-center">Switching to this plan at end of billing period</p>
                           </div>
                         ) : (
                           <>
@@ -868,6 +906,8 @@ function SubscriptionPageContent() {
                       </div>
                     </div>
                   </div>
+                    );
+                  })()}
                 </>
               )}
 
