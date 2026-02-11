@@ -81,6 +81,10 @@ export default function TerminationPage() {
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [viewingRecord, setViewingRecord] = useState<ExitRecord | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 5;
   
   // Form state
   const [formData, setFormData] = useState({
@@ -333,6 +337,18 @@ export default function TerminationPage() {
       return;
     }
 
+    // Show confirmation dialog for terminations
+    if (formData.exitType === 'termination') {
+      setShowConfirmDialog(true);
+      return;
+    }
+
+    // For resignations, proceed directly
+    await processExit();
+  }
+
+  async function processExit() {
+    setShowConfirmDialog(false);
     setSubmitting(true);
     try {
       const token = getToken();
@@ -408,6 +424,14 @@ export default function TerminationPage() {
     }
   }
 
+  function handleConfirmTermination() {
+    processExit();
+  }
+
+  function handleCancelTermination() {
+    setShowConfirmDialog(false);
+  }
+
   const formatDate = (dateString: string) => {
     try {
       const date = new Date(dateString);
@@ -440,12 +464,15 @@ export default function TerminationPage() {
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Exit Form */}
-            <div className="rounded-xl p-6 transition-all duration-200" style={{ 
+            <div className="rounded-xl overflow-hidden transition-all duration-200" style={{ 
               backgroundColor: '#FFFFFF', 
               border: '1px solid #E5E7EB',
               boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05)'
             }}>
-              <h2 className="text-lg font-semibold mb-4" style={{ color: COLORS.gray[900] }}>Record Employee Exit</h2>
+              <div className="px-6 py-4" style={{ backgroundColor: '#4D6DBE' }}>
+                <h2 className="text-lg font-semibold text-white">Record Employee Exit</h2>
+              </div>
+              <div className="p-6">
               
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
@@ -582,28 +609,54 @@ export default function TerminationPage() {
                   </div>
                 )}
 
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="w-full cursor-pointer px-4 py-2.5 text-sm font-semibold text-white rounded-lg transition-all hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed"
-                  style={{ backgroundColor: COLORS.negative }}
-                >
-                  {submitting 
-                    ? (formData.exitType === 'resignation' ? 'Recording...' : 'Terminating...')
-                    : (formData.exitType === 'resignation' ? 'Record Resignation' : 'Terminate Employee')
-                  }
-                </button>
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFormData({
+                        exitType: 'termination',
+                        employeeId: '',
+                        exitDate: '',
+                        reason: '',
+                        terminatedBy: '',
+                      });
+                      setError(null);
+                    }}
+                    className="flex-1 cursor-pointer px-4 py-2.5 text-sm font-semibold rounded-lg transition-all hover:bg-gray-50"
+                    style={{ 
+                      border: '1px solid #E5E7EB',
+                      color: '#374151',
+                      backgroundColor: '#FFFFFF'
+                    }}
+                  >
+                    Reset
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={submitting}
+                    className="flex-1 cursor-pointer px-4 py-2.5 text-sm font-semibold text-white rounded-lg transition-all hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed"
+                    style={{ backgroundColor: '#4D6DBE' }}
+                  >
+                    {submitting 
+                      ? (formData.exitType === 'resignation' ? 'Recording...' : 'Terminating...')
+                      : (formData.exitType === 'resignation' ? 'Record Resignation' : 'Terminate Employee')
+                    }
+                  </button>
+                </div>
               </form>
+              </div>
             </div>
 
             {/* Exit Log */}
-            <div className="rounded-xl p-6 transition-all duration-200" style={{ 
+            <div className="rounded-xl overflow-hidden transition-all duration-200" style={{ 
               backgroundColor: '#FFFFFF', 
               border: '1px solid #E5E7EB',
               boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05)'
             }}>
-              <h2 className="text-lg font-semibold mb-4" style={{ color: COLORS.gray[900] }}>Exit Log</h2>
-              
+              <div className="px-6 py-4" style={{ backgroundColor: '#4D6DBE' }}>
+                <h2 className="text-lg font-semibold text-white">Exit Log</h2>
+              </div>
+              <div className="p-6">
               {loading && exitRecords.length === 0 ? (
                 <div className="py-8 text-center">
                   <div className="inline-flex items-center gap-3">
@@ -616,50 +669,290 @@ export default function TerminationPage() {
                   <p className="text-sm" style={{ color: COLORS.gray[500] }}>No exit records yet.</p>
                 </div>
               ) : (
-                <div className="space-y-3 max-h-[600px] overflow-y-auto">
-                  {exitRecords.map((record) => (
-                    <div
-                      key={record.id}
-                      className="p-4 rounded-lg border"
-                      style={{ 
-                        borderColor: '#E5E7EB',
-                        backgroundColor: '#F9FAFB'
-                      }}
-                    >
-                      <div className="flex items-start justify-between mb-2">
-                        <div>
-                          <h3 className="text-sm font-semibold" style={{ color: COLORS.gray[900] }}>
-                            {record.employee_name}
-                          </h3>
-                          {(record.department || record.position) && (
-                            <p className="text-xs mt-0.5" style={{ color: COLORS.gray[500] }}>
-                              {[record.position, record.department].filter(Boolean).join(' • ')}
-                            </p>
-                          )}
-                        </div>
-                        <span 
-                          className="text-xs font-semibold px-2 py-1 rounded-full"
-                          style={{ 
-                            backgroundColor: record.exit_type === 'resignation' ? '#FEF3C7' : '#FEE2E2',
-                            color: record.exit_type === 'resignation' ? '#92400E' : COLORS.negative
-                          }}
-                        >
-                          {record.exit_type === 'resignation' ? 'Resigned' : 'Terminated'}
-                        </span>
+                <>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr>
+                          <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider" style={{ color: '#374151' }}>Employee</th>
+                          <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider" style={{ color: '#374151' }}>Type</th>
+                          <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider" style={{ color: '#374151' }}>By</th>
+                          <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider" style={{ color: '#374151' }}>Date</th>
+                          <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider" style={{ color: '#374151' }}></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {exitRecords
+                          .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+                          .map((record) => (
+                          <tr key={record.id} className="border-b" style={{ borderColor: '#E5E7EB' }}>
+                            <td className="py-3 px-4">
+                              <div>
+                                <div className="text-sm font-medium" style={{ color: COLORS.gray[900] }}>
+                                  {record.employee_name}
+                                </div>
+                                {(record.department || record.position) && (
+                                  <div className="text-xs mt-0.5" style={{ color: COLORS.gray[500] }}>
+                                    {[record.position, record.department].filter(Boolean).join(' • ')}
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+                            <td className="py-3 px-4">
+                              <span 
+                                className="text-xs font-semibold px-2 py-1 rounded-full"
+                                style={{ 
+                                  backgroundColor: record.exit_type === 'resignation' ? '#FEF3C7' : '#FEE2E2',
+                                  color: record.exit_type === 'resignation' ? '#92400E' : COLORS.negative
+                                }}
+                              >
+                                {record.exit_type === 'resignation' ? 'Resigned' : 'Terminated'}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4">
+                              <span className="text-xs" style={{ color: COLORS.gray[500] }}>
+                                {record.terminated_by || record.resigned_by || 'Unknown'}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4">
+                              <span className="text-xs" style={{ color: COLORS.gray[500] }}>
+                                {formatDate(record.exit_date)}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4">
+                              <button
+                                type="button"
+                                onClick={() => setViewingRecord(record)}
+                                className="text-xs font-medium hover:opacity-80 transition-opacity"
+                                style={{ color: '#4D6DBE' }}
+                              >
+                                View More
+                              </button>
+                            </td>
+                          </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    {exitRecords.length > itemsPerPage && (
+                    <div className="flex items-center justify-between mt-4 pt-4" style={{ borderTop: '1px solid #E5E7EB' }}>
+                      <div className="text-xs" style={{ color: '#6B7280' }}>
+                        Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, exitRecords.length)} of {exitRecords.length} entries
                       </div>
-                      <p className="text-xs mb-2" style={{ color: COLORS.gray[600] }}>
-                        {record.reason}
-                      </p>
-                      <div className="flex items-center justify-between text-xs" style={{ color: COLORS.gray[500] }}>
-                        <span>By: {record.terminated_by || record.resigned_by || 'Unknown'}</span>
-                        <span>{formatDate(record.exit_date)}</span>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                          disabled={currentPage === 1}
+                          className="px-2.5 py-1.5 rounded-md transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100"
+                          style={{ border: '1px solid #E5E7EB', color: currentPage === 1 ? '#9CA3AF' : '#374151', backgroundColor: '#FFFFFF' }}
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                          </svg>
+                        </button>
+                        <div className="flex items-center gap-1">
+                          {Array.from({ length: Math.min(5, Math.ceil(exitRecords.length / itemsPerPage)) }, (_, i) => {
+                            let pageNum: number;
+                            const totalPages = Math.ceil(exitRecords.length / itemsPerPage);
+                            if (totalPages <= 5) {
+                              pageNum = i + 1;
+                            } else if (currentPage <= 3) {
+                              pageNum = i + 1;
+                            } else if (currentPage >= totalPages - 2) {
+                              pageNum = totalPages - 4 + i;
+                            } else {
+                              pageNum = currentPage - 2 + i;
+                            }
+                            return (
+                              <button
+                                key={pageNum}
+                                onClick={() => setCurrentPage(pageNum)}
+                                className="px-3 py-1.5 rounded-md text-sm font-medium transition-all hover:bg-gray-100"
+                                style={{ 
+                                  border: '1px solid #E5E7EB',
+                                  color: currentPage === pageNum ? '#FFFFFF' : '#374151',
+                                  backgroundColor: currentPage === pageNum ? '#4D6DBE' : '#FFFFFF'
+                                }}
+                              >
+                                {pageNum}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <button
+                          onClick={() => setCurrentPage(prev => Math.min(Math.ceil(exitRecords.length / itemsPerPage), prev + 1))}
+                          disabled={currentPage >= Math.ceil(exitRecords.length / itemsPerPage)}
+                          className="px-2.5 py-1.5 rounded-md transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100"
+                          style={{ border: '1px solid #E5E7EB', color: currentPage >= Math.ceil(exitRecords.length / itemsPerPage) ? '#9CA3AF' : '#374151', backgroundColor: '#FFFFFF' }}
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                          </svg>
+                        </button>
                       </div>
                     </div>
-                  ))}
-                </div>
+                  )}
+                </>
               )}
+              </div>
             </div>
           </div>
+
+          {/* View Record Details Modal */}
+          {viewingRecord && (
+            <div 
+              className="fixed inset-0 flex items-center justify-center z-50"
+              style={{ backgroundColor: 'rgba(0, 0, 0, 0.4)' }}
+              onClick={() => setViewingRecord(null)}
+            >
+              <div 
+                className="bg-white rounded-xl shadow-xl max-w-2xl w-full mx-4 overflow-hidden relative z-10"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="px-6 py-4 flex items-center justify-between" style={{ backgroundColor: '#4D6DBE' }}>
+                  <h3 className="text-lg font-semibold text-white">Exit Record Details</h3>
+                  <button
+                    type="button"
+                    onClick={() => setViewingRecord(null)}
+                    className="cursor-pointer p-1 rounded-lg transition-colors hover:bg-opacity-20 hover:bg-white"
+                  >
+                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+                <div className="p-6">
+                  <div className="space-y-4">
+                    <div>
+                      <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: '#6B7280' }}>Employee</label>
+                      <div className="mt-1">
+                        <p className="text-sm font-medium" style={{ color: COLORS.gray[900] }}>
+                          {viewingRecord.employee_name}
+                        </p>
+                        {(viewingRecord.department || viewingRecord.position) && (
+                          <p className="text-xs mt-0.5" style={{ color: COLORS.gray[500] }}>
+                            {[viewingRecord.position, viewingRecord.department].filter(Boolean).join(' • ')}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: '#6B7280' }}>Type</label>
+                        <div className="mt-1">
+                          <span 
+                            className="text-xs font-semibold px-2.5 py-1 rounded-full inline-block"
+                            style={{ 
+                              backgroundColor: viewingRecord.exit_type === 'resignation' ? '#FEF3C7' : '#FEE2E2',
+                              color: viewingRecord.exit_type === 'resignation' ? '#92400E' : COLORS.negative
+                            }}
+                          >
+                            {viewingRecord.exit_type === 'resignation' ? 'Resigned' : 'Terminated'}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: '#6B7280' }}>Date</label>
+                        <div className="mt-1">
+                          <p className="text-sm" style={{ color: COLORS.gray[900] }}>
+                            {formatDate(viewingRecord.exit_date)}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: '#6B7280' }}>Processed By</label>
+                      <div className="mt-1">
+                        <p className="text-sm" style={{ color: COLORS.gray[900] }}>
+                          {viewingRecord.terminated_by || viewingRecord.resigned_by || 'Unknown'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: '#6B7280' }}>Reason/Comment</label>
+                      <div className="mt-1 p-4 rounded-lg overflow-auto max-h-48" style={{ backgroundColor: '#F9FAFB', border: '1px solid #E5E7EB' }}>
+                        <p className="text-sm whitespace-pre-wrap break-words" style={{ color: COLORS.gray[700] }}>
+                          {viewingRecord.reason || 'No reason provided'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-6 flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => setViewingRecord(null)}
+                      className="cursor-pointer px-4 py-2 text-sm font-semibold rounded-lg transition-all hover:opacity-90"
+                      style={{ 
+                        backgroundColor: '#4D6DBE',
+                        color: '#FFFFFF'
+                      }}
+                    >
+                      Close
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Confirmation Dialog */}
+          {showConfirmDialog && (
+            <div 
+              className="fixed inset-0 flex items-center justify-center z-50"
+              style={{ backgroundColor: 'rgba(0, 0, 0, 0.4)' }}
+              onClick={handleCancelTermination}
+            >
+              <div 
+                className="bg-white rounded-xl shadow-xl max-w-md w-full mx-4 overflow-hidden"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="px-6 py-4" style={{ backgroundColor: '#4D6DBE' }}>
+                  <h3 className="text-lg font-semibold text-white">Confirm Termination</h3>
+                </div>
+                <div className="p-6">
+                  <p className="text-sm mb-4" style={{ color: '#374151' }}>
+                    Are you sure you want to terminate this employee? This action will:
+                  </p>
+                  <ul className="list-disc list-inside text-sm mb-6 space-y-1" style={{ color: '#6B7280' }}>
+                    <li>Mark the employee as terminated</li>
+                    <li>Set their status to inactive</li>
+                    <li>Record this action in the exit log</li>
+                  </ul>
+                  <p className="text-sm font-semibold mb-6" style={{ color: '#991B1B' }}>
+                    This action cannot be undone.
+                  </p>
+                  <div className="flex gap-3">
+                    <button
+                      type="button"
+                      onClick={handleCancelTermination}
+                      className="flex-1 cursor-pointer px-4 py-2.5 text-sm font-semibold rounded-lg transition-all hover:bg-gray-50"
+                      style={{ 
+                        border: '1px solid #E5E7EB',
+                        color: '#374151',
+                        backgroundColor: '#FFFFFF'
+                      }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleConfirmTermination}
+                      disabled={submitting}
+                      className="flex-1 cursor-pointer px-4 py-2.5 text-sm font-semibold text-white rounded-lg transition-all hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed"
+                      style={{ backgroundColor: '#F87171' }}
+                    >
+                      {submitting ? 'Terminating...' : 'Confirm Termination'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </main>
       </div>
     </RequireAuth>

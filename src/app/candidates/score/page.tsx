@@ -645,71 +645,119 @@ function mapQuestionsToCriteria(roleId: string, criteria: Criterion[]): Criterio
           break;
         case 'clm2': // Financial Acumen
           mapped.interviewQuestions = {
-            roleSpecific: [questions.roleSpecific[12]],
+            roleSpecific: [
+              questions.roleSpecific[12],
+              'How do you analyze financial statements to identify opportunities for cost reduction and revenue growth?',
+              'Describe your experience with creating and managing multi-year budgets for a dealership or dealership group.'
+            ],
             starBehavioral: [questions.starBehavioral[1]],
           };
           break;
         case 'clm3': // Industry Knowledge & Market Awareness
           mapped.interviewQuestions = {
-            roleSpecific: [questions.roleSpecific[4], questions.roleSpecific[5]],
+            roleSpecific: [
+              questions.roleSpecific[4],
+              questions.roleSpecific[5],
+              'What trends in the automotive industry do you believe will have the biggest impact on dealership operations in the next 5 years?'
+            ],
             starBehavioral: [questions.starBehavioral[9]],
           };
           break;
         case 'clm4': // Executive Presence & Influence
           mapped.interviewQuestions = {
-            roleSpecific: [questions.roleSpecific[17], questions.roleSpecific[24]],
+            roleSpecific: [
+              questions.roleSpecific[17],
+              questions.roleSpecific[24],
+              'How do you build credibility and influence with stakeholders who may have competing priorities or interests?'
+            ],
             starBehavioral: [questions.starBehavioral[4]],
           };
           break;
         case 'clm5': // Organizational Development
           mapped.interviewQuestions = {
-            roleSpecific: [questions.roleSpecific[8], questions.roleSpecific[17]],
+            roleSpecific: [
+              questions.roleSpecific[8],
+              questions.roleSpecific[17],
+              'Describe your approach to succession planning and developing leadership talent within an organization.'
+            ],
             starBehavioral: [questions.starBehavioral[8]],
           };
           break;
         case 'clm6': // Change Management
           mapped.interviewQuestions = {
-            roleSpecific: [questions.roleSpecific[6], questions.roleSpecific[10]],
+            roleSpecific: [
+              questions.roleSpecific[6],
+              questions.roleSpecific[10],
+              'How do you handle resistance to change from employees or stakeholders, and what strategies do you use to gain buy-in?'
+            ],
             starBehavioral: [questions.starBehavioral[6]],
           };
           break;
         case 'clm7': // Compliance & Ethics
           mapped.interviewQuestions = {
-            roleSpecific: [questions.roleSpecific[11]],
+            roleSpecific: [
+              questions.roleSpecific[11],
+              'Describe a situation where you had to make a decision that balanced business needs with ethical considerations. How did you handle it?',
+              'How do you ensure your organization maintains compliance with automotive industry regulations and standards?'
+            ],
             starBehavioral: [questions.starBehavioral[5]],
           };
           break;
         case 'clm8': // Risk Management
           mapped.interviewQuestions = {
-            roleSpecific: [questions.roleSpecific[11]],
+            roleSpecific: [
+              questions.roleSpecific[11],
+              'Describe your approach to identifying and mitigating operational, financial, and strategic risks in a dealership environment.',
+              'Can you give an example of a significant risk you identified early and how you prevented it from becoming a problem?'
+            ],
             starBehavioral: [questions.starBehavioral[5]],
           };
           break;
         case 'clm9': // Board & Owner Relations
           mapped.interviewQuestions = {
-            roleSpecific: [questions.roleSpecific[13], questions.roleSpecific[15]],
+            roleSpecific: [
+              questions.roleSpecific[13],
+              questions.roleSpecific[15],
+              'How do you communicate complex business issues and strategic recommendations to owners or board members who may not have day-to-day operational experience?'
+            ],
             starBehavioral: [questions.starBehavioral[4]],
           };
           break;
         case 'clm10': // External Relationships
           mapped.interviewQuestions = {
-            roleSpecific: [questions.roleSpecific[5], questions.roleSpecific[14]],
+            roleSpecific: [
+              questions.roleSpecific[5],
+              questions.roleSpecific[14],
+              'Describe your experience managing relationships with OEMs, vendors, and other external partners. How do you negotiate favorable terms?'
+            ],
             starBehavioral: [questions.starBehavioral[4]],
           };
           break;
         case 'clm11': // Primary Residence Distance
           mapped.interviewQuestions = {
-            roleSpecific: ['Is your primary residence a reasonable distance from the dealership? Consider commute time, reliability, and availability for emergencies.'],
+            roleSpecific: [
+              'Is your primary residence a reasonable distance from the dealership? Consider commute time, reliability, and availability for emergencies.',
+              'How do you plan to manage your availability for after-hours emergencies or critical business situations?',
+              'What is your approach to maintaining work-life balance while being accessible for important dealership matters?'
+            ],
           };
           break;
         case 'clm12': // References
           mapped.interviewQuestions = {
-            roleSpecific: ['What would we discover if we conducted confidential interviews with your previous direct reports and department heads?'],
+            roleSpecific: [
+              'What would we discover if we conducted confidential interviews with your previous direct reports and department heads?',
+              'Can you provide examples of feedback you\'ve received from former colleagues or subordinates about your leadership style?',
+              'How do you think your previous team members would describe your strengths and areas for improvement?'
+            ],
           };
           break;
         case 'clm13': // Dealership Culture Alignment
           mapped.interviewQuestions = {
-            roleSpecific: [questions.roleSpecific[13], questions.roleSpecific[22]],
+            roleSpecific: [
+              questions.roleSpecific[13],
+              questions.roleSpecific[22],
+              'How do you assess and adapt to the existing culture of an organization when joining a new dealership?'
+            ],
           };
           break;
       }
@@ -755,22 +803,73 @@ function mapQuestionsToCriteria(roleId: string, criteria: Criterion[]): Criterio
       }
     }
     
-    // If we don't have enough questions, create custom ones based on the criterion
+    // Ensure we have at least 3 questions total
     const totalQuestions = selectedRoleSpecific.length + selectedStarBehavioral.length;
+    
+    // If we don't have enough questions, create custom ones based on the criterion
     if (totalQuestions < 3) {
-      // Generate questions based on criterion name and weight
       const customQuestions = generateCustomQuestions(criterion.name, criterion.weight, roleId);
-      selectedRoleSpecific.push(...customQuestions.slice(0, 5 - totalQuestions));
+      const needed = 3 - totalQuestions;
+      // Add custom questions to role-specific to reach at least 3 total
+      selectedRoleSpecific.push(...customQuestions.slice(0, needed));
     }
     
-    // Limit to 5 total questions
-    const finalRoleSpecific = selectedRoleSpecific.slice(0, 3);
-    const finalStarBehavioral = selectedStarBehavioral.slice(0, 2);
+    // Limit role-specific to 3 and STAR behavioral to 2
+    let finalRoleSpecific = selectedRoleSpecific.slice(0, 3);
+    let finalStarBehavioral = selectedStarBehavioral.slice(0, 2);
+    
+    // Final check: ensure we have at least 3 questions total
+    let finalTotal = finalRoleSpecific.length + finalStarBehavioral.length;
+    if (finalTotal < 3) {
+      // Generate additional custom questions if needed
+      const additionalQuestions = generateCustomQuestions(criterion.name, criterion.weight, roleId);
+      const needed = 3 - finalTotal;
+      
+      // Try to add to role-specific first (up to 3 total)
+      const availableRoleSlots = 3 - finalRoleSpecific.length;
+      if (availableRoleSlots > 0) {
+        const toAdd = Math.min(needed, availableRoleSlots);
+        finalRoleSpecific = [...finalRoleSpecific, ...additionalQuestions.slice(0, toAdd)];
+        finalTotal = finalRoleSpecific.length + finalStarBehavioral.length;
+      }
+      
+      // If still needed and we have room in STAR behavioral, add there (up to 2 total)
+      if (finalTotal < 3 && finalStarBehavioral.length < 2) {
+        const stillNeeded = 3 - finalTotal;
+        const availableStarSlots = 2 - finalStarBehavioral.length;
+        const toAdd = Math.min(stillNeeded, availableStarSlots);
+        const starQuestions = generateCustomQuestions(criterion.name, criterion.weight, roleId);
+        finalStarBehavioral = [...finalStarBehavioral, ...starQuestions.slice(0, toAdd)];
+      }
+      
+      // Last resort: if we still don't have 3, fill role-specific completely
+      finalTotal = finalRoleSpecific.length + finalStarBehavioral.length;
+      if (finalTotal < 3) {
+        const lastResortQuestions = generateCustomQuestions(criterion.name, criterion.weight, roleId);
+        const fillNeeded = 3 - finalTotal;
+        const remainingSlots = 3 - finalRoleSpecific.length;
+        if (remainingSlots > 0) {
+          finalRoleSpecific = [...finalRoleSpecific, ...lastResortQuestions.slice(0, Math.min(fillNeeded, remainingSlots))];
+        }
+      }
+    }
     
     mapped.interviewQuestions = {
-      roleSpecific: finalRoleSpecific,
-      starBehavioral: finalStarBehavioral,
+      roleSpecific: finalRoleSpecific.slice(0, 3),
+      starBehavioral: finalStarBehavioral.slice(0, 2),
     };
+    
+    // Absolute guarantee: ensure we have at least 3 questions
+    const finalValidation = (mapped.interviewQuestions.roleSpecific?.length || 0) + (mapped.interviewQuestions.starBehavioral?.length || 0);
+    if (finalValidation < 3) {
+      const guaranteeQuestions = generateCustomQuestions(criterion.name, criterion.weight, roleId);
+      const fillNeeded = 3 - finalValidation;
+      if (!mapped.interviewQuestions.roleSpecific) mapped.interviewQuestions.roleSpecific = [];
+      const currentLength = mapped.interviewQuestions.roleSpecific.length;
+      const canAdd = Math.min(fillNeeded, 3 - currentLength);
+      mapped.interviewQuestions.roleSpecific.push(...guaranteeQuestions.slice(0, canAdd));
+      mapped.interviewQuestions.roleSpecific = mapped.interviewQuestions.roleSpecific.slice(0, 3);
+    }
     
     return mapped;
   });
@@ -786,34 +885,62 @@ function generateCustomQuestions(criterionName: string, weight: number, roleId: 
     questions.push(`What specific metrics or KPIs do you use to measure success in ${criterionName.toLowerCase()}?`);
     questions.push(`Can you describe a time when you exceeded expectations in ${criterionName.toLowerCase()}?`);
     questions.push(`How do you set and track goals related to ${criterionName.toLowerCase()}?`);
+    questions.push(`Tell me about a situation where you had to improve performance in ${criterionName.toLowerCase()}. What was your approach?`);
+    questions.push(`What methods do you use to motivate yourself and others to achieve targets in ${criterionName.toLowerCase()}?`);
   } else if (nameLower.includes('leadership') || nameLower.includes('management') || nameLower.includes('team')) {
     questions.push(`Describe your approach to ${criterionName.toLowerCase()}.`);
     questions.push(`How do you motivate and develop your team in the area of ${criterionName.toLowerCase()}?`);
     questions.push(`What challenges have you faced in ${criterionName.toLowerCase()}, and how did you overcome them?`);
+    questions.push(`Can you give an example of a time when you had to make a difficult decision as a leader?`);
+    questions.push(`How do you handle conflicts within your team while maintaining productivity?`);
   } else if (nameLower.includes('customer') || nameLower.includes('satisfaction') || nameLower.includes('service')) {
     questions.push(`How do you ensure customer satisfaction in ${criterionName.toLowerCase()}?`);
     questions.push(`Describe a situation where you had to handle a difficult customer issue related to ${criterionName.toLowerCase()}.`);
     questions.push(`What strategies do you use to improve ${criterionName.toLowerCase()}?`);
-  } else if (nameLower.includes('financial') || nameLower.includes('profit') || nameLower.includes('revenue')) {
+    questions.push(`Tell me about a time when you went above and beyond to satisfy a customer.`);
+    questions.push(`How do you measure and track customer satisfaction in your work?`);
+  } else if (nameLower.includes('financial') || nameLower.includes('profit') || nameLower.includes('revenue') || nameLower.includes('acumen')) {
     questions.push(`How do you manage ${criterionName.toLowerCase()} to maximize profitability?`);
     questions.push(`Describe your experience with budgeting and financial planning in ${criterionName.toLowerCase()}.`);
     questions.push(`What financial metrics do you track for ${criterionName.toLowerCase()}?`);
-  } else if (nameLower.includes('compliance') || nameLower.includes('safety') || nameLower.includes('risk')) {
+    questions.push(`Can you explain how you analyze financial statements to make business decisions?`);
+    questions.push(`Describe a time when you identified a cost-saving opportunity and implemented it.`);
+  } else if (nameLower.includes('compliance') || nameLower.includes('safety') || nameLower.includes('risk') || nameLower.includes('ethics')) {
     questions.push(`How do you ensure compliance and safety in ${criterionName.toLowerCase()}?`);
     questions.push(`Describe your approach to risk management in ${criterionName.toLowerCase()}.`);
     questions.push(`What compliance challenges have you faced in ${criterionName.toLowerCase()}?`);
-  } else if (nameLower.includes('communication') || nameLower.includes('relationship')) {
+    questions.push(`Tell me about a time when you had to make an ethical decision that was difficult.`);
+    questions.push(`How do you stay updated on industry regulations and ensure your team follows them?`);
+  } else if (nameLower.includes('communication') || nameLower.includes('relationship') || nameLower.includes('presence') || nameLower.includes('influence')) {
     questions.push(`How do you communicate effectively in ${criterionName.toLowerCase()}?`);
     questions.push(`Describe your approach to building relationships in ${criterionName.toLowerCase()}.`);
     questions.push(`What communication challenges have you encountered in ${criterionName.toLowerCase()}?`);
-  } else if (nameLower.includes('process') || nameLower.includes('efficiency') || nameLower.includes('improvement')) {
+    questions.push(`Can you give an example of how you've influenced a decision or persuaded stakeholders?`);
+    questions.push(`How do you adapt your communication style when working with different types of people?`);
+  } else if (nameLower.includes('process') || nameLower.includes('efficiency') || nameLower.includes('improvement') || nameLower.includes('change')) {
     questions.push(`How do you improve processes and efficiency in ${criterionName.toLowerCase()}?`);
     questions.push(`Describe a process improvement you implemented in ${criterionName.toLowerCase()}.`);
     questions.push(`What methods do you use to identify areas for improvement in ${criterionName.toLowerCase()}?`);
-  } else if (nameLower.includes('knowledge') || nameLower.includes('expertise') || nameLower.includes('technical')) {
+    questions.push(`Tell me about a time when you had to implement a significant change. How did you manage resistance?`);
+    questions.push(`How do you measure the success of process improvements you've implemented?`);
+  } else if (nameLower.includes('knowledge') || nameLower.includes('expertise') || nameLower.includes('technical') || nameLower.includes('industry') || nameLower.includes('awareness')) {
     questions.push(`What is your level of expertise in ${criterionName.toLowerCase()}?`);
     questions.push(`How do you stay current with developments in ${criterionName.toLowerCase()}?`);
     questions.push(`Describe your technical knowledge and experience in ${criterionName.toLowerCase()}.`);
+    questions.push(`What industry trends or changes are you most aware of, and how do they impact your work?`);
+    questions.push(`How do you continue to develop your knowledge and skills in ${criterionName.toLowerCase()}?`);
+  } else if (nameLower.includes('strategic') || nameLower.includes('vision') || nameLower.includes('planning')) {
+    questions.push(`How do you develop and execute strategic plans for ${criterionName.toLowerCase()}?`);
+    questions.push(`Describe your approach to long-term planning and vision setting.`);
+    questions.push(`Can you give an example of a strategic initiative you led and its outcomes?`);
+    questions.push(`How do you balance short-term operational needs with long-term strategic goals?`);
+    questions.push(`What is your process for identifying and prioritizing strategic opportunities?`);
+  } else if (nameLower.includes('development') || nameLower.includes('organizational') || nameLower.includes('culture')) {
+    questions.push(`How do you approach ${criterionName.toLowerCase()} in your organization?`);
+    questions.push(`Describe your experience with organizational development and culture building.`);
+    questions.push(`What strategies do you use to develop talent and build strong teams?`);
+    questions.push(`How do you assess and improve organizational culture?`);
+    questions.push(`Tell me about a time when you successfully transformed a team or department.`);
   } else {
     // Generic questions for any criterion
     questions.push(`How do you approach ${criterionName.toLowerCase()} in your work?`);
@@ -3143,7 +3270,7 @@ ${additionalNotes}` : ''}`;
                   currentCriteria.map((criterion) => (
                 <div
                   key={criterion.id}
-                  className="rounded-lg p-6 transition-all duration-200 hover:shadow-md"
+                  className="rounded-lg overflow-hidden transition-all duration-200 hover:shadow-md"
                   style={{
                     backgroundColor: '#FFFFFF',
                     border: '1px solid #E5E7EB',
@@ -3151,47 +3278,41 @@ ${additionalNotes}` : ''}`;
                   }}
                 >
                   {/* Card Header */}
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-base font-semibold" style={{ color: '#232E40' }}>
-                              {criterion.name}
-                            </span>
-                          <span className="text-sm font-bold px-3 py-1 rounded-lg" style={{ 
-                            color: '#232E40',
-                            backgroundColor: '#F3F4F6'
-                          }}>
-                            {criterion.weight}%
-                          </span>
-                      </div>
-                      {criterion.questions.length > 0 && (
-                        <div className="space-y-0.5 mt-2">
-                          {criterion.questions.map((question) => (
-                            <p key={question.id} className="text-xs leading-tight break-words" style={{ color: '#6B7280', maxWidth: '800px' }}>
-                              • {question.text}
-                            </p>
-                          ))}
-                        </div>
-                      )}
-                      {criterion.interviewQuestions && (
-                        <div className="mt-4 pt-4 border-t" style={{ borderColor: '#E5E7EB' }}>
-                          <div className="text-xs font-semibold mb-2" style={{ color: '#374151' }}>Interview Questions:</div>
-                          <ul className="space-y-1">
-                            {criterion.interviewQuestions.roleSpecific && criterion.interviewQuestions.roleSpecific.map((q, idx) => (
-                              <li key={`role-${idx}`} className="text-xs leading-relaxed" style={{ color: '#6B7280' }}>
-                                • {q}
-                              </li>
-                            ))}
-                            {criterion.interviewQuestions.starBehavioral && criterion.interviewQuestions.starBehavioral.map((q, idx) => (
-                              <li key={`star-${idx}`} className="text-xs leading-relaxed" style={{ color: '#6B7280' }}>
-                                • {q}
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-                    </div>
+                  <div className="px-6 py-4 flex items-center justify-between" style={{ backgroundColor: '#4D6DBE' }}>
+                    <span className="text-base font-semibold text-white">
+                      {criterion.name}
+                    </span>
+                    <span className="text-sm font-bold text-white">
+                      {criterion.weight}%
+                    </span>
                   </div>
+                  <div className="p-6">
+                    {criterion.questions.length > 0 && (
+                      <div className="space-y-2 mb-4">
+                        {criterion.questions.map((question) => (
+                          <p key={question.id} className="text-sm font-semibold leading-relaxed break-words" style={{ color: '#374151', maxWidth: '800px' }}>
+                            {question.text}
+                          </p>
+                        ))}
+                      </div>
+                    )}
+                    {criterion.interviewQuestions && (
+                      <div className="mb-4 pt-4 border-t" style={{ borderColor: '#E5E7EB' }}>
+                        <div className="text-sm font-semibold mb-2" style={{ color: '#374151' }}>Interview Questions:</div>
+                        <ul className="space-y-2">
+                          {criterion.interviewQuestions.roleSpecific && criterion.interviewQuestions.roleSpecific.map((q, idx) => (
+                            <li key={`role-${idx}`} className="text-sm leading-relaxed" style={{ color: '#374151' }}>
+                              • {q}
+                            </li>
+                          ))}
+                          {criterion.interviewQuestions.starBehavioral && criterion.interviewQuestions.starBehavioral.map((q, idx) => (
+                            <li key={`star-${idx}`} className="text-sm leading-relaxed" style={{ color: '#374151' }}>
+                              • {q}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
 
                   {/* Scoring Section */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4 pt-4 border-t" style={{ borderColor: '#E5E7EB' }}>
@@ -3241,6 +3362,7 @@ ${additionalNotes}` : ''}`;
                         placeholder="Add comments..."
                       />
                     </div>
+                  </div>
                   </div>
                 </div>
               ))

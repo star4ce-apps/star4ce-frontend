@@ -104,7 +104,7 @@ export default function EmployeesPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [sortColumn, setSortColumn] = useState<string>('name');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
-  const itemsPerPage = 20;
+  const itemsPerPage = 10;
 
   // Form state
   const [formData, setFormData] = useState({
@@ -629,7 +629,7 @@ export default function EmployeesPage() {
                   onClick={() => setShowModal(true)}
                   className="cursor-pointer px-4 py-2 rounded-lg text-sm font-medium transition-all"
                   style={{ 
-                    backgroundColor: COLORS.primary,
+                    backgroundColor: '#4D6DBE',
                     color: '#FFFFFF'
                   }}
                 >
@@ -783,20 +783,18 @@ export default function EmployeesPage() {
                         <SortIcon column="status" />
                       </div>
                     </th>
-                    <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider text-white">
-                    </th>
                   </tr>
                 </thead>
                 <tbody>
                   {loading && paginatedEmployees.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="py-12 text-center text-sm" style={{ color: '#6B7280' }}>
+                      <td colSpan={6} className="py-12 text-center text-sm" style={{ color: '#6B7280' }}>
                         Loading employees...
                       </td>
                     </tr>
                   ) : paginatedEmployees.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="py-12 text-center text-sm" style={{ color: '#6B7280' }}>
+                      <td colSpan={6} className="py-12 text-center text-sm" style={{ color: '#6B7280' }}>
                         No employees found.
                       </td>
                     </tr>
@@ -847,22 +845,6 @@ export default function EmployeesPage() {
                             >
                               {emp.status || (emp.is_active ? 'Active' : 'Inactive')}
                             </span>
-                          </td>
-                          <td className="py-3 px-4" onClick={(e) => e.stopPropagation()}>
-                            {role !== 'corporate' ? (
-                              <button
-                                onClick={() => openEditModal(emp)}
-                                className="cursor-pointer p-1.5 rounded-md transition-all hover:bg-gray-100"
-                                style={{ color: '#4D6DBE' }}
-                                title="Edit Employee"
-                              >
-                                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                                  <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" />
-                                </svg>
-                              </button>
-                            ) : (
-                              <span className="text-xs text-gray-400" title="View-Only Mode">👁️</span>
-                            )}
                           </td>
                         </tr>
                       );

@@ -87,11 +87,44 @@ export default function CandidateProfilePage() {
   const [resumePreviewUrl, setResumePreviewUrl] = useState<string | null>(null);
   const [resumePreviewIsPdf, setResumePreviewIsPdf] = useState(false);
   const [resumePreviewLoading, setResumePreviewLoading] = useState(false);
-  const [expandedProcessIndex, setExpandedProcessIndex] = useState<number | null>(null);
+  const [expandedInterviewIndex, setExpandedInterviewIndex] = useState<number | null>(null);
   const [showEditPersonal, setShowEditPersonal] = useState(false);
+  const [editEmail, setEditEmail] = useState('');
+  const [editPhone, setEditPhone] = useState('');
+  const [editAddress, setEditAddress] = useState('');
   const [editGender, setEditGender] = useState('');
   const [editDateOfBirth, setEditDateOfBirth] = useState('');
+  const [editUniversity, setEditUniversity] = useState('');
+  const [editDegreeLevel, setEditDegreeLevel] = useState('');
+  const [editMajor, setEditMajor] = useState('');
+  const [editReferrals, setEditReferrals] = useState<Array<{ firstName: string; lastName: string; phone: string; email: string; relationship: string }>>([]);
   const [savingPersonal, setSavingPersonal] = useState(false);
+
+  // Parse referral string into structured format
+  function parseReferrals(referralStr: string | undefined): Array<{ name: string; relationship?: string; phone?: string; email?: string }> {
+    if (!referralStr || referralStr === 'Not Provided' || !referralStr.trim()) return [];
+    
+    const referrals: Array<{ name: string; relationship?: string; phone?: string; email?: string }> = [];
+    const parts = referralStr.split(';').map(p => p.trim()).filter(p => p);
+    
+    for (const part of parts) {
+      const relationshipMatch = part.match(/Relationship:\s*([^,]+)/);
+      const phoneMatch = part.match(/Phone:\s*([^,]+)/);
+      const emailMatch = part.match(/Email:\s*(.+?)(?:\s*$|,)/);
+      const nameMatch = part.match(/^(.+?)(?:\s*-\s*(?:Relationship:|Phone:|Email:)|$)/);
+      
+      const name = nameMatch ? nameMatch[1].trim() : part.split('-')[0].trim();
+      const relationship = relationshipMatch ? relationshipMatch[1].trim() : undefined;
+      const phone = phoneMatch ? phoneMatch[1].trim() : undefined;
+      const email = emailMatch ? emailMatch[1].trim() : undefined;
+      
+      if (name) {
+        referrals.push({ name, relationship, phone, email });
+      }
+    }
+    
+    return referrals;
+  }
 
   useEffect(() => {
     // Load user role
@@ -269,7 +302,7 @@ export default function CandidateProfilePage() {
       const data = await getJsonAuth<{ ok: boolean; candidate: any }>(`/candidates/${candidateId}`);
       if (data.ok && data.candidate) {
         const c = data.candidate;
-
+        
         const candidateData: CandidateProfile = {
           id: c.id,
           name: c.name,
@@ -354,7 +387,7 @@ export default function CandidateProfilePage() {
 
   async function handleDenyApplication() {
     if (!candidate) return;
-
+    
     // Only admin and hiring_manager can deny (reject) applications
     if (role !== 'admin' && role !== 'hiring_manager') {
       toast.error('Only admin and hiring manager can deny applications.');
@@ -362,7 +395,7 @@ export default function CandidateProfilePage() {
     }
 
     // Confirm action
-    if (!confirm('Are you sure you want to deny this application? This will update the candidate status to "Denied".')) {
+    if (!confirm('Are you sure you want to deny this application?\n\nThis will:\n- Permanently reject the candidate\n- Update their status to "Denied"\n- You will no longer be able to retrieve their information\n\nThis action cannot be undone. Do you want to proceed?')) {
       return;
     }
 
@@ -380,7 +413,7 @@ export default function CandidateProfilePage() {
 
   async function handleConvertToEmployee() {
     if (!candidate) return;
-
+    
     // Only admin and hiring_manager can board (accept) candidates as employees
     if (role !== 'admin' && role !== 'hiring_manager') {
       toast.error('Only admin and hiring manager can board candidates as employees.');
@@ -388,7 +421,7 @@ export default function CandidateProfilePage() {
     }
 
     // Confirm action
-    if (!confirm('Are you sure you want to board this candidate as an employee? This will create an employee record and update the candidate status to "Offered".')) {
+    if (!confirm('Are you sure you want to accept this candidate?\n\nThis will:\n- Move them to the employee list\n- Permanently delete their resume\n- Remove them from the candidate list\n\nThis action cannot be undone. Do you want to proceed?')) {
       return;
     }
 
@@ -404,8 +437,12 @@ export default function CandidateProfilePage() {
       const firstName = nameParts[0] || '';
       const lastName = nameParts.slice(1).join(' ') || '';
 
-      // Get today's date for hired_date
-      const today = new Date().toISOString().split('T')[0];
+      // Get today's date for hired_date (use local date, not UTC)
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const day = String(now.getDate()).padStart(2, '0');
+      const today = `${year}-${month}-${day}`;
 
       // Create employee data from candidate data
       const employeeData: Record<string, unknown> = {
@@ -473,8 +510,8 @@ export default function CandidateProfilePage() {
         }
       }
 
-      // Update candidate status to "Offered"
-      await updateCandidate({ status: 'Offered' });
+      // Update candidate status to "Hired"
+      await updateCandidate({ status: 'Hired' });
 
       toast.success('Candidate successfully converted to employee!');
       
@@ -493,8 +530,44 @@ export default function CandidateProfilePage() {
 
   function openEditPersonal() {
     if (!candidate) return;
+    setEditEmail(candidate.email || '');
+    setEditPhone(candidate.phone || '');
+    setEditAddress(candidate.address === 'Not Provided' ? '' : (candidate.address || ''));
     setEditGender(candidate.gender === 'Not Provided' ? '' : candidate.gender);
     setEditDateOfBirth(candidate.dateOfBirthRaw || '');
+    
+    // Parse university
+    setEditUniversity(candidate.university === 'Not Provided' ? '' : (candidate.university || ''));
+    
+    // Parse degree (format: "Degree Level in Major" or just "Degree Level")
+    const degree = candidate.degree === 'Not Provided' ? '' : (candidate.degree || '');
+    if (degree.includes(' in ')) {
+      const [level, major] = degree.split(' in ');
+      setEditDegreeLevel(level.trim());
+      setEditMajor(major.trim());
+    } else {
+      setEditDegreeLevel(degree);
+      setEditMajor('');
+    }
+    
+    // Parse referrals
+    const parsedReferrals = parseReferrals(candidate.referral);
+    if (parsedReferrals.length > 0) {
+      const referralsArray = parsedReferrals.map(ref => {
+        const nameParts = ref.name.split(' ');
+        return {
+          firstName: nameParts[0] || '',
+          lastName: nameParts.slice(1).join(' ') || '',
+          phone: ref.phone || '',
+          email: ref.email || '',
+          relationship: ref.relationship || '',
+        };
+      });
+      setEditReferrals(referralsArray);
+    } else {
+      setEditReferrals([]);
+    }
+    
     setShowEditPersonal(true);
   }
 
@@ -502,22 +575,75 @@ export default function CandidateProfilePage() {
     if (!candidate) return;
     setSavingPersonal(true);
     try {
-      const body: { gender?: string | null; date_of_birth?: string | null } = {
+      // Format degree: combine degree level and major
+      let degree = null;
+      if (editDegreeLevel || editMajor) {
+        const parts = [];
+        if (editDegreeLevel) parts.push(editDegreeLevel);
+        if (editMajor) parts.push(editMajor);
+        degree = parts.join(' in ') || null;
+      }
+      
+      // Format referrals: combine multiple referrals into a single string
+      let referral = null;
+      if (editReferrals.length > 0) {
+        const referralStrings = editReferrals
+          .filter(ref => ref.firstName.trim() || ref.lastName.trim() || ref.phone.trim() || ref.email.trim())
+          .map(ref => {
+            const nameParts = [];
+            if (ref.firstName.trim()) nameParts.push(ref.firstName.trim());
+            if (ref.lastName.trim()) nameParts.push(ref.lastName.trim());
+            const name = nameParts.length > 0 ? nameParts.join(' ') : '';
+            
+            const infoParts = [];
+            if (ref.relationship.trim()) infoParts.push(`Relationship: ${ref.relationship.trim()}`);
+            if (ref.phone.trim()) infoParts.push(`Phone: ${ref.phone.trim()}`);
+            if (ref.email.trim()) infoParts.push(`Email: ${ref.email.trim()}`);
+            const info = infoParts.length > 0 ? ` - ${infoParts.join(', ')}` : '';
+            
+            return name + info;
+          })
+          .filter(s => s.length > 0);
+        referral = referralStrings.length > 0 ? referralStrings.join('; ') : null;
+      }
+      
+      const body: { 
+        email?: string;
+        phone?: string;
+        address?: string | null;
+        gender?: string | null; 
+        date_of_birth?: string | null;
+        university?: string | null;
+        degree?: string | null;
+        referral?: string | null;
+      } = {
+        email: editEmail.trim() || undefined,
+        phone: editPhone.trim() || undefined,
+        address: editAddress.trim() || null,
         gender: editGender.trim() || null,
         date_of_birth: editDateOfBirth.trim() || null,
+        university: editUniversity.trim() || null,
+        degree: degree || null,
+        referral: referral || null,
       };
       const data = await putJsonAuth<{ ok: boolean; candidate: any }>(`/candidates/${candidate.id}`, body);
       if (data.candidate) {
         const c = data.candidate;
         setCandidate({
           ...candidate,
+          email: c.email || candidate.email,
+          phone: c.phone || candidate.phone,
+          address: c.address?.trim() || 'Not Provided',
           gender: c.gender?.trim() || 'Not Provided',
           birthday: c.date_of_birth ? formatBirthday(c.date_of_birth) : 'Not Provided',
           dateOfBirthRaw: c.date_of_birth ?? undefined,
+          university: c.university?.trim() || 'Not Provided',
+          degree: c.degree?.trim() || 'Not Provided',
+          referral: c.referral?.trim() || 'Not Provided',
         });
       }
       setShowEditPersonal(false);
-      toast.success('Personal information updated');
+      toast.success('Information updated');
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Failed to update');
     } finally {
@@ -553,10 +679,87 @@ export default function CandidateProfilePage() {
   };
 
   const getScoreColor = (score: number) => {
-    if (score >= 8.1) return '#10B981'; // Excellent - green
-    if (score >= 7.0) return '#3B82F6'; // Good - blue
-    if (score >= 6.1) return '#F59E0B'; // Average - orange
+    // Score is out of 100, following the Hiring Recommendation Guide
+    if (score >= 90) return '#047857'; // Likely Game Changer - dark green
+    if (score >= 80) return '#065F46'; // Strong Performer - green
+    if (score >= 70) return '#1E40AF'; // High Potential - blue
+    if (score >= 60) return '#F59E0B'; // Average - orange
     return '#EF4444'; // Poor - red
+  };
+
+  // Calculate status based on last interview recommendation
+  const calculateStatus = (): string => {
+    if (!candidate) return 'Awaiting';
+    
+    const notes = candidate.notes || '';
+    if (!notes || !notes.trim()) {
+      return 'Awaiting First Interview';
+    }
+    
+    // Parse interview blocks to find the last interview's recommendation
+    const interviewBlocks: string[] = [];
+    
+    if (notes.includes('--- INTERVIEW ---')) {
+      const parts = notes.split(/--- INTERVIEW ---/);
+      parts.forEach((part) => {
+        const trimmed = part.trim();
+        if (trimmed && trimmed.includes('Interview Stage:')) {
+          interviewBlocks.push(trimmed);
+        }
+      });
+    } else {
+      const stageMatches = [...notes.matchAll(/Interview Stage:/g)];
+      if (stageMatches.length === 0) {
+        return 'Awaiting First Interview';
+      }
+      if (stageMatches.length === 1) {
+        interviewBlocks.push(notes);
+      } else {
+        for (let i = 0; i < stageMatches.length; i++) {
+          const startIndex = stageMatches[i].index || 0;
+          const endIndex = i < stageMatches.length - 1 
+            ? (stageMatches[i + 1].index || notes.length)
+            : notes.length;
+          const block = notes.substring(startIndex, endIndex).trim();
+          if (block && block.includes('Interview Stage:')) {
+            interviewBlocks.push(block);
+          }
+        }
+      }
+    }
+    
+    if (interviewBlocks.length === 0) {
+      return 'Awaiting First Interview';
+    }
+    
+    // Get the last interview block
+    const lastBlock = interviewBlocks[interviewBlocks.length - 1];
+    
+    // Normalize and parse the last block
+    const normalizedBlock = lastBlock
+      .replace(/(Interviewer Recommendation:)([^\n])/g, '$1\n$2');
+    
+    const lines = normalizedBlock.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+    
+    // Find the recommendation
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      if (line.startsWith('Interviewer Recommendation:')) {
+        const recommendation = line.replace('Interviewer Recommendation:', '').trim() || 
+                              (i + 1 < lines.length ? lines[i + 1].trim() : '');
+        
+        if (recommendation.toLowerCase() === 'next stage' || recommendation.toLowerCase() === 'next-stage') {
+          return 'Awaiting Next Interview';
+        } else if (recommendation.toLowerCase() === 'hire') {
+          return 'Hire';
+        } else if (recommendation.toLowerCase() === 'no hire' || recommendation.toLowerCase() === 'no-hire') {
+          return 'No Hire';
+        }
+      }
+    }
+    
+    // If no recommendation found, return the candidate's current status
+    return candidate.stage || 'Awaiting';
   };
 
   // Parse interview notes to extract process events
@@ -574,15 +777,6 @@ export default function CandidateProfilePage() {
     });
 
     if (!candidate.notes || !candidate.notes.trim()) {
-      // If no interviews yet, show awaiting status
-      const currentStatus = candidate.stage || 'Awaiting';
-      if (currentStatus === 'Awaiting' || currentStatus === 'Interviewing') {
-        events.push({
-          type: 'awaiting',
-          title: 'Awaiting Interview 1',
-          description: 'Candidate is waiting for the first interview.',
-        });
-      }
       return events;
     }
 
@@ -637,6 +831,9 @@ export default function CandidateProfilePage() {
       }
     }
     
+    // Track completed stages
+    const completedStages = new Set<number>();
+    
     // Parse each interview block
     interviewBlocks.forEach((block, blockIndex) => {
       // Normalize the block - add newlines where they should be for proper parsing
@@ -646,7 +843,7 @@ export default function CandidateProfilePage() {
         .replace(/(Hiring Manager:)([^\n])/g, '$1\n$2')
         // Do not add newline after Interviewer: so "Interviewer: Name" stays on one line and parses correctly
         .replace(/(Role:)([^\n])/g, '$1\n$2')
-        .replace(/(Interviewer Recommendation:)([^\n])/g, '$1\n$2')
+        // Do not add newline after Interviewer Recommendation: so "Interviewer Recommendation: Next Stage" stays on one line
         .replace(/(Scores:)([^\n])/g, '$1\n$2')
         .replace(/(Total Weighted Score:)([^\n])/g, '$1\n$2')
         .replace(/(Additional Notes:)([^\n])/g, '$1\n$2');
@@ -686,7 +883,14 @@ export default function CandidateProfilePage() {
         } else if (line.startsWith('Role:')) {
           role = line.replace('Role:', '').trim();
         } else if (line.startsWith('Interviewer Recommendation:')) {
-          recommendation = line.replace('Interviewer Recommendation:', '').trim();
+          const afterLabel = line.replace('Interviewer Recommendation:', '').trim();
+          if (afterLabel) {
+            recommendation = afterLabel;
+          } else if (i + 1 < lines.length) {
+            // Recommendation value might be on the next line after normalization
+            recommendation = lines[i + 1].trim();
+            i++; // Skip the next line since we've processed it
+          }
         } else if (line.startsWith('Total Weighted Score:')) {
           totalScore = line.replace('Total Weighted Score:', '').trim();
         } else if (line === 'Scores:') {
@@ -799,7 +1003,10 @@ export default function CandidateProfilePage() {
 
       // Create interview event from parsed data only (no mock/example data)
       const interviewNumber = stage ? parseInt(stage, 10) || blockIndex + 1 : blockIndex + 1;
-
+      
+      // Track this stage as completed
+      completedStages.add(interviewNumber);
+      
       const managerDisplay = (manager && manager.trim() && manager.toLowerCase() !== 'unknown')
         ? manager.trim()
         : 'Interviewer not specified';
@@ -814,15 +1021,9 @@ export default function CandidateProfilePage() {
         additionalNotes: additionalNotes || undefined,
         details: `${role ? `Role: ${role}\n` : ''}${totalScore ? `Total Score: ${totalScore}\n` : ''}${recommendation ? `Recommendation: ${recommendation}\n` : ''}`,
       });
-
+      
       // Add follow-up event based on saved recommendation
-      if (recommendation === 'Next Stage' || recommendation === 'next-stage') {
-        events.push({
-          type: 'awaiting',
-          title: `Awaiting Interview ${interviewNumber + 1}`,
-          description: `Waiting for Interview ${interviewNumber + 1} to be scheduled.`,
-        });
-      } else if (recommendation === 'Hire' || recommendation === 'hire') {
+      if (recommendation === 'Hire' || recommendation === 'hire') {
         events.push({
           type: 'status',
           title: 'Recommended for Hire',
@@ -965,19 +1166,44 @@ export default function CandidateProfilePage() {
               <div className="flex-1">
                 <div className="flex items-center gap-4 mb-1">
                   <h1 className="text-3xl font-bold" style={{ color: '#232E40' }}>{candidate.name}</h1>
-                  <div className="px-3 py-1 rounded-lg text-sm font-semibold" style={{ backgroundColor: '#F3F4F6', color: '#374151' }}>
-                    Status: {candidate.stage}
-                  </div>
+                  {(() => {
+                    const status = calculateStatus();
+                    const getStatusColors = (status: string) => {
+                      switch (status) {
+                        case 'Hire':
+                        case 'Offered':
+                        case 'Hired':
+                          return { bg: '#D1FAE5', text: '#065F46' };
+                        case 'No Hire':
+                        case 'Denied':
+                          return { bg: '#FEE2E2', text: '#991B1B' };
+                        case 'Awaiting Next Interview':
+                        case 'Awaiting First Interview':
+                        case 'Awaiting':
+                          return { bg: '#FEF3C7', text: '#92400E' };
+                        case 'Interviewing':
+                          return { bg: '#DBEAFE', text: '#1E40AF' };
+                        default:
+                          return { bg: '#F3F4F6', text: '#374151' };
+                      }
+                    };
+                    const colors = getStatusColors(status);
+                    return (
+                      <div className="px-3 py-1 rounded-lg text-sm font-semibold" style={{ backgroundColor: colors.bg, color: colors.text }}>
+                        Status: {status}
+                      </div>
+                    );
+                  })()}
                   <div className="px-3 py-1 rounded-lg text-sm font-semibold flex items-center gap-1" style={{ backgroundColor: '#4D6DBE', color: '#FFFFFF' }}>
                     <span>Overall Score:</span>
                     {hasOverallScore ? (
                       <>
-                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20" style={{ color: '#FFFFFF' }}>
-                          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                        </svg>
+                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20" style={{ color: '#FFFFFF' }}>
+                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                    </svg>
                         <span>{displayOverallScore} / 100</span>
                         {interviewScores.length > 1 && (
-                          <span className="opacity-90 text-xs">(avg of {interviewScores.length} interviews)</span>
+                          <span className="opacity-90 text-xs">({interviewScores.length} interviews)</span>
                         )}
                       </>
                     ) : (
@@ -997,7 +1223,11 @@ export default function CandidateProfilePage() {
 
           {/* Tabs */}
           <div className="flex items-center gap-1 mb-6 border-b" style={{ borderColor: '#E5E7EB' }}>
-            {['Hiring Process', 'Resume'].map((tab) => (
+            {[
+              'Hiring Process', 
+              'Resume',
+              ...((role === 'admin' || role === 'hiring_manager') ? ['Hiring Decision'] : [])
+            ].map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab.toLowerCase().replace(' ', '-'))}
@@ -1086,148 +1316,165 @@ export default function CandidateProfilePage() {
                   <div className="space-y-4">
                     {processEvents.map((event, index) => {
                       const isInterview = event.type === 'interview';
-                      const hasDetails = isInterview;
-                      const isExpanded = expandedProcessIndex === index;
-                      return (
-                      <div
-                        key={index}
-                        className="rounded-xl p-5 relative"
-                        style={{ backgroundColor: '#FFFFFF', border: '1px solid #E5E7EB' }}
-                      >
-                        <div className="flex items-start gap-4">
-                          <div className="flex-shrink-0">
-                            <div
-                              className="w-10 h-10 rounded-full flex items-center justify-center"
-                              style={{
-                                backgroundColor:
-                                  event.type === 'added' ? '#10B981' :
-                                  event.type === 'interview' ? '#3B82F6' :
-                                  event.type === 'awaiting' ? '#F59E0B' :
-                                  '#6B7280',
-                              }}
-                            >
-                              {event.type === 'added' && (
-                                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                                </svg>
-                              )}
-                              {event.type === 'interview' && (
-                                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                </svg>
-                              )}
-                              {event.type === 'awaiting' && (
-                                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                </svg>
-                              )}
-                              {event.type === 'status' && (
-                                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                </svg>
-                              )}
-                            </div>
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div
-                              className={hasDetails ? 'cursor-pointer' : ''}
-                              onClick={() => hasDetails && setExpandedProcessIndex(isExpanded ? null : index)}
-                              role={hasDetails ? 'button' : undefined}
-                              tabIndex={hasDetails ? 0 : undefined}
-                              onKeyDown={e => hasDetails && (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), setExpandedProcessIndex(isExpanded ? null : index))}
-                            >
-                              <div className="flex items-center gap-2 flex-wrap">
+                      
+                      // For non-interview events, use simple display
+                      if (!isInterview) {
+                        return (
+                          <div
+                            key={index}
+                            className="rounded-xl p-5 relative"
+                            style={{ backgroundColor: '#FFFFFF', border: '1px solid #E5E7EB' }}
+                          >
+                            <div className="flex items-start gap-4">
+                              <div className="flex-shrink-0">
+                                <div
+                                  className="w-10 h-10 rounded-full flex items-center justify-center"
+                                  style={{
+                                    backgroundColor:
+                                      event.type === 'added' ? '#10B981' :
+                                      event.type === 'awaiting' ? '#F59E0B' :
+                                      '#6B7280',
+                                  }}
+                                >
+                                  {event.type === 'added' && (
+                                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                    </svg>
+                                  )}
+                                  {event.type === 'awaiting' && (
+                                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                  )}
+                                  {event.type === 'status' && (
+                                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="flex-1 min-w-0">
                                 <h3 className="text-base font-bold mb-1" style={{ color: '#232E40' }}>{event.title}</h3>
-                                {hasDetails && (
-                                  <span className="inline-flex items-center gap-1 text-xs font-medium" style={{ color: '#6B7280' }}>
-                                    {isExpanded ? 'Less' : 'Expand for more info'}
-                                    {isExpanded ? (
-                                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" /></svg>
-                                    ) : (
-                                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
-                                    )}
-                                  </span>
+                                <p className="text-sm mb-2" style={{ color: '#6B7280' }}>{event.description}</p>
+                                {event.date && (
+                                  <p className="text-xs mt-2" style={{ color: '#9CA3AF' }}>{event.date}</p>
                                 )}
                               </div>
-                              <p className="text-sm mb-2" style={{ color: '#6B7280' }}>{event.description}</p>
                             </div>
-
-                            {/* Expanded interview content - score stays in top right of row, no duplicate here */}
-                            {isInterview && isExpanded && (
-                              <>
-                                {/* Category Scores - light grey cards with category, score (blue), and Comments */}
-                                {event.categoryScores && event.categoryScores.length > 0 && (
-                                  <div className="mt-4 mb-4">
-                                    <h4 className="text-sm font-bold mb-3" style={{ color: '#232E40' }}>Category Scores:</h4>
-                                    <div className="space-y-3">
-                                      {event.categoryScores.map((catScore, idx) => (
-                                        <div key={idx} className="p-4 rounded-lg min-w-0" style={{ backgroundColor: '#F3F4F6', border: '1px solid #E5E7EB' }}>
-                                          <div className="flex items-center justify-between flex-wrap gap-x-2 mb-2">
-                                            <span className="text-sm font-bold min-w-0" style={{ color: '#232E40' }}>{catScore.category}</span>
-                                            <span className="text-sm font-bold shrink-0" style={{ color: '#4D6DBE' }}>{catScore.score}</span>
-                                          </div>
-                                          {(catScore.comment != null && catScore.comment !== '') ? (
-                                            <p className="text-xs mt-2 pt-2 border-t whitespace-pre-wrap break-words" style={{ borderColor: '#E5E7EB', color: '#4B5563', wordBreak: 'break-word', overflowWrap: 'break-word', minWidth: 0 }}>
-                                              <span className="font-semibold" style={{ color: '#374151' }}>Comments: </span>
-                                              <span>{catScore.comment}</span>
-                                            </p>
-                                          ) : null}
-                                        </div>
-                                      ))}
-                                    </div>
-                                  </div>
-                                )}
-
-                                {/* Interviewer Recommendation - label then value in blue */}
-                                {event.recommendation && (
-                                  <div className="mt-4 mb-3">
-                                    <p className="text-sm" style={{ color: '#374151' }}>
-                                      <span className="font-bold" style={{ color: '#232E40' }}>Interviewer Recommendation: </span>
-                                      <span className="font-bold" style={{
-                                        color: event.recommendation === 'Hire' ? '#10B981' :
-                                          event.recommendation === 'Next Stage' ? '#3B82F6' :
-                                            event.recommendation === 'No Hire' ? '#EF4444' : '#6B7280'
-                                      }}>
-                                        {event.recommendation}
-                                      </span>
-                                    </p>
-                                  </div>
-                                )}
-
-                                {/* Additional Notes - heading + styled box */}
-                                {event.additionalNotes && (
-                                  <div className="mt-4 mb-2">
-                                    <h4 className="text-sm font-bold mb-2" style={{ color: '#232E40' }}>Additional Notes:</h4>
-                                    <div className="p-4 rounded-lg text-sm whitespace-pre-wrap" style={{ backgroundColor: '#F9FAFB', color: '#374151', border: '1px solid #E5E7EB' }}>
-                                      {event.additionalNotes}
-                                    </div>
-                                  </div>
-                                )}
-
-                                {/* Manager/Interviewer - show when we have a name (avoid duplicate of description) */}
-                                {event.manager && (event.manager.toLowerCase() !== 'interviewer not specified') && (
-                                  <p className="text-sm mt-2 mb-1" style={{ color: '#6B7280' }}>
-                                    <span className="font-semibold" style={{ color: '#232E40' }}>Manager:</span> {event.manager}
-                                  </p>
-                                )}
-                              </>
-                            )}
-
-                            {event.date && (
-                              <p className="text-xs mt-2" style={{ color: '#9CA3AF' }}>{event.date}</p>
-                            )}
                           </div>
-                          {/* Score on the top right of each interview section (same spot when collapsed or expanded) */}
-                          {isInterview && event.score !== undefined && (
-                            <div className="flex-shrink-0 self-start">
-                              <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-bold" style={{ backgroundColor: '#4D6DBE', color: '#FFFFFF' }}>
-                                {event.score}/100
-                              </span>
+                        );
+                      }
+                      
+                      // For interview events, use detailed format
+                      return (
+                        <div
+                          key={index}
+                          className="rounded-xl p-6 relative"
+                          style={{ backgroundColor: '#FFFFFF', border: '1px solid #E5E7EB' }}
+                        >
+                          {/* Header with icon, title, and interviewer */}
+                          <div className="flex items-start gap-4 mb-6">
+                            <div className="flex-shrink-0">
+                              <div
+                                className="w-12 h-12 rounded-full flex items-center justify-center"
+                                style={{ backgroundColor: '#4D6DBE' }}
+                              >
+                                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                              </div>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <h3 className="text-lg font-bold mb-1" style={{ color: '#232E40' }}>{event.title}</h3>
+                              <p className="text-sm" style={{ color: '#6B7280' }}>
+                                {event.manager && event.manager.toLowerCase() !== 'interviewer not specified' 
+                                  ? `Interview ${event.title.match(/\d+/)?.[0] || ''} completed by ${event.manager}`
+                                  : event.description}
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Sum Score and Interviewer Recommendation - Side by side */}
+                          <div className="mb-6 flex flex-wrap gap-4 items-center">
+                            {event.score !== undefined && (
+                              <div className="inline-flex items-center px-4 py-3 rounded-lg" style={{ backgroundColor: '#E0E7FF', border: '1px solid #C7D2FE' }}>
+                                <span className="text-base font-semibold">
+                                  <span style={{ color: '#374151' }}>Sum Score: </span>
+                                  <span style={{ color: event.score != null ? getScoreColor(event.score) : '#4D6DBE', fontWeight: 'bold' }}>{event.score}/100</span>
+                                </span>
+                              </div>
+                            )}
+                            <span className="text-base font-semibold">
+                              <span style={{ color: '#374151' }}>Interviewer Recommendation: </span>
+                              {event.recommendation && event.recommendation.trim() ? (
+                                <span className="font-bold" style={{ 
+                                  color: event.recommendation === 'Hire' || event.recommendation === 'hire' ? '#10B981' : 
+                                         event.recommendation === 'Next Stage' || event.recommendation === 'next-stage' ? '#4D6DBE' : 
+                                         event.recommendation === 'No Hire' || event.recommendation === 'no-hire' ? '#EF4444' : '#4D6DBE'
+                                }}>
+                                  {event.recommendation}
+                                </span>
+                              ) : (
+                                <span style={{ color: '#9CA3AF', fontStyle: 'italic' }}>Not provided</span>
+                              )}
+                            </span>
+                          </div>
+
+                          {/* Additional Notes - Always visible */}
+                          {event.additionalNotes && event.additionalNotes.trim() && (
+                            <div className="mb-6">
+                              <h4 className="text-sm font-bold mb-2" style={{ color: '#232E40' }}>Additional Notes:</h4>
+                              <div className="p-4 rounded-lg text-sm whitespace-pre-wrap" style={{ backgroundColor: '#F9FAFB', color: '#374151', border: '1px solid #E5E7EB' }}>
+                                {event.additionalNotes}
+                              </div>
                             </div>
                           )}
+
+                          {/* Expandable section for Category Scores */}
+                          {event.categoryScores && event.categoryScores.length > 0 ? (
+                            <>
+                              <button
+                                onClick={() => setExpandedInterviewIndex(expandedInterviewIndex === index ? null : index)}
+                                className="mb-4 flex items-center gap-2 text-sm font-semibold cursor-pointer hover:opacity-80 transition-opacity"
+                                style={{ color: '#4D6DBE' }}
+                              >
+                                {expandedInterviewIndex === index ? 'Show Less' : 'Show More Details'}
+                                <svg 
+                                  className={`w-4 h-4 transition-transform ${expandedInterviewIndex === index ? 'rotate-180' : ''}`} 
+                                  fill="none" 
+                                  stroke="currentColor" 
+                                  viewBox="0 0 24 24"
+                                >
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                </svg>
+                              </button>
+
+                              {expandedInterviewIndex === index && (
+                                <div>
+                                  <h4 className="text-sm font-bold mb-4" style={{ color: '#232E40' }}>Category Scores</h4>
+                                  <div className="grid grid-cols-2 gap-4">
+                                    {event.categoryScores.map((catScore, idx) => (
+                                      <div key={idx} className="p-4 rounded-lg" style={{ backgroundColor: '#F9FAFB', border: '1px solid #E5E7EB' }}>
+                                        <div className="flex items-start justify-between gap-4 mb-2">
+                                          <span className="text-sm font-semibold flex-1" style={{ color: '#232E40' }}>{catScore.category}</span>
+                                          <span className="text-sm font-bold shrink-0" style={{ color: '#4D6DBE' }}>{catScore.score}</span>
+                                        </div>
+                                        {catScore.comment && catScore.comment.trim() && (
+                                          <p className="text-xs mt-2 pt-2 border-t whitespace-pre-wrap break-words" style={{ borderColor: '#E5E7EB', color: '#6B7280' }}>
+                                            <span className="font-semibold" style={{ color: '#374151' }}>Comments: </span>
+                                            <span>{catScore.comment}</span>
+                                          </p>
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </>
+                          ) : null}
                         </div>
-                      </div>
-                    ); })}
+                      );
+                    })}
                   </div>
                 </>
               )}
@@ -1288,14 +1535,121 @@ export default function CandidateProfilePage() {
                   </div>
                 </div>
               )}
+
+              {activeTab === 'hiring-decision' && (role === 'admin' || role === 'hiring_manager') && (
+                <div className="space-y-6">
+                  <div className="rounded-xl p-6" style={{ backgroundColor: '#FFFFFF', border: '1px solid #E5E7EB', boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05)' }}>
+                    <div className="mb-6">
+                      <h3 className="text-base font-bold mb-1" style={{ color: '#232E40' }}>Hiring Decision</h3>
+                      <p className="text-xs" style={{ color: '#6B7280' }}>Make a final decision for this candidate</p>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      {/* Accept Column */}
+                      <div className="space-y-3">
+                        <button
+                          onClick={handleConvertToEmployee}
+                          disabled={saving}
+                          className="cursor-pointer group relative overflow-hidden rounded-xl font-semibold transition-all disabled:opacity-60 disabled:cursor-not-allowed flex flex-col items-center justify-center gap-3 p-5 w-full"
+                          style={{ 
+                            backgroundColor: '#D1FAE5',
+                            color: '#065F46',
+                            border: '2px solid #A7F3D0',
+                          }}
+                          onMouseEnter={(e) => {
+                            if (!saving) {
+                              e.currentTarget.style.backgroundColor = '#A7F3D0';
+                              e.currentTarget.style.borderColor = '#6EE7B7';
+                            }
+                          }}
+                          onMouseLeave={(e) => {
+                            if (!saving) {
+                              e.currentTarget.style.backgroundColor = '#D1FAE5';
+                              e.currentTarget.style.borderColor = '#A7F3D0';
+                            }
+                          }}
+                        >
+                          {saving ? (
+                            <>
+                              <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                              </svg>
+                              <span className="text-sm">Processing...</span>
+                            </>
+                          ) : (
+                            <>
+                              <div className="rounded-full p-3" style={{ backgroundColor: 'rgba(6, 95, 70, 0.1)' }}>
+                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                              </div>
+                              <div className="text-center">
+                                <div className="text-sm font-bold">Accept</div>
+                                <div className="text-xs opacity-80 mt-0.5">Board as employee</div>
+                              </div>
+                            </>
+                          )}
+                        </button>
+                        {/* Accept Warning */}
+                        <p className="text-xs leading-relaxed" style={{ color: '#16A34A' }}>
+                          Accepting this candidate will move them to the employee list and permanently delete their resume. 
+                          This action cannot be undone.
+                        </p>
+                      </div>
+
+                      {/* Deny Column */}
+                      <div className="space-y-3">
+                        <button
+                          onClick={handleDenyApplication}
+                          disabled={saving}
+                          className="cursor-pointer group relative overflow-hidden rounded-xl font-semibold transition-all disabled:opacity-60 disabled:cursor-not-allowed flex flex-col items-center justify-center gap-3 p-5 w-full"
+                          style={{ 
+                            backgroundColor: '#FEE2E2',
+                            color: '#991B1B',
+                            border: '2px solid #FECACA',
+                          }}
+                          onMouseEnter={(e) => {
+                            if (!saving) {
+                              e.currentTarget.style.backgroundColor = '#FECACA';
+                              e.currentTarget.style.borderColor = '#FCA5A5';
+                            }
+                          }}
+                          onMouseLeave={(e) => {
+                            if (!saving) {
+                              e.currentTarget.style.backgroundColor = '#FEE2E2';
+                              e.currentTarget.style.borderColor = '#FECACA';
+                            }
+                          }}
+                        >
+                          <div className="rounded-full p-3" style={{ backgroundColor: 'rgba(153, 27, 27, 0.1)' }}>
+                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </div>
+                          <div className="text-center">
+                            <div className="text-sm font-bold">Deny</div>
+                            <div className="text-xs opacity-80 mt-0.5">Reject application</div>
+                          </div>
+                        </button>
+                        {/* Deny Warning */}
+                        <p className="text-xs leading-relaxed" style={{ color: '#DC2626' }}>
+                          Denying this application will permanently reject the candidate. Once denied, you will no longer be able to retrieve their information. 
+                          This action cannot be undone.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Sidebar */}
             <div className="space-y-4">
-              {/* Personal Information */}
+              {/* Personal & Education Information */}
               <div className="rounded-xl p-5" style={{ backgroundColor: '#FFFFFF', border: '1px solid #E5E7EB' }}>
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-sm font-bold" style={{ color: '#232E40' }}>Personal Information</h3>
+                  <h3 className="text-sm font-bold" style={{ color: '#232E40' }}>Information</h3>
                   {(role === 'admin' || role === 'manager' || role === 'hiring_manager') && (
                     <button
                       type="button"
@@ -1307,49 +1661,209 @@ export default function CandidateProfilePage() {
                     </button>
                   )}
                 </div>
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2 text-sm">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: '#6B7280' }}>
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                    </svg>
-                    <span style={{ color: '#374151' }}>{candidate.email}</span>
+                
+                {/* Contact Section */}
+                <div className="mb-6">
+                  <h4 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: '#6B7280' }}>Contact</h4>
+                  <div className="space-y-2.5">
+                    <div className="flex items-start gap-2.5 text-sm">
+                      <svg className="w-4 h-4 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: '#6B7280' }}>
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                      </svg>
+                      <div className="flex-1 min-w-0">
+                        <span className="text-xs font-medium block mb-0.5" style={{ color: '#9CA3AF' }}>Email</span>
+                        <span className="text-sm break-words" style={{ color: '#374151' }}>{candidate.email}</span>
+                      </div>
+                    </div>
+                    {candidate.phone && (
+                      <div className="flex items-start gap-2.5 text-sm">
+                        <svg className="w-4 h-4 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: '#6B7280' }}>
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                        </svg>
+                        <div className="flex-1 min-w-0">
+                          <span className="text-xs font-medium block mb-0.5" style={{ color: '#9CA3AF' }}>Phone</span>
+                          <span className="text-sm" style={{ color: '#374151' }}>{candidate.phone}</span>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                  <div className="flex items-center gap-2 text-sm">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: '#6B7280' }}>
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                    </svg>
-                    <span style={{ color: '#374151' }}>{candidate.phone}</span>
+                </div>
+
+                {/* Personal Section */}
+                <div className="mb-6">
+                  <h4 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: '#6B7280' }}>Personal</h4>
+                  <div className="space-y-2.5">
+                    <div className="flex items-start gap-2.5 text-sm">
+                      <svg className="w-4 h-4 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: '#6B7280' }}>
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                      <div className="flex-1 min-w-0">
+                        <span className="text-xs font-medium block mb-0.5" style={{ color: '#9CA3AF' }}>Location</span>
+                        <span className={`text-sm break-words ${candidate.address && candidate.address !== 'Not Provided' ? '' : 'italic'}`} style={{ color: candidate.address && candidate.address !== 'Not Provided' ? '#374151' : '#9CA3AF' }}>
+                          {candidate.address && candidate.address !== 'Not Provided' ? candidate.address : 'No data'}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-2.5 text-sm">
+                      <svg className="w-4 h-4 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: '#6B7280' }}>
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                      <div className="flex-1 min-w-0">
+                        <span className="text-xs font-medium block mb-0.5" style={{ color: '#9CA3AF' }}>Date of Birth</span>
+                        <span className={`text-sm ${candidate.birthday && candidate.birthday !== 'Not Provided' ? '' : 'italic'}`} style={{ color: candidate.birthday && candidate.birthday !== 'Not Provided' ? '#374151' : '#9CA3AF' }}>
+                          {candidate.birthday && candidate.birthday !== 'Not Provided' ? candidate.birthday : 'No data'}
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2 text-sm">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: '#6B7280' }}>
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                    </svg>
-                    <span style={{ color: '#374151' }}>{candidate.gender}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: '#6B7280' }}>
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
-                    <span style={{ color: '#374151' }}>{candidate.birthday}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: '#6B7280' }}>
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
-                    <span style={{ color: '#374151' }}>{candidate.address}</span>
+                </div>
+
+                {/* Experience Section */}
+                <div className="mb-6">
+                  <h4 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: '#6B7280' }}>Experience</h4>
+                  <div className="space-y-2.5">
+                    <div className="flex items-start gap-2.5 text-sm">
+                      <svg className="w-4 h-4 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: '#6B7280' }}>
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                      </svg>
+                      <div className="flex-1 min-w-0">
+                        <span className="text-xs font-medium block mb-0.5" style={{ color: '#9CA3AF' }}>School</span>
+                        <span className={`text-sm break-words ${candidate.university && candidate.university !== 'Not Provided' ? '' : 'italic'}`} style={{ color: candidate.university && candidate.university !== 'Not Provided' ? '#374151' : '#9CA3AF' }}>
+                          {candidate.university && candidate.university !== 'Not Provided' ? candidate.university : 'No data'}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-2.5 text-sm">
+                      <svg className="w-4 h-4 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: '#6B7280' }}>
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l9-5-9-5-9 5 9 5z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0112 20.055a11.952 11.952 0 01-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14v9M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0112 20.055a11.952 11.952 0 01-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" />
+                      </svg>
+                      <div className="flex-1 min-w-0">
+                        <span className="text-xs font-medium block mb-0.5" style={{ color: '#9CA3AF' }}>Degree</span>
+                        <span className={`text-sm break-words ${candidate.degree && candidate.degree !== 'Not Provided' ? '' : 'italic'}`} style={{ color: candidate.degree && candidate.degree !== 'Not Provided' ? '#374151' : '#9CA3AF' }}>
+                          {candidate.degree && candidate.degree !== 'Not Provided' ? candidate.degree : 'No data'}
+                        </span>
+                      </div>
+                    </div>
+                    {(() => {
+                      const parsedReferrals = parseReferrals(candidate.referral);
+                      return (
+                        <div>
+                          <div className="flex items-center gap-2 mb-2">
+                            <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: '#6B7280' }}>
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                            </svg>
+                            <span className="text-xs font-medium" style={{ color: '#9CA3AF' }}>Referrals</span>
+                          </div>
+                          {parsedReferrals.length > 0 ? (
+                            <div className="space-y-2.5">
+                              {parsedReferrals.map((ref, idx) => (
+                                <div key={idx} className="p-3 rounded-lg" style={{ backgroundColor: '#F9FAFB', border: '1px solid #E5E7EB' }}>
+                                  <div className="font-medium text-sm mb-2" style={{ color: '#232E40' }}>{ref.name}</div>
+                                  <div className="space-y-1.5">
+                                    {ref.relationship && (
+                                      <div className="flex items-center gap-2 text-xs">
+                                        <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: '#4D6DBE' }}>
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                                        </svg>
+                                        <span className="font-medium" style={{ color: '#4D6DBE' }}>{ref.relationship}</span>
+                                      </div>
+                                    )}
+                                    {ref.phone && (
+                                      <div className="flex items-center gap-2 text-xs" style={{ color: '#6B7280' }}>
+                                        <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                                        </svg>
+                                        <span>{ref.phone}</span>
+                                      </div>
+                                    )}
+                                    {ref.email && (
+                                      <div className="flex items-center gap-2 text-xs" style={{ color: '#6B7280' }}>
+                                        <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                        </svg>
+                                        <span className="break-words">{ref.email}</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="text-sm italic" style={{ color: '#9CA3AF' }}>No data</span>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
               </div>
 
-              {/* Edit Personal Info modal */}
+              {/* Edit Personal & Education Info modal */}
               {showEditPersonal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }} onClick={() => !savingPersonal && setShowEditPersonal(false)}>
-                  <div className="bg-white rounded-xl shadow-xl p-5 w-full max-w-sm" onClick={(e) => e.stopPropagation()}>
-                    <h3 className="text-sm font-bold mb-4" style={{ color: '#232E40' }}>Edit Personal Information</h3>
+                  <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+                    <div className="p-4 border-b" style={{ borderColor: '#E5E7EB', backgroundColor: '#4D6DBE' }}>
+                      <h3 className="text-sm font-bold" style={{ color: '#FFFFFF' }}>Edit Information</h3>
+                    </div>
+                    <div className="p-5 overflow-y-auto flex-1">
                     <div className="space-y-4">
+                      {/* Contact Section */}
                       <div>
-                        <label className="block text-xs font-medium mb-1" style={{ color: '#6B7280' }}>Gender</label>
+                        <h4 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: '#6B7280' }}>Contact</h4>
+                        <div className="space-y-3">
+                          <div>
+                            <label className="block text-xs font-medium mb-1" style={{ color: '#6B7280' }}>Email</label>
+                            <input
+                              type="email"
+                              value={editEmail}
+                              onChange={(e) => setEditEmail(e.target.value)}
+                              className="w-full px-3 py-2 text-sm rounded-lg border"
+                              style={{ borderColor: '#D1D5DB', color: '#374151' }}
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium mb-1" style={{ color: '#6B7280' }}>Phone</label>
+                            <input
+                              type="tel"
+                              value={editPhone}
+                              onChange={(e) => setEditPhone(e.target.value)}
+                              className="w-full px-3 py-2 text-sm rounded-lg border"
+                              style={{ borderColor: '#D1D5DB', color: '#374151' }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Personal Section */}
+                      <div>
+                        <h4 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: '#6B7280' }}>Personal</h4>
+                        <div className="space-y-3">
+                          <div>
+                            <label className="block text-xs font-medium mb-1" style={{ color: '#6B7280' }}>Location</label>
+                            <input
+                              type="text"
+                              value={editAddress}
+                              onChange={(e) => setEditAddress(e.target.value)}
+                              placeholder="Address"
+                              className="w-full px-3 py-2 text-sm rounded-lg border"
+                              style={{ borderColor: '#D1D5DB', color: '#374151' }}
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium mb-1" style={{ color: '#6B7280' }}>Date of Birth</label>
+                            <input
+                              type="date"
+                              value={editDateOfBirth}
+                              onChange={(e) => setEditDateOfBirth(e.target.value)}
+                              className="w-full px-3 py-2 text-sm rounded-lg border"
+                              style={{ borderColor: '#D1D5DB', color: '#374151' }}
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium mb-1" style={{ color: '#6B7280' }}>Gender</label>
                         <select
                           value={editGender}
                           onChange={(e) => setEditGender(e.target.value)}
@@ -1361,20 +1875,164 @@ export default function CandidateProfilePage() {
                           <option value="Female">Female</option>
                           <option value="Non-binary">Non-binary</option>
                           <option value="Prefer not to say">Prefer not to say</option>
+                          <option value="Other">Other</option>
                         </select>
+                          </div>
+                        </div>
                       </div>
+
+                      {/* Experience Section */}
                       <div>
-                        <label className="block text-xs font-medium mb-1" style={{ color: '#6B7280' }}>Date of Birth</label>
+                        <h4 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: '#6B7280' }}>Experience</h4>
+                        <div className="space-y-3">
+                          <div>
+                            <label className="block text-xs font-medium mb-1" style={{ color: '#6B7280' }}>School/University</label>
                         <input
-                          type="date"
-                          value={editDateOfBirth}
-                          onChange={(e) => setEditDateOfBirth(e.target.value)}
+                          type="text"
+                          value={editUniversity}
+                          onChange={(e) => setEditUniversity(e.target.value)}
+                          placeholder="School or University name"
                           className="w-full px-3 py-2 text-sm rounded-lg border"
                           style={{ borderColor: '#D1D5DB', color: '#374151' }}
                         />
                       </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-medium mb-1" style={{ color: '#6B7280' }}>Degree Level</label>
+                          <select
+                            value={editDegreeLevel}
+                            onChange={(e) => setEditDegreeLevel(e.target.value)}
+                            className="w-full px-3 py-2 text-sm rounded-lg border"
+                            style={{ borderColor: '#D1D5DB', color: '#374151' }}
+                          >
+                            <option value="">Select Degree Level</option>
+                            <option value="High School">High School</option>
+                            <option value="Associate">Associate</option>
+                            <option value="Bachelor">Bachelor</option>
+                            <option value="Master">Master</option>
+                            <option value="Doctorate">Doctorate</option>
+                            <option value="Professional">Professional</option>
+                            <option value="Other">Other</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium mb-1" style={{ color: '#6B7280' }}>Major</label>
+                          <input
+                            type="text"
+                            value={editMajor}
+                            onChange={(e) => setEditMajor(e.target.value)}
+                            placeholder="Major or field of study"
+                            className="w-full px-3 py-2 text-sm rounded-lg border"
+                            style={{ borderColor: '#D1D5DB', color: '#374151' }}
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <label className="block text-xs font-medium" style={{ color: '#6B7280' }}>Referrals</label>
+                          <button
+                            type="button"
+                            onClick={() => setEditReferrals([...editReferrals, { firstName: '', lastName: '', phone: '', email: '', relationship: '' }])}
+                            className="text-xs font-semibold cursor-pointer px-2 py-1 rounded transition-all hover:opacity-90"
+                            style={{ backgroundColor: '#4D6DBE', color: '#FFFFFF' }}
+                          >
+                            + Add Referral
+                          </button>
+                        </div>
+                        {editReferrals.length === 0 ? (
+                          <p className="text-xs" style={{ color: '#9CA3AF' }}>No referrals added. Click "Add Referral" to add one.</p>
+                        ) : (
+                          <div className="space-y-2">
+                            {editReferrals.map((referral, index) => (
+                              <div key={index} className="p-3 rounded-lg border" style={{ borderColor: '#E5E7EB', backgroundColor: '#F9FAFB' }}>
+                                <div className="flex items-start justify-between mb-2">
+                                  <span className="text-xs font-medium" style={{ color: '#6B7280' }}>Referral {index + 1}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => setEditReferrals(editReferrals.filter((_, i) => i !== index))}
+                                    className="cursor-pointer p-1 rounded hover:bg-gray-200 transition-colors"
+                                    style={{ color: '#6B7280' }}
+                                  >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                  </button>
+                                </div>
+                                <div className="grid grid-cols-2 gap-2 mb-2">
+                                  <input
+                                    type="text"
+                                    value={referral.firstName}
+                                    onChange={(e) => {
+                                      const updated = [...editReferrals];
+                                      updated[index].firstName = e.target.value;
+                                      setEditReferrals(updated);
+                                    }}
+                                    placeholder="First Name"
+                                    className="w-full px-3 py-2 text-xs rounded-lg border"
+                                    style={{ borderColor: '#D1D5DB', color: '#374151', backgroundColor: '#FFFFFF' }}
+                                  />
+                                  <input
+                                    type="text"
+                                    value={referral.lastName}
+                                    onChange={(e) => {
+                                      const updated = [...editReferrals];
+                                      updated[index].lastName = e.target.value;
+                                      setEditReferrals(updated);
+                                    }}
+                                    placeholder="Last Name"
+                                    className="w-full px-3 py-2 text-xs rounded-lg border"
+                                    style={{ borderColor: '#D1D5DB', color: '#374151', backgroundColor: '#FFFFFF' }}
+                                  />
+                                </div>
+                                <div className="mb-2">
+                                  <input
+                                    type="text"
+                                    value={referral.relationship}
+                                    onChange={(e) => {
+                                      const updated = [...editReferrals];
+                                      updated[index].relationship = e.target.value;
+                                      setEditReferrals(updated);
+                                    }}
+                                    placeholder="Relationship (e.g., Friend, Colleague, Family)"
+                                    className="w-full px-3 py-2 text-xs rounded-lg border"
+                                    style={{ borderColor: '#D1D5DB', color: '#374151', backgroundColor: '#FFFFFF' }}
+                                  />
+                                </div>
+                                <div className="grid grid-cols-2 gap-2">
+                                  <input
+                                    type="tel"
+                                    value={referral.phone}
+                                    onChange={(e) => {
+                                      const updated = [...editReferrals];
+                                      updated[index].phone = e.target.value;
+                                      setEditReferrals(updated);
+                                    }}
+                                    placeholder="Phone Number"
+                                    className="w-full px-3 py-2 text-xs rounded-lg border"
+                                    style={{ borderColor: '#D1D5DB', color: '#374151', backgroundColor: '#FFFFFF' }}
+                                  />
+                                  <input
+                                    type="email"
+                                    value={referral.email}
+                                    onChange={(e) => {
+                                      const updated = [...editReferrals];
+                                      updated[index].email = e.target.value;
+                                      setEditReferrals(updated);
+                                    }}
+                                    placeholder="Email"
+                                    className="w-full px-3 py-2 text-xs rounded-lg border"
+                                    style={{ borderColor: '#D1D5DB', color: '#374151', backgroundColor: '#FFFFFF' }}
+                                  />
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                        </div>
+                      </div>
                     </div>
-                    <div className="flex gap-2 mt-4">
+                    <div className="flex gap-2 mt-4 pt-4 border-t" style={{ borderColor: '#E5E7EB' }}>
                       <button
                         type="button"
                         onClick={() => !savingPersonal && setShowEditPersonal(false)}
@@ -1393,77 +2051,11 @@ export default function CandidateProfilePage() {
                         {savingPersonal ? 'Saving...' : 'Save'}
                       </button>
                     </div>
+                    </div>
                   </div>
                 </div>
               )}
 
-              {/* Education Information */}
-              <div className="rounded-xl p-5" style={{ backgroundColor: '#FFFFFF', border: '1px solid #E5E7EB' }}>
-                <h3 className="text-sm font-bold mb-4" style={{ color: '#232E40' }}>Education Information</h3>
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2 text-sm">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: '#6B7280' }}>
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                    </svg>
-                    <span style={{ color: '#374151' }}>{candidate.university || 'Not Provided'}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: '#6B7280' }}>
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l9-5-9-5-9 5 9 5z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0112 20.055a11.952 11.952 0 01-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14v9M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0112 20.055a11.952 11.952 0 01-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" />
-                    </svg>
-                    <span style={{ color: '#374151' }}>{candidate.degree || 'Not Provided'}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: '#6B7280' }}>
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                    </svg>
-                    <span style={{ color: '#374151' }}>Referral: {candidate.referral || 'Not Provided'}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Hiring Decision: admin and hiring manager accept (board) or decline (deny) candidate */}
-              {(role === 'admin' || role === 'hiring_manager') && (
-                <div className="rounded-xl p-5" style={{ backgroundColor: '#FFFFFF', border: '1px solid #E5E7EB' }}>
-                  <h3 className="text-sm font-bold mb-4" style={{ color: '#232E40' }}>Hiring Decision</h3>
-                  <div className="space-y-3">
-                    <button
-                      onClick={handleConvertToEmployee}
-                      disabled={saving}
-                      className="cursor-pointer w-full bg-[#10B981] text-white py-2.5 rounded-lg font-semibold hover:bg-[#059669] transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                    >
-                      {saving ? (
-                        <>
-                          <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                          </svg>
-                          <span>Processing...</span>
-                        </>
-                      ) : (
-                        <>
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                          </svg>
-                          <span>Board as Employee</span>
-                        </>
-                      )}
-                    </button>
-                    <button
-                      onClick={handleDenyApplication}
-                      disabled={saving}
-                      className="cursor-pointer w-full bg-[#EF4444] text-white py-2.5 rounded-lg font-semibold hover:bg-[#DC2626] transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                      <span>Deny Application</span>
-                    </button>
-                  </div>
-                </div>
-              )}
             </div>
           </div>
         </main>
