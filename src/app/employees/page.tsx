@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import RequireAuth from '@/components/layout/RequireAuth';
 import HubSidebar from '@/components/sidebar/HubSidebar';
 import { API_BASE, getToken } from '@/lib/auth';
-import { getJsonAuth } from '@/lib/http';
+import { getJsonAuth, deleteJsonAuth } from '@/lib/http';
 import toast from 'react-hot-toast';
 
 // Modern color palette - matching surveys page
@@ -104,6 +104,7 @@ export default function EmployeesPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [sortColumn, setSortColumn] = useState<string>('name');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  const [deletingEmployeeId, setDeletingEmployeeId] = useState<number | null>(null);
   const itemsPerPage = 20;
 
   // Form state
@@ -325,6 +326,22 @@ export default function EmployeesPage() {
   function openViewModal(employee: Employee) {
     // Navigate to employee profile page
     router.push(`/employees/${employee.id}`);
+  }
+
+  async function handleDeleteEmployee(emp: Employee, e: React.MouseEvent) {
+    e.stopPropagation();
+    if (role === 'corporate') return;
+    if (!confirm(`Remove "${emp.name}" from the system? This cannot be undone and will not affect turnover or other data.`)) return;
+    setDeletingEmployeeId(emp.id);
+    try {
+      await deleteJsonAuth(`/employees/${emp.id}`);
+      await loadEmployees();
+      toast.success('Employee removed');
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Failed to remove employee');
+    } finally {
+      setDeletingEmployeeId(null);
+    }
   }
 
   function openEditModal(employee: Employee) {
@@ -849,20 +866,40 @@ export default function EmployeesPage() {
                             </span>
                           </td>
                           <td className="py-3 px-4" onClick={(e) => e.stopPropagation()}>
-                            {role !== 'corporate' ? (
-                              <button
-                                onClick={() => openEditModal(emp)}
-                                className="cursor-pointer p-1.5 rounded-md transition-all hover:bg-gray-100"
-                                style={{ color: '#4D6DBE' }}
-                                title="Edit Employee"
-                              >
-                                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                                  <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" />
-                                </svg>
-                              </button>
-                            ) : (
-                              <span className="text-xs text-gray-400" title="View-Only Mode">👁️</span>
-                            )}
+                            <div className="flex items-center gap-1">
+                              {role !== 'corporate' && (
+                                <>
+                                  <button
+                                    onClick={() => openEditModal(emp)}
+                                    className="cursor-pointer p-1.5 rounded-md transition-all hover:bg-gray-100"
+                                    style={{ color: '#4D6DBE' }}
+                                    title="Edit Employee"
+                                  >
+                                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                                      <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" />
+                                    </svg>
+                                  </button>
+                                  <button
+                                    onClick={(e) => handleDeleteEmployee(emp, e)}
+                                    disabled={deletingEmployeeId === emp.id}
+                                    className="cursor-pointer p-1.5 rounded-md transition-all hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    style={{ color: '#DC2626' }}
+                                    title="Remove employee (e.g. created by accident)"
+                                  >
+                                    {deletingEmployeeId === emp.id ? (
+                                      <span className="inline-block w-5 h-5 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
+                                    ) : (
+                                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                      </svg>
+                                    )}
+                                  </button>
+                                </>
+                              )}
+                              {role === 'corporate' && (
+                                <span className="text-xs text-gray-400" title="View-Only Mode">👁️</span>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       );
