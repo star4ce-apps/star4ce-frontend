@@ -6,6 +6,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import HubSidebar from '@/components/sidebar/HubSidebar';
 import RequireAuth from '@/components/layout/RequireAuth';
 import { API_BASE, getToken } from '@/lib/auth';
+import { getJsonAuth, postJsonAuth } from '@/lib/http';
 import toast from 'react-hot-toast';
 
 // Modern color palette - matching surveys page
@@ -2415,6 +2416,7 @@ function managerDisplayName(m: Manager): string {
   if (m.first_name) return m.first_name;
   if (m.last_name) return m.last_name;
   if (m.full_name && m.full_name.trim()) return m.full_name.trim();
+  if (m.email && m.email.includes('@')) return m.email.split('@')[0].replace(/[._]/g, ' ');
   return 'Unknown';
 }
 
@@ -2443,6 +2445,7 @@ export default function ScoreCandidatePage() {
   const [interviewerRecommendation, setInterviewerRecommendation] = useState('');
   const hasAppliedUrlRoleStage = useRef(false);
   const hasAppliedUrlCandidate = useRef(false);
+  const currentUserIdRef = useRef<number | null>(null);
 
   // Get criteria and map interview questions
   const rawCriteria = criteriaDataRaw[selectedRole] || [];
@@ -2454,6 +2457,15 @@ export default function ScoreCandidatePage() {
     loadCandidates();
     loadManagers();
   }, []);
+
+  // Auto-select current user in interviewer dropdown when managers load (if not already selected)
+  useEffect(() => {
+    const uid = currentUserIdRef.current;
+    if (managers.length === 0 || uid == null || selectedManager !== '') return;
+    if (managers.some((m) => m.id === uid)) {
+      setSelectedManager(String(uid));
+    }
+  }, [managers, selectedManager]);
 
   // Load completed stages when candidate is selected
   useEffect(() => {
@@ -2494,14 +2506,10 @@ export default function ScoreCandidatePage() {
       const token = getToken();
       if (!token) return;
 
-      const candidateRes = await fetch(`${API_BASE}/candidates/${candidateId}${getCandidateQueryParams()}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (!candidateRes.ok) return;
-
-      const candidateData = await candidateRes.json().catch(() => ({}));
-      const notes = candidateData.notes || '';
+      const candidateData = await getJsonAuth<{ ok?: boolean; candidate?: { notes?: string } }>(
+        `/candidates/${candidateId}`
+      );
+      const notes = candidateData?.candidate?.notes ?? '';
 
       if (!notes || !notes.trim()) {
         setCompletedStages(new Set());
@@ -2566,24 +2574,14 @@ export default function ScoreCandidatePage() {
     setPendingStage(null);
   }
 
-  function getCandidateQueryParams(): string {
-    if (typeof window === 'undefined') return '';
-    const id = localStorage.getItem('selected_dealership_id');
-    return id ? `?dealership_id=${id}` : '';
-  }
-
   async function loadCandidates() {
     try {
       const token = getToken();
       if (!token) return;
 
-      const res = await fetch(`${API_BASE}/candidates${getCandidateQueryParams()}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      const data = await res.json().catch(() => ({}));
-      if (res.ok) {
-        setCandidates(data.items || []);
+      const data = await getJsonAuth<{ ok?: boolean; items?: Candidate[] }>('/candidates');
+      if (data?.items) {
+        setCandidates(data.items);
       }
     } catch (err) {
       console.error('Failed to load candidates:', err);
@@ -2621,8 +2619,9 @@ export default function ScoreCandidatePage() {
         return allManagers.some(m => m.id === id);
       };
 
-      // Always include current user if they're a manager, hiring_manager, admin, or corporate
+      // Store current user id so we can auto-select them in the interviewer dropdown
       if (currentUserRole === 'manager' || currentUserRole === 'hiring_manager' || currentUserRole === 'admin' || currentUserRole === 'corporate') {
+        currentUserIdRef.current = currentUserId ?? null;
         const uid = currentUserId ?? 0;
         if (!managerExists(uid)) {
           allManagers.push({
@@ -2634,22 +2633,21 @@ export default function ScoreCandidatePage() {
             role: currentUserRole || 'manager'
           });
         }
+      } else {
+        currentUserIdRef.current = null;
       }
 
       // Fetch all interviewers (admin, manager, hiring_manager, corporate) for this dealership
       try {
-        const res = await fetch(`${API_BASE}/interviewers`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const data = await res.json().catch(() => ({}));
-        if (res.ok && data.interviewers) {
+        const data = await getJsonAuth<{ ok?: boolean; interviewers?: any[] }>('/interviewers');
+        if (data?.interviewers) {
           (data.interviewers as any[]).forEach((u: any) => {
             if (!managerExists(u.id)) {
               const fullName = u.full_name || (u.first_name && u.last_name ? `${u.first_name} ${u.last_name}`.trim() : null);
               allManagers.push({
                 id: u.id,
                 email: u.email || '',
-                full_name: fullName,
+                full_name: fullName ?? undefined,
                 first_name: u.first_name,
                 last_name: u.last_name,
                 role: u.role || 'manager'
@@ -2787,64 +2785,31 @@ Total Weighted Score: ${totalWeighted.toFixed(2)}/10 (${scoreOutOf100}/100)${add
 Additional Notes:
 ${additionalNotes}` : ''}`;
 
-      // Fetch current candidate to get existing notes
-      const candidateRes = await fetch(`${API_BASE}/candidates/${selectedCandidate}${getCandidateQueryParams()}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      
-      if (!candidateRes.ok) {
-        toast.error('Failed to fetch candidate data');
-        return;
-      }
-      
-      const candidateData = await candidateRes.json().catch(() => ({}));
-      const existingNotes = candidateData.notes || '';
-      
+      // Fetch current candidate to get existing notes (use auth helper so scope/headers match backend)
+      const candidateData = await getJsonAuth<{ ok?: boolean; candidate?: { notes?: string } }>(
+        `/candidates/${selectedCandidate}`
+      );
+      const existingNotes = candidateData?.candidate?.notes ?? '';
+
       // Append new interview notes to existing notes
-      // Use a clear separator to distinguish between multiple interviews
       // Format: [existing notes]\n\n--- INTERVIEW ---\n\n[new interview notes]
       let updatedNotes: string;
       if (existingNotes && existingNotes.trim()) {
-        // Ensure proper separation between interviews
         const trimmedExisting = existingNotes.trim();
-        // Use a clear separator that's easy to parse
         updatedNotes = `${trimmedExisting}\n\n--- INTERVIEW ---\n\n${newInterviewNotes}`;
       } else {
         updatedNotes = newInterviewNotes;
       }
 
-      // Update candidate with score and notes
-      const res = await fetch(`${API_BASE}/candidates/${selectedCandidate}${getCandidateQueryParams()}`, {
-        method: 'PUT',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          score: scoreOutOf100,
-          notes: updatedNotes,
-        }),
-      });
+      // Update candidate with score and notes (same auth helper as candidate detail page)
+      const data = await postJsonAuth<{ ok?: boolean; candidate?: { notes?: string }; error?: string }>(
+        `/candidates/${selectedCandidate}`,
+        { score: scoreOutOf100, notes: updatedNotes },
+        { method: 'PUT' }
+      );
 
-      const data = await res.json().catch(() => ({}));
-      
-      // Debug: Check what backend saved
-      console.log('=== BACKEND SAVE RESPONSE ===');
-      console.log('Status:', res.status);
-      console.log('Response data:', data);
-      if (data.candidate && data.candidate.notes) {
-        console.log('Saved notes length:', data.candidate.notes.length);
-        console.log('Saved notes preview (first 500 chars):', data.candidate.notes.substring(0, 500));
-        console.log('Saved notes preview (last 500 chars):', data.candidate.notes.substring(Math.max(0, data.candidate.notes.length - 500)));
-      } else if (data.notes) {
-        console.log('Saved notes length:', data.notes.length);
-        console.log('Saved notes preview (first 500 chars):', data.notes.substring(0, 500));
-      } else {
-        console.log('⚠️ No notes field in response!');
-      }
-      
-      if (!res.ok) {
-        throw new Error(data.error || data.message || 'Failed to submit scores');
+      if (data?.error) {
+        throw new Error(data.error);
       }
 
       toast.success('Scores submitted successfully!');

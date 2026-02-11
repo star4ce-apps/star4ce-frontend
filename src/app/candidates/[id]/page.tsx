@@ -6,6 +6,7 @@ import HubSidebar from '@/components/sidebar/HubSidebar';
 import RequireAuth from '@/components/layout/RequireAuth';
 import { API_BASE, getToken } from '@/lib/auth';
 import { getJsonAuth, postJsonAuth } from '@/lib/http';
+
 import toast from 'react-hot-toast';
 
 type InterviewHistory = {
@@ -256,16 +257,7 @@ export default function CandidateProfilePage() {
       const data = await getJsonAuth<{ ok: boolean; candidate: any }>(`/candidates/${candidateId}`);
       if (data.ok && data.candidate) {
         const c = data.candidate;
-        
-        // Debug: Check what backend is returning
-        console.log('=== BACKEND RESPONSE ===');
-        console.log('Candidate ID:', c.id);
-        console.log('Notes field type:', typeof c.notes);
-        console.log('Notes field value:', c.notes);
-        console.log('Notes length:', c.notes?.length || 0);
-        console.log('Notes preview (first 500 chars):', c.notes?.substring(0, 500) || 'NO NOTES');
-        console.log('Notes preview (last 500 chars):', c.notes?.substring(Math.max(0, (c.notes?.length || 0) - 500)) || 'NO NOTES');
-        
+
         const candidateData: CandidateProfile = {
           id: c.id,
           name: c.name,
@@ -349,10 +341,10 @@ export default function CandidateProfilePage() {
 
   async function handleDenyApplication() {
     if (!candidate) return;
-    
-    // Block corporate users
-    if (role === 'corporate') {
-      toast.error('Corporate users have view-only access. Cannot modify candidates.');
+
+    // Only admin and hiring_manager can deny (reject) applications
+    if (role !== 'admin' && role !== 'hiring_manager') {
+      toast.error('Only admin and hiring manager can deny applications.');
       return;
     }
 
@@ -375,10 +367,10 @@ export default function CandidateProfilePage() {
 
   async function handleConvertToEmployee() {
     if (!candidate) return;
-    
-    // Only admin, hiring_manager, and corporate can board as employee
-    if (role !== 'admin' && role !== 'hiring_manager' && role !== 'corporate') {
-      toast.error('Only admin, hiring manager, and corporate can board candidates as employees.');
+
+    // Only admin and hiring_manager can board (accept) candidates as employees
+    if (role !== 'admin' && role !== 'hiring_manager') {
+      toast.error('Only admin and hiring manager can board candidates as employees.');
       return;
     }
 
@@ -419,12 +411,8 @@ export default function CandidateProfilePage() {
         date_of_birth: null,
         gender: null,
       };
-      // Corporate must send candidate's dealership so backend creates employee in correct dealership
-      if (role === 'corporate' && candidate.dealership_id != null) {
-        employeeData.dealership_id = candidate.dealership_id;
-      }
 
-      // Create employee (postJsonAuth sends X-Dealership-Id for corporate)
+      // Create employee (admin/hiring_manager use their dealership)
       const data = await postJsonAuth<{ ok: boolean; employee?: { id: number }; id?: number }>('/employees', employeeData, { method: 'POST' });
 
       const employeeId = data.employee?.id ?? data.id;
@@ -609,14 +597,13 @@ export default function CandidateProfilePage() {
       let normalizedBlock = block
         .replace(/(Interview Stage:)([^\n])/g, '$1\n$2')
         .replace(/(Hiring Manager:)([^\n])/g, '$1\n$2')
-        .replace(/(Interviewer:)([^\n])/g, '$1\n$2')
+        // Do not add newline after Interviewer: so "Interviewer: Name" stays on one line and parses correctly
         .replace(/(Role:)([^\n])/g, '$1\n$2')
         .replace(/(Interviewer Recommendation:)([^\n])/g, '$1\n$2')
         .replace(/(Scores:)([^\n])/g, '$1\n$2')
         .replace(/(Total Weighted Score:)([^\n])/g, '$1\n$2')
-        .replace(/(Additional Notes:)([^\n])/g, '$1\n$2')
-        .replace(/(\d+\/10\s*\(Weighted:)/g, '\n$1')  // Add newline before category scores
-        .replace(/(Comments:)([^\n])/g, '\n  $1\n$2');  // Format comments properly
+        .replace(/(Additional Notes:)([^\n])/g, '$1\n$2');
+      // Do not add newline after Comments: so "Comments: text" stays on one line and parses correctly
       
       const lines = normalizedBlock.split('\n').map(l => l.trim()).filter(l => l.length > 0);
       
@@ -642,7 +629,13 @@ export default function CandidateProfilePage() {
         } else if (line.startsWith('Hiring Manager:')) {
           manager = line.replace('Hiring Manager:', '').trim();
         } else if (line.startsWith('Interviewer:')) {
-          manager = line.replace('Interviewer:', '').trim();
+          const afterLabel = line.replace('Interviewer:', '').trim();
+          if (afterLabel) {
+            manager = afterLabel;
+          } else if (i + 1 < lines.length) {
+            manager = lines[i + 1].trim();
+            i++;
+          }
         } else if (line.startsWith('Role:')) {
           role = line.replace('Role:', '').trim();
         } else if (line.startsWith('Interviewer Recommendation:')) {
@@ -687,20 +680,31 @@ export default function CandidateProfilePage() {
               };
             }
           } else if (line.includes('Comments:')) {
-            // Comment on separate line
+            // Comment on same line ("Comments: text") or next line (normalization may split to "Comments:" then "text")
             if (currentCategory) {
-              // Extract comment text after "Comments:"
               const commentMatch = line.match(/Comments:\s*(.+)/);
               if (commentMatch) {
                 currentCategory.comment = commentMatch[1].trim();
               } else {
-                // Fallback: just remove "Comments:" prefix
-                currentCategory.comment = line.replace(/.*Comments:\s*/, '').trim();
+                // "Comments:" with no text on this line — use next line(s) as comment
+                let commentParts: string[] = [];
+                while (i + 1 < lines.length) {
+                  const nextLine = lines[i + 1];
+                  if (nextLine.includes('/10') && nextLine.includes(':')) break; // Next category
+                  if (nextLine === 'Scores:' || nextLine.startsWith('Total Weighted') || nextLine.startsWith('Additional Notes')) break;
+                  i++;
+                  commentParts.push(nextLine);
+                }
+                if (commentParts.length > 0) {
+                  currentCategory.comment = commentParts.join(' ').trim();
+                }
               }
             }
-          } else if (currentCategory && currentCategory.comment && line.trim().length > 0 && !line.includes('/10') && !line.includes('Comments:')) {
-            // Continuation of multi-line comment
-            currentCategory.comment += ' ' + line.trim();
+          } else if (currentCategory && currentCategory.comment != null && currentCategory.comment !== '' && line.trim().length > 0 && !line.includes('/10') && !line.includes('Comments:')) {
+            // Continuation of multi-line comment (line that doesn't look like a new category or header)
+            const trimmed = line.trim();
+            if (!trimmed.startsWith('Interview Stage:') && !trimmed.startsWith('Role:') && !trimmed.startsWith('Total Weighted'))
+              currentCategory.comment += ' ' + trimmed;
           }
         } else if (inNotesSection) {
           // Collect additional notes
@@ -731,55 +735,38 @@ export default function CandidateProfilePage() {
         }
       }
       
-      // Create interview event
-      // Use the actual stage number from the parsed data, or fall back to blockIndex + 1
+      // Create interview event from parsed data only (no mock/example data)
       const interviewNumber = stage ? parseInt(stage, 10) || blockIndex + 1 : blockIndex + 1;
-      
-      // Only add example data if there's truly no data at all (no scores, no notes, nothing)
-      const hasRealData = categoryScores.length > 0 || additionalNotes || sumScore !== undefined || recommendation || totalScore;
-      let displayCategoryScores = categoryScores;
-      let displayAdditionalNotes = additionalNotes;
-      let displaySumScore = sumScore;
-      let displayRecommendation = recommendation;
-      if (interviewNumber === 1 && !hasRealData && categoryScores.length === 0 && !totalScore) {
-        displayCategoryScores = [
-          { category: 'Strategic Vision & Planning', score: '8/10', weighted: '0.96', comment: 'Candidate demonstrated strong strategic thinking and provided clear examples of long-term planning initiatives from previous roles.' },
-          { category: 'Financial Acumen', score: '7/10', weighted: '0.70', comment: 'Good understanding of financial statements and P&L management. Some gaps in advanced financial analysis techniques.' },
-          { category: 'Industry Knowledge & Market Awareness', score: '9/10', weighted: '0.72', comment: 'Excellent knowledge of automotive retail trends and competitive landscape. Well-versed in OEM relationships and market dynamics.' },
-          { category: 'Executive Presence & Influence', score: '8/10', weighted: '0.80', comment: 'Strong executive presence. Communicates effectively with stakeholders at all levels. Good leadership presence.' },
-          { category: 'Organizational Development', score: '7/10', weighted: '0.70', comment: 'Has experience building teams and developing talent. Could benefit from more structured development programs.' },
-        ];
-        displayAdditionalNotes = 'Overall, the candidate shows strong potential for the C-Level Manager position. Key strengths include strategic vision and industry knowledge. Areas for development include advanced financial analysis and structured talent development programs. Recommend proceeding to Interview 2 to assess cultural fit and specific dealership experience.';
-        displaySumScore = 75;
-        displayRecommendation = 'Next Stage';
-      }
-      
+
+      const managerDisplay = (manager && manager.trim() && manager.toLowerCase() !== 'unknown')
+        ? manager.trim()
+        : 'Interviewer not specified';
       events.push({
         type: 'interview',
         title: `Interview ${interviewNumber} Completed`,
-        description: `Interview ${interviewNumber} completed by ${manager || 'Unknown Manager'}`,
-        manager: manager,
-        score: displaySumScore,
-        recommendation: displayRecommendation,
-        categoryScores: displayCategoryScores.length > 0 ? displayCategoryScores : undefined,
-        additionalNotes: displayAdditionalNotes || undefined,
-        details: `${role ? `Role: ${role}\n` : ''}${totalScore ? `Total Score: ${totalScore}\n` : ''}${displayRecommendation ? `Recommendation: ${displayRecommendation}\n` : ''}`,
+        description: `Interview ${interviewNumber} completed by ${managerDisplay}`,
+        manager: managerDisplay,
+        score: sumScore,
+        recommendation: recommendation,
+        categoryScores: categoryScores.length > 0 ? categoryScores : undefined,
+        additionalNotes: additionalNotes || undefined,
+        details: `${role ? `Role: ${role}\n` : ''}${totalScore ? `Total Score: ${totalScore}\n` : ''}${recommendation ? `Recommendation: ${recommendation}\n` : ''}`,
       });
-      
-      // Add awaiting event if recommendation is "Next Stage" (use display so example data flows correctly)
-      if (displayRecommendation === 'Next Stage' || displayRecommendation === 'next-stage') {
+
+      // Add follow-up event based on saved recommendation
+      if (recommendation === 'Next Stage' || recommendation === 'next-stage') {
         events.push({
           type: 'awaiting',
           title: `Awaiting Interview ${interviewNumber + 1}`,
           description: `Waiting for Interview ${interviewNumber + 1} to be scheduled.`,
         });
-      } else if (displayRecommendation === 'Hire' || displayRecommendation === 'hire') {
+      } else if (recommendation === 'Hire' || recommendation === 'hire') {
         events.push({
           type: 'status',
           title: 'Recommended for Hire',
           description: 'Candidate has been recommended for hire.',
         });
-      } else if (displayRecommendation === 'No Hire' || displayRecommendation === 'no-hire') {
+      } else if (recommendation === 'No Hire' || recommendation === 'no-hire') {
         events.push({
           type: 'status',
           title: 'Not Recommended',
@@ -1082,71 +1069,75 @@ export default function CandidateProfilePage() {
                               </div>
                               <p className="text-sm mb-2" style={{ color: '#6B7280' }}>{event.description}</p>
                             </div>
-                            {event.manager && isExpanded && (
-                              <p className="text-sm mb-2" style={{ color: '#6B7280' }}>
-                                <span className="font-semibold" style={{ color: '#232E40' }}>Manager:</span> {event.manager}
-                              </p>
-                            )}
-                            
-                            {/* Sum Score - Only show when expanded for interview events */}
-                            {isInterview && isExpanded && event.score !== undefined && (
-                              <div className="mt-4 mb-3 p-3 rounded-lg" style={{ backgroundColor: '#EFF6FF', border: '1px solid #BFDBFE' }}>
-                                <p className="text-sm font-bold" style={{ color: '#232E40' }}>
-                                  <span>Sum Score: </span>
-                                  <span style={{ color: getScoreColor(event.score / 10), fontWeight: 'bold', fontSize: '1rem' }}>
-                                    {event.score}/100
-                                  </span>
-                                </p>
-                              </div>
-                            )}
-                            
-                            {/* Category Scores - Only show when expanded for interview events */}
-                            {isInterview && isExpanded && event.categoryScores && event.categoryScores.length > 0 && (
-                              <div className="mt-4 mb-3">
-                                <h4 className="text-sm font-bold mb-3" style={{ color: '#232E40' }}>Category Scores:</h4>
-                                <div className="space-y-2.5">
-                                  {event.categoryScores.map((catScore, idx) => (
-                                    <div key={idx} className="p-3 rounded-lg" style={{ backgroundColor: '#F9FAFB', border: '1px solid #E5E7EB' }}>
-                                      <div className="flex items-center justify-between mb-1.5">
-                                        <span className="text-sm font-semibold" style={{ color: '#232E40' }}>{catScore.category}</span>
-                                        <span className="text-sm font-bold" style={{ color: '#4D6DBE' }}>{catScore.score}</span>
-                                      </div>
-                                      {catScore.comment && (
-                                        <p className="text-xs mt-1.5 pt-1.5 border-t" style={{ borderColor: '#E5E7EB', color: '#6B7280' }}>
-                                          <span className="font-semibold" style={{ color: '#374151' }}>Comments: </span>
-                                          <span>{catScore.comment}</span>
-                                        </p>
-                                      )}
+
+                            {/* Expanded interview content - design aligned with first screenshot */}
+                            {isInterview && isExpanded && (
+                              <>
+                                {/* Sum Score - prominent blue box, bold white text */}
+                                {event.score !== undefined && (
+                                  <div className="mt-4 mb-4 px-4 py-3 rounded-lg" style={{ backgroundColor: '#3B82F6', border: '1px solid #2563EB' }}>
+                                    <p className="text-base font-bold text-white">
+                                      Sum Score: <span style={{ fontSize: '1.125rem' }}>{event.score}/100</span>
+                                    </p>
+                                  </div>
+                                )}
+
+                                {/* Category Scores - light grey cards with category, score (blue), and Comments */}
+                                {event.categoryScores && event.categoryScores.length > 0 && (
+                                  <div className="mt-4 mb-4">
+                                    <h4 className="text-sm font-bold mb-3" style={{ color: '#232E40' }}>Category Scores:</h4>
+                                    <div className="space-y-3">
+                                      {event.categoryScores.map((catScore, idx) => (
+                                        <div key={idx} className="p-4 rounded-lg" style={{ backgroundColor: '#F3F4F6', border: '1px solid #E5E7EB' }}>
+                                          <div className="flex items-center justify-between flex-wrap gap-x-2 mb-2">
+                                            <span className="text-sm font-bold" style={{ color: '#232E40' }}>{catScore.category}</span>
+                                            <span className="text-sm font-bold" style={{ color: '#4D6DBE' }}>{catScore.score}</span>
+                                          </div>
+                                          {(catScore.comment != null && catScore.comment !== '') ? (
+                                            <p className="text-xs mt-2 pt-2 border-t whitespace-pre-wrap" style={{ borderColor: '#E5E7EB', color: '#4B5563' }}>
+                                              <span className="font-semibold" style={{ color: '#374151' }}>Comments: </span>
+                                              <span>{catScore.comment}</span>
+                                            </p>
+                                          ) : null}
+                                        </div>
+                                      ))}
                                     </div>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-                            
-                            {/* Interviewer Recommendation - Only show when expanded for interview events */}
-                            {isInterview && isExpanded && event.recommendation && (
-                              <div className="mt-3 mb-2">
-                                <p className="text-sm" style={{ color: '#6B7280' }}>
-                                  <span className="font-semibold" style={{ color: '#232E40' }}>Interviewer Recommendation: </span>
-                                  <span className="font-bold" style={{ 
-                                    color: event.recommendation === 'Hire' ? '#10B981' : 
-                                           event.recommendation === 'Next Stage' ? '#3B82F6' : 
-                                           event.recommendation === 'No Hire' ? '#EF4444' : '#6B7280'
-                                  }}>
-                                    {event.recommendation}
-                                  </span>
-                                </p>
-                              </div>
-                            )}
-                            
-                            {/* Additional Notes - Only show when expanded for interview events */}
-                            {isInterview && isExpanded && event.additionalNotes && (
-                              <div className="mt-4 mb-2">
-                                <h4 className="text-sm font-bold mb-2" style={{ color: '#232E40' }}>Additional Notes:</h4>
-                                <div className="p-3 rounded-lg text-sm whitespace-pre-wrap" style={{ backgroundColor: '#F9FAFB', color: '#374151', border: '1px solid #E5E7EB' }}>
-                                  {event.additionalNotes}
-                                </div>
-                              </div>
+                                  </div>
+                                )}
+
+                                {/* Interviewer Recommendation - label then value in blue */}
+                                {event.recommendation && (
+                                  <div className="mt-4 mb-3">
+                                    <p className="text-sm" style={{ color: '#374151' }}>
+                                      <span className="font-bold" style={{ color: '#232E40' }}>Interviewer Recommendation: </span>
+                                      <span className="font-bold" style={{
+                                        color: event.recommendation === 'Hire' ? '#10B981' :
+                                          event.recommendation === 'Next Stage' ? '#3B82F6' :
+                                            event.recommendation === 'No Hire' ? '#EF4444' : '#6B7280'
+                                      }}>
+                                        {event.recommendation}
+                                      </span>
+                                    </p>
+                                  </div>
+                                )}
+
+                                {/* Additional Notes - heading + styled box */}
+                                {event.additionalNotes && (
+                                  <div className="mt-4 mb-2">
+                                    <h4 className="text-sm font-bold mb-2" style={{ color: '#232E40' }}>Additional Notes:</h4>
+                                    <div className="p-4 rounded-lg text-sm whitespace-pre-wrap" style={{ backgroundColor: '#F9FAFB', color: '#374151', border: '1px solid #E5E7EB' }}>
+                                      {event.additionalNotes}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Manager/Interviewer - show when we have a name (avoid duplicate of description) */}
+                                {event.manager && (event.manager.toLowerCase() !== 'interviewer not specified') && (
+                                  <p className="text-sm mt-2 mb-1" style={{ color: '#6B7280' }}>
+                                    <span className="font-semibold" style={{ color: '#232E40' }}>Manager:</span> {event.manager}
+                                  </p>
+                                )}
+                              </>
                             )}
                             
                             {event.date && (
@@ -1285,8 +1276,8 @@ export default function CandidateProfilePage() {
                 </div>
               </div>
 
-              {/* Hiring Decision Actions - only admin, hiring manager, and corporate can board */}
-              {(role === 'admin' || role === 'hiring_manager' || role === 'corporate') && (
+              {/* Hiring Decision: admin and hiring manager accept (board) or decline (deny) candidate */}
+              {(role === 'admin' || role === 'hiring_manager') && (
                 <div className="rounded-xl p-5" style={{ backgroundColor: '#FFFFFF', border: '1px solid #E5E7EB' }}>
                   <h3 className="text-sm font-bold mb-4" style={{ color: '#232E40' }}>Hiring Decision</h3>
                   <div className="space-y-3">
