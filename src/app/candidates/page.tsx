@@ -98,6 +98,7 @@ export default function CandidatesPage() {
     city: '',
     state: '',
     zipCode: '',
+    dateOfBirth: '',
     position: '',
     department: '',
     status: 'Awaiting',
@@ -218,6 +219,14 @@ export default function CandidatesPage() {
       }
 
       const name = `${formData.firstName} ${formData.lastName}`;
+      const addressParts = [
+        formData.street,
+        formData.city,
+        formData.state ? `${formData.state} ${formData.zipCode}`.trim() : formData.zipCode,
+      ].filter(Boolean);
+      const address = addressParts.length ? addressParts.join(', ') : null;
+
+      const dateOfBirth = formData.dateOfBirth?.trim() || null;
       const payload = {
         name,
         email: formData.email,
@@ -225,6 +234,8 @@ export default function CandidatesPage() {
         position: formData.position,
         status: formData.status || 'Awaiting',
         notes: formData.notes || null,
+        address: address || undefined,
+        date_of_birth: dateOfBirth || undefined,
       };
 
       let res: Response;
@@ -236,6 +247,8 @@ export default function CandidatesPage() {
         formDataToSend.append('position', payload.position);
         formDataToSend.append('status', payload.status);
         formDataToSend.append('notes', payload.notes ?? '');
+        if (address) formDataToSend.append('address', address);
+        if (dateOfBirth) formDataToSend.append('date_of_birth', dateOfBirth);
         formDataToSend.append('resume', resumeFile);
         res = await fetch(`${API_BASE}/candidates`, {
           method: 'POST',
@@ -280,6 +293,7 @@ export default function CandidatesPage() {
       city: '',
       state: '',
       zipCode: '',
+      dateOfBirth: '',
       position: '',
       department: '',
       status: 'Awaiting',
@@ -480,7 +494,7 @@ export default function CandidatesPage() {
                           </td>
                           <td className="py-4 px-6">
                             <span className="text-sm font-semibold" style={{ color: '#232E40' }}>
-                              {candidate.score !== undefined ? `${candidate.score}/100` : 'N/A'}
+                              {candidate.score != null && typeof candidate.score === 'number' ? `${candidate.score}/100` : 'N/A'}
                             </span>
                           </td>
                           <td className="py-4 px-6">
@@ -621,6 +635,20 @@ export default function CandidatesPage() {
                           onChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value })}
                           placeholder="(000) 000-0000"
                           required
+                          className="w-full px-3 py-2 text-sm rounded-lg transition-all focus:outline-none focus:ring-2"
+                          style={{ 
+                            border: '1px solid #D1D5DB', 
+                            color: '#374151', 
+                            backgroundColor: '#FFFFFF',
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold mb-1.5" style={{ color: '#374151' }}>Date of Birth</label>
+                        <input
+                          type="date"
+                          value={formData.dateOfBirth}
+                          onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })}
                           className="w-full px-3 py-2 text-sm rounded-lg transition-all focus:outline-none focus:ring-2"
                           style={{ 
                             border: '1px solid #D1D5DB', 

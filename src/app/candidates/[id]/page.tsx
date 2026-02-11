@@ -5,7 +5,7 @@ import { useRouter, useParams } from 'next/navigation';
 import HubSidebar from '@/components/sidebar/HubSidebar';
 import RequireAuth from '@/components/layout/RequireAuth';
 import { API_BASE, getToken } from '@/lib/auth';
-import { getJsonAuth, postJsonAuth } from '@/lib/http';
+import { getJsonAuth, postJsonAuth, putJsonAuth } from '@/lib/http';
 
 import toast from 'react-hot-toast';
 
@@ -60,7 +60,15 @@ type CandidateProfile = {
   notes: string;
   resumeUrl?: string | null;
   dealership_id?: number | null;
+  dateOfBirthRaw?: string | null;
 };
+
+function formatBirthday(dateStr: string): string {
+  if (!dateStr || typeof dateStr !== 'string') return 'Not Provided';
+  const d = new Date(dateStr);
+  if (Number.isNaN(d.getTime())) return dateStr; // fallback to raw string
+  return d.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
+}
 
 export default function CandidateProfilePage() {
   const router = useRouter();
@@ -80,6 +88,10 @@ export default function CandidateProfilePage() {
   const [resumePreviewIsPdf, setResumePreviewIsPdf] = useState(false);
   const [resumePreviewLoading, setResumePreviewLoading] = useState(false);
   const [expandedProcessIndex, setExpandedProcessIndex] = useState<number | null>(null);
+  const [showEditPersonal, setShowEditPersonal] = useState(false);
+  const [editGender, setEditGender] = useState('');
+  const [editDateOfBirth, setEditDateOfBirth] = useState('');
+  const [savingPersonal, setSavingPersonal] = useState(false);
 
   useEffect(() => {
     // Load user role
@@ -221,17 +233,17 @@ export default function CandidateProfilePage() {
           name: c.name,
           email: c.email,
           phone: c.phone || '',
-          gender: 'Not Provided',
-          birthday: 'Not Provided',
-          address: 'Not Provided',
+          gender: c.gender?.trim() || 'Not Provided',
+          birthday: c.date_of_birth ? formatBirthday(c.date_of_birth) : 'Not Provided',
+          address: c.address?.trim() || 'Not Provided',
           overallScore: c.score ? c.score / 10 : 0,
           stage: c.status || 'Awaiting',
           origin: 'Career Site',
           appliedDate: new Date(c.applied_at).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' }),
           jobPosition: c.position,
-          university: 'Not Provided',
-          degree: 'Not Provided',
-          referral: 'Not Provided',
+          university: c.university?.trim() || 'Not Provided',
+          degree: c.degree?.trim() || 'Not Provided',
+          referral: c.referral?.trim() || 'Not Provided',
           interviewHistory: [],
           notes: c.notes || '',
         }));
@@ -263,21 +275,22 @@ export default function CandidateProfilePage() {
           name: c.name,
           email: c.email,
           phone: c.phone || '',
-          gender: 'Not Provided',
-          birthday: 'Not Provided',
-          address: 'Not Provided',
+          gender: c.gender?.trim() || 'Not Provided',
+          birthday: c.date_of_birth ? formatBirthday(c.date_of_birth) : 'Not Provided',
+          address: c.address?.trim() || 'Not Provided',
           overallScore: c.score !== null && c.score !== undefined ? c.score / 10 : 0,
           stage: c.status || 'Awaiting',
           origin: 'Career Site',
           appliedDate: new Date(c.applied_at).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' }),
           jobPosition: c.position,
-          university: 'Not Provided',
-          degree: 'Not Provided',
-          referral: 'Not Provided',
+          university: c.university?.trim() || 'Not Provided',
+          degree: c.degree?.trim() || 'Not Provided',
+          referral: c.referral?.trim() || 'Not Provided',
           interviewHistory: [],
           notes: c.notes || '',
           resumeUrl: c.resume_url ? `${API_BASE}${c.resume_url}` : undefined,
           dealership_id: c.dealership_id ?? undefined,
+          dateOfBirthRaw: c.date_of_birth ?? undefined,
         };
         setCandidate(candidateData);
         const sortedIds = allCandidates.map(c => c.id).sort((a, b) => a - b);
@@ -475,6 +488,40 @@ export default function CandidateProfilePage() {
       console.error('Convert to employee error:', err);
     } finally {
       setSaving(false);
+    }
+  }
+
+  function openEditPersonal() {
+    if (!candidate) return;
+    setEditGender(candidate.gender === 'Not Provided' ? '' : candidate.gender);
+    setEditDateOfBirth(candidate.dateOfBirthRaw || '');
+    setShowEditPersonal(true);
+  }
+
+  async function saveEditPersonal() {
+    if (!candidate) return;
+    setSavingPersonal(true);
+    try {
+      const body: { gender?: string | null; date_of_birth?: string | null } = {
+        gender: editGender.trim() || null,
+        date_of_birth: editDateOfBirth.trim() || null,
+      };
+      const data = await putJsonAuth<{ ok: boolean; candidate: any }>(`/candidates/${candidate.id}`, body);
+      if (data.candidate) {
+        const c = data.candidate;
+        setCandidate({
+          ...candidate,
+          gender: c.gender?.trim() || 'Not Provided',
+          birthday: c.date_of_birth ? formatBirthday(c.date_of_birth) : 'Not Provided',
+          dateOfBirthRaw: c.date_of_birth ?? undefined,
+        });
+      }
+      setShowEditPersonal(false);
+      toast.success('Personal information updated');
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Failed to update');
+    } finally {
+      setSavingPersonal(false);
     }
   }
 
@@ -721,7 +768,7 @@ export default function CandidateProfilePage() {
         categoryScores.push(currentCategory);
       }
       
-      // Extract sum score from totalScore
+      // Extract sum score from totalScore (e.g. "6.00/10 (60/100)")
       let sumScore: number | undefined;
       if (totalScore) {
         const scoreMatch = totalScore.match(/\((\d+)\/100\)/);
@@ -734,7 +781,22 @@ export default function CandidateProfilePage() {
           }
         }
       }
-      
+      // If no sum in notes, add all category scores and display (average of X/10 scaled to 0–100)
+      if (sumScore === undefined && categoryScores.length > 0) {
+        let total = 0;
+        let count = 0;
+        for (const cat of categoryScores) {
+          const m = cat.score.match(/^(\d+(?:\.\d+)?)\/10/);
+          if (m) {
+            total += parseFloat(m[1]);
+            count += 1;
+          }
+        }
+        if (count > 0) {
+          sumScore = Math.round((total / count) * 10);
+        }
+      }
+
       // Create interview event from parsed data only (no mock/example data)
       const interviewNumber = stage ? parseInt(stage, 10) || blockIndex + 1 : blockIndex + 1;
 
@@ -832,6 +894,16 @@ export default function CandidateProfilePage() {
 
   const processEvents = parseProcessEvents();
 
+  // Average of all interview scores for overall display (fallback to candidate.overallScore from backend)
+  const interviewScores = processEvents
+    .filter((e): e is ProcessEvent & { score: number } => e.type === 'interview' && e.score != null)
+    .map(e => e.score);
+  const averageInterviewScore =
+    interviewScores.length > 0
+      ? Math.round(interviewScores.reduce((a, b) => a + b, 0) / interviewScores.length)
+      : null;
+  const displayOverallScore = averageInterviewScore !== null ? averageInterviewScore : Math.round((candidate.overallScore ?? 0) * 10);
+
   return (
     <RequireAuth>
       <div className="flex min-h-screen" style={{ width: '100%', overflow: 'hidden', backgroundColor: '#F5F7FA' }}>
@@ -900,7 +972,10 @@ export default function CandidateProfilePage() {
                     <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20" style={{ color: '#FFFFFF' }}>
                       <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
                     </svg>
-                    <span>{(candidate.overallScore * 10).toFixed(0)} / 100</span>
+                    <span>{displayOverallScore} / 100</span>
+                    {averageInterviewScore !== null && interviewScores.length > 1 && (
+                      <span className="opacity-90 text-xs">(avg of {interviewScores.length} interviews)</span>
+                    )}
                   </div>
                 </div>
                 <div className="flex items-center gap-4 text-sm" style={{ color: '#6B7280' }}>
@@ -1054,7 +1129,7 @@ export default function CandidateProfilePage() {
                               tabIndex={hasDetails ? 0 : undefined}
                               onKeyDown={e => hasDetails && (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), setExpandedProcessIndex(isExpanded ? null : index))}
                             >
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-2 flex-wrap">
                                 <h3 className="text-base font-bold mb-1" style={{ color: '#232E40' }}>{event.title}</h3>
                                 {hasDetails && (
                                   <span className="inline-flex items-center gap-1 text-xs font-medium" style={{ color: '#6B7280' }}>
@@ -1070,31 +1145,22 @@ export default function CandidateProfilePage() {
                               <p className="text-sm mb-2" style={{ color: '#6B7280' }}>{event.description}</p>
                             </div>
 
-                            {/* Expanded interview content - design aligned with first screenshot */}
+                            {/* Expanded interview content - score stays in top right of row, no duplicate here */}
                             {isInterview && isExpanded && (
                               <>
-                                {/* Sum Score - prominent blue box, bold white text */}
-                                {event.score !== undefined && (
-                                  <div className="mt-4 mb-4 px-4 py-3 rounded-lg" style={{ backgroundColor: '#3B82F6', border: '1px solid #2563EB' }}>
-                                    <p className="text-base font-bold text-white">
-                                      Sum Score: <span style={{ fontSize: '1.125rem' }}>{event.score}/100</span>
-                                    </p>
-                                  </div>
-                                )}
-
                                 {/* Category Scores - light grey cards with category, score (blue), and Comments */}
                                 {event.categoryScores && event.categoryScores.length > 0 && (
                                   <div className="mt-4 mb-4">
                                     <h4 className="text-sm font-bold mb-3" style={{ color: '#232E40' }}>Category Scores:</h4>
                                     <div className="space-y-3">
                                       {event.categoryScores.map((catScore, idx) => (
-                                        <div key={idx} className="p-4 rounded-lg" style={{ backgroundColor: '#F3F4F6', border: '1px solid #E5E7EB' }}>
+                                        <div key={idx} className="p-4 rounded-lg min-w-0" style={{ backgroundColor: '#F3F4F6', border: '1px solid #E5E7EB' }}>
                                           <div className="flex items-center justify-between flex-wrap gap-x-2 mb-2">
-                                            <span className="text-sm font-bold" style={{ color: '#232E40' }}>{catScore.category}</span>
-                                            <span className="text-sm font-bold" style={{ color: '#4D6DBE' }}>{catScore.score}</span>
+                                            <span className="text-sm font-bold min-w-0" style={{ color: '#232E40' }}>{catScore.category}</span>
+                                            <span className="text-sm font-bold shrink-0" style={{ color: '#4D6DBE' }}>{catScore.score}</span>
                                           </div>
                                           {(catScore.comment != null && catScore.comment !== '') ? (
-                                            <p className="text-xs mt-2 pt-2 border-t whitespace-pre-wrap" style={{ borderColor: '#E5E7EB', color: '#4B5563' }}>
+                                            <p className="text-xs mt-2 pt-2 border-t whitespace-pre-wrap break-words" style={{ borderColor: '#E5E7EB', color: '#4B5563', wordBreak: 'break-word', overflowWrap: 'break-word', minWidth: 0 }}>
                                               <span className="font-semibold" style={{ color: '#374151' }}>Comments: </span>
                                               <span>{catScore.comment}</span>
                                             </p>
@@ -1139,11 +1205,19 @@ export default function CandidateProfilePage() {
                                 )}
                               </>
                             )}
-                            
+
                             {event.date && (
                               <p className="text-xs mt-2" style={{ color: '#9CA3AF' }}>{event.date}</p>
                             )}
                           </div>
+                          {/* Score on the top right of each interview section (same spot when collapsed or expanded) */}
+                          {isInterview && event.score !== undefined && (
+                            <div className="flex-shrink-0 self-start">
+                              <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-bold" style={{ backgroundColor: '#4D6DBE', color: '#FFFFFF' }}>
+                                {event.score}/100
+                              </span>
+                            </div>
+                          )}
                         </div>
                       </div>
                     ); })}
@@ -1213,7 +1287,19 @@ export default function CandidateProfilePage() {
             <div className="space-y-4">
               {/* Personal Information */}
               <div className="rounded-xl p-5" style={{ backgroundColor: '#FFFFFF', border: '1px solid #E5E7EB' }}>
-                <h3 className="text-sm font-bold mb-4" style={{ color: '#232E40' }}>Personal Information</h3>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-bold" style={{ color: '#232E40' }}>Personal Information</h3>
+                  {(role === 'admin' || role === 'manager' || role === 'hiring_manager') && (
+                    <button
+                      type="button"
+                      onClick={openEditPersonal}
+                      className="text-xs font-medium cursor-pointer hover:underline"
+                      style={{ color: '#4D6DBE' }}
+                    >
+                      Edit
+                    </button>
+                  )}
+                </div>
                 <div className="space-y-3">
                   <div className="flex items-center gap-2 text-sm">
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: '#6B7280' }}>
@@ -1248,6 +1334,61 @@ export default function CandidateProfilePage() {
                   </div>
                 </div>
               </div>
+
+              {/* Edit Personal Info modal */}
+              {showEditPersonal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }} onClick={() => !savingPersonal && setShowEditPersonal(false)}>
+                  <div className="bg-white rounded-xl shadow-xl p-5 w-full max-w-sm" onClick={(e) => e.stopPropagation()}>
+                    <h3 className="text-sm font-bold mb-4" style={{ color: '#232E40' }}>Edit Personal Information</h3>
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-xs font-medium mb-1" style={{ color: '#6B7280' }}>Gender</label>
+                        <select
+                          value={editGender}
+                          onChange={(e) => setEditGender(e.target.value)}
+                          className="w-full px-3 py-2 text-sm rounded-lg border"
+                          style={{ borderColor: '#D1D5DB', color: '#374151' }}
+                        >
+                          <option value="">Not provided</option>
+                          <option value="Male">Male</option>
+                          <option value="Female">Female</option>
+                          <option value="Non-binary">Non-binary</option>
+                          <option value="Prefer not to say">Prefer not to say</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium mb-1" style={{ color: '#6B7280' }}>Date of Birth</label>
+                        <input
+                          type="date"
+                          value={editDateOfBirth}
+                          onChange={(e) => setEditDateOfBirth(e.target.value)}
+                          className="w-full px-3 py-2 text-sm rounded-lg border"
+                          style={{ borderColor: '#D1D5DB', color: '#374151' }}
+                        />
+                      </div>
+                    </div>
+                    <div className="flex gap-2 mt-4">
+                      <button
+                        type="button"
+                        onClick={() => !savingPersonal && setShowEditPersonal(false)}
+                        className="flex-1 py-2 text-sm font-medium rounded-lg border cursor-pointer hover:bg-gray-50"
+                        style={{ borderColor: '#D1D5DB', color: '#374151' }}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={saveEditPersonal}
+                        disabled={savingPersonal}
+                        className="flex-1 py-2 text-sm font-semibold rounded-lg text-white cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+                        style={{ backgroundColor: '#4D6DBE' }}
+                      >
+                        {savingPersonal ? 'Saving...' : 'Save'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Education Information */}
               <div className="rounded-xl p-5" style={{ backgroundColor: '#FFFFFF', border: '1px solid #E5E7EB' }}>
