@@ -46,27 +46,20 @@ export default function SettingsPage() {
 
       if (res.ok) {
         const data = await res.json();
-        console.log('Profile API response:', data); // Debug log
-        
-        // Handle different response structures: data.user, data, or direct fields
         const userData = data.user || data;
-        console.log('User data extracted:', userData); // Debug log
-        
-        // Extract dealership ID
         const userDealershipId = userData.dealership_id || userData.dealershipId || null;
         setDealershipId(userDealershipId);
-        
-        // Extract profile information - check all possible field names
+
         const profileData = {
-          firstName: userData.first_name || userData.firstName || (userData as any).first_name || '',
-          lastName: userData.last_name || userData.lastName || (userData as any).last_name || '',
-          email: userData.email || '',
-          phone: userData.phone || userData.phone_number || (userData as any).phone || '',
-          dealershipName: userData.dealership_name || userData.dealershipName || (userData as any).dealership?.name || '',
-          streetAddress: userData.dealership_address || userData.dealershipAddress || userData.street_address || userData.streetAddress || (userData as any).dealership?.address || '',
+          firstName: (userData.first_name ?? userData.firstName ?? (userData as any).first_name ?? '').toString().trim(),
+          lastName: (userData.last_name ?? userData.lastName ?? (userData as any).last_name ?? '').toString().trim(),
+          email: (userData.email ?? '').toString().trim(),
+          phone: (userData.phone ?? userData.phone_number ?? (userData as any).phone ?? '').toString().trim(),
+          dealershipName: (userData.dealership_name ?? userData.dealershipName ?? (userData as any).dealership?.name ?? '').toString().trim(),
+          streetAddress: (userData.dealership_address ?? userData.dealershipAddress ?? userData.street_address ?? userData.streetAddress ?? (userData as any).dealership?.address ?? '').toString().trim(),
         };
-        
-        // If we have a dealership_id but no name/address, fetch dealership info
+
+        // Fallback: if /auth/me didn't include dealership name/address, fetch from dealership endpoint
         if (userDealershipId && !profileData.dealershipName) {
           try {
             const dealershipRes = await fetch(`${API_BASE}/corporate/dealerships/${userDealershipId}`, {
@@ -82,8 +75,7 @@ export default function SettingsPage() {
             console.error('Failed to load dealership info:', err);
           }
         }
-        
-        console.log('Profile data set:', profileData); // Debug log
+
         setUser(userData);
         setProfile(profileData);
         setOriginalProfile(profileData);
