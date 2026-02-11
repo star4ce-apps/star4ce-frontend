@@ -3,7 +3,7 @@
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { API_BASE } from '@/lib/auth';
+import { API_BASE, getToken } from '@/lib/auth';
 import toast from 'react-hot-toast';
 
 function AdminSubscribePageContent() {
@@ -11,26 +11,61 @@ function AdminSubscribePageContent() {
   const searchParams = useSearchParams();
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
+  const [authCheckDone, setAuthCheckDone] = useState(false);
   const [error, setError] = useState('');
   const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'annual'>('monthly');
   const [isNavigatingToCheckout, setIsNavigatingToCheckout] = useState(false);
 
   useEffect(() => {
-    const emailParam = searchParams?.get('email');
     const subscriptionParam = searchParams?.get('subscription');
-    const userIdParam = searchParams?.get('user_id');
-    
-    if (emailParam) {
-      setEmail(emailParam);
-    } else {
-      // If no email, redirect back
-      router.push('/admin-register');
-      return;
-    }
-
-    // Coming from canceled checkout: keep account, they can try again
     if (subscriptionParam === 'canceled') {
       toast.error('Subscription canceled. You can try again whenever you\'re ready.');
+    }
+  }, [searchParams]);
+
+  // Security: when logged in, use only the authenticated user's email (ignore URL param)
+  useEffect(() => {
+    const token = getToken();
+    const emailParam = searchParams?.get('email');
+    if (token) {
+      fetch(`${API_BASE}/auth/me`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then((res) => res.json().catch(() => ({})))
+        .then((data) => {
+          if (data.subscription_required && data.email) {
+            setEmail((data.email || '').trim());
+            setAuthCheckDone(true);
+            return;
+          }
+          if (data.subscription_active !== false && (data.user?.role === 'admin' || data.role === 'admin')) {
+            router.replace('/dashboard');
+            return;
+          }
+          if (data.user?.email) {
+            setEmail((data.user.email || '').trim());
+          } else if (data.email) {
+            setEmail((data.email || '').trim());
+          } else if (emailParam) {
+            setEmail(emailParam);
+          } else {
+            router.replace('/admin-register');
+            return;
+          }
+          setAuthCheckDone(true);
+        })
+        .catch(() => {
+          if (emailParam) setEmail(emailParam);
+          setAuthCheckDone(true);
+        });
+    } else {
+      if (emailParam) {
+        setEmail(emailParam);
+      } else {
+        router.replace('/admin-register');
+        return;
+      }
+      setAuthCheckDone(true);
     }
   }, [searchParams, router]);
 
@@ -101,20 +136,26 @@ function AdminSubscribePageContent() {
         console.log('[CHECKOUT] No dealership info to send');
       }
 
+      const token = getToken();
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
       const checkoutRes = await fetch(`${API_BASE}/subscription/create-checkout`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(checkoutBody),
       });
 
       if (!checkoutRes.ok) {
-        // Try to parse error message
         let errorMsg = 'Failed to create checkout session';
         try {
           const errorData = await checkoutRes.json();
-          errorMsg = errorData.error || errorMsg;
+          const backendError = (errorData.error || '').trim();
+          if (checkoutRes.status === 400 && (backendError.includes('not eligible') || backendError.includes('already registered') || backendError.includes('sign in to subscribe'))) {
+            errorMsg = "This email isn't registered for admin signup. Please create an account and verify your email first.";
+          } else {
+            errorMsg = backendError || errorMsg;
+          }
         } catch (e) {
-          // If response is not JSON, use status text
           errorMsg = `Server error: ${checkoutRes.status} ${checkoutRes.statusText}`;
         }
         setError(errorMsg);
@@ -135,12 +176,30 @@ function AdminSubscribePageContent() {
         setLoading(false);
       }
     } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : 'Network error. Please check if the backend server is running.';
+      const msg = err instanceof Error ? err.message : '';
+      const errorMsg = msg === 'Failed to fetch'
+        ? "Couldn't reach the server. If you haven't created an account yet, please register and verify your email first, then try again."
+        : msg || 'Network error. Please check your connection and try again.';
       setError(errorMsg);
       toast.error(errorMsg);
       setLoading(false);
       console.error('Checkout error:', err);
     }
+  }
+
+  if (!authCheckDone) {
+    return (
+      <div className="min-h-screen flex items-center justify-center py-12 px-4" style={{ background: '#0f172a' }}>
+        <div className="flex items-center gap-3 text-white">
+          <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+          <span>Loading...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (!email) {
+    return null;
   }
 
   return (

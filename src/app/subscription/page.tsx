@@ -58,6 +58,7 @@ function SubscriptionPageContent() {
   const [upgrading, setUpgrading] = useState<{ [key: number]: boolean }>({});
   const [changingPlan, setChangingPlan] = useState<'monthly' | 'annual' | null>(null);
   const [revertingPlan, setRevertingPlan] = useState(false);
+  const [subscriptionActiveFromAuth, setSubscriptionActiveFromAuth] = useState<boolean | null>(null);
 
   useEffect(() => {
     loadUserRole();
@@ -94,7 +95,7 @@ function SubscriptionPageContent() {
         const data = await res.json();
         const role = data.user?.role || data.role;
         setUserRole(role);
-        
+        setSubscriptionActiveFromAuth(data.subscription_active !== false);
         if (role === 'corporate') {
           loadCorporateSubscriptions();
         } else {
@@ -204,7 +205,14 @@ function SubscriptionPageContent() {
       if (res.ok && data.checkout_url) {
         window.location.href = data.checkout_url;
       } else {
-        toast.error(data.error || 'Failed to create checkout session');
+        const errMsg = data.error || 'Failed to create checkout session';
+        if (res.status === 400 && (errMsg.includes('already have an active subscription') || errMsg.includes('already has an active subscription'))) {
+          toast.error('You already have an active subscription. Use the options above to change or cancel it.');
+          setSubscriptionActiveFromAuth(true);
+          loadSubscriptionStatus();
+        } else {
+          toast.error(errMsg);
+        }
         setCreatingCheckout(false);
       }
     } catch (err) {
@@ -919,8 +927,8 @@ function SubscriptionPageContent() {
                 </>
               )}
 
-              {/* Subscription Actions */}
-              {!status.is_active && (
+              {/* Subscription Actions - hide Subscribe when auth says already active (prevents double-subscribe via manual link) */}
+              {!status.is_active && subscriptionActiveFromAuth !== true && (
                 <div className="rounded-xl p-6 transition-all duration-200" style={{ 
                   background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)',
                   border: '1px solid rgba(255, 255, 255, 0.3)',

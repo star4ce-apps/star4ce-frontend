@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { loginApi, saveSession } from '@/lib/auth';
+import { loginApi, saveSession, getToken, API_BASE } from '@/lib/auth';
 import Logo from '@/components/Logo';
 
 export default function LoginForm() {
@@ -42,16 +42,34 @@ export default function LoginForm() {
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('auth-session-updated'));
       }
-      // Check if we need to redirect to subscription after login
+      // If explicit subscription redirect requested, go to subscription
       if (redirect === 'subscription' || adminReg === 'true') {
         router.push('/subscription');
-      } else {
-        // If coming from subscription success, show success message on dashboard
-        if (subscriptionSuccess) {
-          router.push('/dashboard?subscription=success');
-        } else {
-          router.push('/dashboard');
+        return;
+      }
+      // For normal login: call /auth/me once to see if user must complete subscription (pending admin registration).
+      // If so, redirect to admin-subscribe without ever loading dashboard — avoids a flood of 403s from dashboard/analytics.
+      const token = getToken();
+      if (token) {
+        try {
+          const meRes = await fetch(`${API_BASE}/auth/me`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          const meData = await meRes.json().catch(() => ({}));
+          if (meRes.ok && meData.subscription_required) {
+            const redirectEmail = (meData.email || email || '').trim();
+            router.push(redirectEmail ? `/admin-subscribe?email=${encodeURIComponent(redirectEmail)}` : '/admin-subscribe');
+            return;
+          }
+        } catch {
+          // On error, continue to dashboard as usual
         }
+      }
+      // If coming from subscription success, show success message on dashboard
+      if (subscriptionSuccess) {
+        router.push('/dashboard?subscription=success');
+      } else {
+        router.push('/dashboard');
       }
     } catch (err: unknown) {
       let msg = 'Login failed';
