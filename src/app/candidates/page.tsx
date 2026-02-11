@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import HubSidebar from '@/components/sidebar/HubSidebar';
 import RequireAuth from '@/components/layout/RequireAuth';
 import { API_BASE, getToken } from '@/lib/auth';
+import { getAverageInterviewScore } from '@/lib/candidateNotes';
 import { getJsonAuth } from '@/lib/http';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -494,7 +495,10 @@ export default function CandidatesPage() {
                           </td>
                           <td className="py-4 px-6">
                             <span className="text-sm font-semibold" style={{ color: '#232E40' }}>
-                              {candidate.score != null && typeof candidate.score === 'number' ? `${candidate.score}/100` : 'N/A'}
+                              {(() => {
+                                const avg = getAverageInterviewScore(candidate.notes);
+                                return avg !== null ? `${avg}/100` : 'N/A';
+                              })()}
                             </span>
                           </td>
                           <td className="py-4 px-6">
