@@ -105,7 +105,7 @@ export default function EmployeesPage() {
   const [sortColumn, setSortColumn] = useState<string>('name');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [deletingEmployeeId, setDeletingEmployeeId] = useState<number | null>(null);
-  const itemsPerPage = 20;
+  const itemsPerPage = 10;
 
   // Form state
   const [formData, setFormData] = useState({
@@ -646,7 +646,7 @@ export default function EmployeesPage() {
                   onClick={() => setShowModal(true)}
                   className="cursor-pointer px-4 py-2 rounded-lg text-sm font-medium transition-all"
                   style={{ 
-                    backgroundColor: COLORS.primary,
+                    backgroundColor: '#4D6DBE',
                     color: '#FFFFFF'
                   }}
                 >
@@ -801,19 +801,20 @@ export default function EmployeesPage() {
                       </div>
                     </th>
                     <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider text-white">
+                      Actions
                     </th>
                   </tr>
                 </thead>
                 <tbody>
                   {loading && paginatedEmployees.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="py-12 text-center text-sm" style={{ color: '#6B7280' }}>
+                      <td colSpan={6} className="py-12 text-center text-sm" style={{ color: '#6B7280' }}>
                         Loading employees...
                       </td>
                     </tr>
                   ) : paginatedEmployees.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="py-12 text-center text-sm" style={{ color: '#6B7280' }}>
+                      <td colSpan={6} className="py-12 text-center text-sm" style={{ color: '#6B7280' }}>
                         No employees found.
                       </td>
                     </tr>

@@ -44,9 +44,213 @@ type EmployeeProfile = {
   status?: string;
   dealership_id: number;
   is_active: boolean;
+  notes?: string;
   performanceReviews: PerformanceReview[];
   roleChanges: RoleChange[];
+  gender?: string;
+  date_of_birth?: string;
+  address?: string;
+  university?: string;
+  degree?: string;
+  referral?: string;
 };
+
+// Parse performance reviews from notes field (similar to interview parsing)
+function parsePerformanceReviewsFromNotes(notes: string): PerformanceReview[] {
+  const reviews: PerformanceReview[] = [];
+  
+  if (!notes || !notes.trim()) {
+    return reviews;
+  }
+  
+  // Split notes into review blocks
+  const reviewBlocks: string[] = [];
+  
+  // First, try splitting by the separator
+  if (notes.includes('--- PERFORMANCE REVIEW ---')) {
+    const parts = notes.split(/--- PERFORMANCE REVIEW ---/);
+    parts.forEach((part) => {
+      const trimmed = part.trim();
+      if (trimmed && trimmed.includes('Performance Review Stage:')) {
+        reviewBlocks.push(trimmed);
+      }
+    });
+  }
+  
+  // If no separator found, fall back to splitting on "Performance Review Stage:"
+  if (reviewBlocks.length === 0) {
+    const stageMatches = [...notes.matchAll(/Performance Review Stage:/g)];
+    
+    if (stageMatches.length === 0) {
+      return reviews;
+    }
+    
+    if (stageMatches.length === 1) {
+      reviewBlocks.push(notes);
+    } else {
+      for (let i = 0; i < stageMatches.length; i++) {
+        const startIndex = stageMatches[i].index || 0;
+        const endIndex = i < stageMatches.length - 1 
+          ? (stageMatches[i + 1].index || notes.length)
+          : notes.length;
+        
+        const block = notes.substring(startIndex, endIndex).trim();
+        if (block && block.includes('Performance Review Stage:')) {
+          reviewBlocks.push(block);
+        }
+      }
+    }
+  }
+  
+  // Parse each review block
+  reviewBlocks.forEach((block, blockIndex) => {
+    // Normalize the block
+    let normalizedBlock = block
+      .replace(/(Performance Review Stage:)([^\n])/g, '$1\n$2')
+      .replace(/(Reviewer:)([^\n])/g, '$1\n$2')
+      .replace(/(Role:)([^\n])/g, '$1\n$2')
+      .replace(/(Scores:)([^\n])/g, '$1\n$2')
+      .replace(/(Total Weighted Score:)([^\n])/g, '$1\n$2')
+      .replace(/(Strengths:)([^\n])/g, '$1\n$2')
+      .replace(/(Areas for Improvement:)([^\n])/g, '$1\n$2')
+      .replace(/(Additional Notes:)([^\n])/g, '$1\n$2');
+    
+    const lines = normalizedBlock.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+    
+    let stage = '';
+    let reviewer = '';
+    let role = '';
+    let totalScore = '';
+    let additionalNotes = '';
+    let inScoresSection = false;
+    let inStrengthsSection = false;
+    let inImprovementsSection = false;
+    let inNotesSection = false;
+    
+    const categoryScores: { category: string; score: number }[] = [];
+    const strengths: string[] = [];
+    const improvements: string[] = [];
+    
+    // Parse each line
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      
+      // Header fields
+      if (line.startsWith('Performance Review Stage:')) {
+        stage = line.replace('Performance Review Stage:', '').trim();
+      } else if (line.startsWith('Reviewer:')) {
+        const afterLabel = line.replace('Reviewer:', '').trim();
+        if (afterLabel) {
+          reviewer = afterLabel;
+        } else if (i + 1 < lines.length) {
+          reviewer = lines[i + 1].trim();
+          i++;
+        }
+      } else if (line.startsWith('Role:')) {
+        role = line.replace('Role:', '').trim();
+      } else if (line.startsWith('Total Weighted Score:')) {
+        totalScore = line.replace('Total Weighted Score:', '').trim();
+      } else if (line === 'Scores:') {
+        inScoresSection = true;
+        inStrengthsSection = false;
+        inImprovementsSection = false;
+        inNotesSection = false;
+      } else if (line === 'Strengths:') {
+        inStrengthsSection = true;
+        inScoresSection = false;
+        inImprovementsSection = false;
+        inNotesSection = false;
+      } else if (line === 'Areas for Improvement:') {
+        inImprovementsSection = true;
+        inScoresSection = false;
+        inStrengthsSection = false;
+        inNotesSection = false;
+      } else if (line.startsWith('Additional Notes:')) {
+        inNotesSection = true;
+        inScoresSection = false;
+        inStrengthsSection = false;
+        inImprovementsSection = false;
+        additionalNotes = line.replace('Additional Notes:', '').trim();
+      } else if (inScoresSection) {
+        // Parse category scores: "Category Name: score/10"
+        if (line.includes(':') && line.includes('/10')) {
+          const match = line.match(/^(.+?):\s*(\d+(?:\.\d+)?)\/10/);
+          if (match) {
+            categoryScores.push({
+              category: match[1].trim(),
+              score: parseFloat(match[2]),
+            });
+          }
+        }
+      } else if (inStrengthsSection) {
+        // Parse strengths: "- Strength text"
+        if (line.startsWith('-')) {
+          strengths.push(line.replace('-', '').trim());
+        }
+      } else if (inImprovementsSection) {
+        // Parse improvements: "- Improvement text"
+        if (line.startsWith('-')) {
+          improvements.push(line.replace('-', '').trim());
+        }
+      } else if (inNotesSection) {
+        // Collect additional notes
+        if (additionalNotes) {
+          additionalNotes += '\n' + line;
+        } else {
+          additionalNotes = line;
+        }
+      }
+    }
+    
+    // Extract overall score from totalScore (e.g. "7.50/10 (75/100)")
+    let overallScore = 0;
+    if (totalScore) {
+      const scoreMatch = totalScore.match(/\((\d+)\/100\)/);
+      if (scoreMatch) {
+        overallScore = parseInt(scoreMatch[1], 10) / 10; // Convert to 0-10 scale
+      } else {
+        const fallbackMatch = totalScore.match(/(\d+(?:\.\d+)?)\/10/);
+        if (fallbackMatch) {
+          overallScore = parseFloat(fallbackMatch[1]);
+        }
+      }
+    }
+    // If no total score, calculate average from category scores
+    if (overallScore === 0 && categoryScores.length > 0) {
+      const sum = categoryScores.reduce((acc, cat) => acc + cat.score, 0);
+      overallScore = sum / categoryScores.length;
+    }
+    
+    // Extract individual category scores
+    const jobKnowledge = categoryScores.find(c => c.category.includes('Job Knowledge'))?.score || 0;
+    const workQuality = categoryScores.find(c => c.category.includes('Work Quality'))?.score || 0;
+    const servicePerformance = categoryScores.find(c => c.category.includes('Service Performance'))?.score || 0;
+    const teamwork = categoryScores.find(c => c.category.includes('Teamwork'))?.score || 0;
+    const attendance = categoryScores.find(c => c.category.includes('Attendance'))?.score || 0;
+    
+    // Get review date (use current date if not available)
+    const reviewDate = new Date().toISOString().split('T')[0];
+    
+    const reviewNumber = stage ? parseInt(stage, 10) || blockIndex + 1 : blockIndex + 1;
+    
+    reviews.push({
+      id: reviewNumber, // Use review number as ID
+      date: reviewDate,
+      reviewer: reviewer || 'Unknown Reviewer',
+      overallScore: Math.round(overallScore * 10) / 10, // Round to 1 decimal
+      jobKnowledge: Math.round(jobKnowledge * 10) / 10,
+      workQuality: Math.round(workQuality * 10) / 10,
+      servicePerformance: Math.round(servicePerformance * 10) / 10,
+      teamwork: Math.round(teamwork * 10) / 10,
+      attendance: Math.round(attendance * 10) / 10,
+      strengths: strengths,
+      improvements: improvements,
+      notes: additionalNotes || '',
+    });
+  });
+  
+  return reviews;
+}
 
 export default function EmployeeProfilePage() {
   const router = useRouter();
@@ -126,28 +330,15 @@ export default function EmployeeProfilePage() {
       }
       setAllEmployees(allEmps);
         
-      // Load performance reviews
+      // Parse performance reviews from notes field
       let reviews: PerformanceReview[] = [];
       try {
-        const reviewsData = await getJsonAuth<{ ok: boolean; reviews: any[] }>(`/employees/${employeeId}/performance-reviews`);
-        if (reviewsData.ok && reviewsData.reviews) {
-          reviews = reviewsData.reviews.map((r: any) => ({
-            id: r.id,
-            date: r.review_date || r.date,
-            reviewer: r.reviewer_name || r.reviewer || 'Unknown',
-            overallScore: r.overall_rating || 0,
-            jobKnowledge: r.job_knowledge || 0,
-            workQuality: r.work_quality || 0,
-            servicePerformance: r.service_performance || 0,
-            teamwork: r.teamwork || 0,
-            attendance: r.attendance || 0,
-            strengths: r.strengths || [],
-            improvements: r.improvements || [],
-            notes: r.notes || '',
-          }));
+        const notes = emp.notes || '';
+        if (notes && notes.trim()) {
+          reviews = parsePerformanceReviewsFromNotes(notes);
         }
       } catch (err) {
-        console.error('Failed to load performance reviews:', err);
+        console.error('Failed to parse performance reviews:', err);
         reviews = [];
       }
 
@@ -184,6 +375,12 @@ export default function EmployeeProfilePage() {
         is_active: emp.is_active,
         performanceReviews: reviews,
         roleChanges: roleChanges,
+        gender: emp.gender?.trim() || undefined,
+        date_of_birth: emp.date_of_birth || undefined,
+        address: emp.address?.trim() || undefined,
+        university: emp.university?.trim() || undefined,
+        degree: emp.degree?.trim() || undefined,
+        referral: emp.referral?.trim() || undefined,
       };
       setEmployee(employeeData);
       const sortedIds = allEmps.map(e => e.id).sort((a, b) => a - b);
@@ -251,8 +448,8 @@ export default function EmployeeProfilePage() {
     ...employee.performanceReviews.map(review => ({
       type: 'review' as const,
       date: review.date,
-      title: `Performance Review`,
-      description: `Performance review conducted by ${review.reviewer}`,
+      title: `Performance Review ${review.id} Completed`,
+      description: `Performance Review ${review.id} completed by ${review.reviewer}`,
       reviewer: review.reviewer,
       score: review.overallScore,
       review: review,
@@ -327,9 +524,33 @@ export default function EmployeeProfilePage() {
               <div className="flex-1">
                 <div className="flex items-center gap-4 mb-1">
                   <h1 className="text-3xl font-bold" style={{ color: '#232E40' }}>{employee.name}</h1>
-                  <div className="px-3 py-1 rounded-lg text-sm font-semibold" style={{ backgroundColor: '#F3F4F6', color: '#374151' }}>
-                    Status: {employee.status || 'Active'}
-                  </div>
+                  {(() => {
+                    const status = employee.status || 'Active';
+                    const getStatusColors = (status: string) => {
+                      switch (status) {
+                        case 'Full-Time':
+                        case 'Active':
+                          return { bg: '#D1FAE5', text: '#065F46' };
+                        case 'Part-time':
+                          return { bg: '#DBEAFE', text: '#1E40AF' };
+                        case 'Intern':
+                          return { bg: '#FEF3C7', text: '#92400E' };
+                        case 'Onboarding':
+                          return { bg: '#F3E8FF', text: '#6B21A8' };
+                        case 'Inactive':
+                        case 'Terminated':
+                          return { bg: '#FEE2E2', text: '#991B1B' };
+                        default:
+                          return { bg: '#F3F4F6', text: '#374151' };
+                      }
+                    };
+                    const colors = getStatusColors(status);
+                    return (
+                      <div className="px-3 py-1 rounded-lg text-sm font-semibold" style={{ backgroundColor: colors.bg, color: colors.text }}>
+                        Status: {status}
+                      </div>
+                    );
+                  })()}
                   {employee.performanceReviews.length > 0 && (
                     <div className="px-3 py-1 rounded-lg text-sm font-semibold flex items-center gap-1" style={{ backgroundColor: '#4D6DBE', color: '#FFFFFF' }}>
                       <span>Average Score:</span>
@@ -421,9 +642,9 @@ export default function EmployeeProfilePage() {
                               </div>
                             </div>
                             <div className="flex-1">
-                              <h3 className="text-base font-bold mb-1" style={{ color: '#232E40' }}>Performance Review</h3>
+                              <h3 className="text-base font-bold mb-1" style={{ color: '#232E40' }}>Performance Review {review.id} Completed</h3>
                               <p className="text-sm mb-4" style={{ color: '#6B7280' }}>
-                                Conducted by {review.reviewer} on {new Date(review.date).toLocaleDateString()}
+                                Performance Review {review.id} completed by {review.reviewer}
                               </p>
                               
                               {/* Overall Score */}
@@ -549,39 +770,66 @@ export default function EmployeeProfilePage() {
 
             {/* Sidebar */}
             <div className="space-y-4">
-              {/* Employee Details */}
+              {/* Personal & Education Information */}
               <div className="rounded-xl p-5" style={{ backgroundColor: '#FFFFFF', border: '1px solid #E5E7EB' }}>
-                <h3 className="text-lg font-semibold mb-4" style={{ color: '#232E40' }}>Employee Details</h3>
-                <div className="space-y-3">
-                  <div>
-                    <span className="text-xs font-medium" style={{ color: '#9CA3AF' }}>Email</span>
-                    <p className="text-sm" style={{ color: '#232E40' }}>{employee.email}</p>
-                  </div>
-                  {employee.phone && (
-                    <div>
-                      <span className="text-xs font-medium" style={{ color: '#9CA3AF' }}>Phone</span>
-                      <p className="text-sm" style={{ color: '#232E40' }}>{employee.phone}</p>
+                <h3 className="text-sm font-bold mb-4" style={{ color: '#232E40' }}>Information</h3>
+                
+                {/* Contact Section */}
+                <div className="mb-6">
+                  <h4 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: '#6B7280' }}>Contact</h4>
+                  <div className="space-y-2.5">
+                    <div className="flex items-start gap-2.5 text-sm">
+                      <svg className="w-4 h-4 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: '#6B7280' }}>
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                      </svg>
+                      <div className="flex-1 min-w-0">
+                        <span className="text-xs font-medium block mb-0.5" style={{ color: '#9CA3AF' }}>Email</span>
+                        <span className="text-sm break-words" style={{ color: '#374151' }}>{employee.email}</span>
+                      </div>
                     </div>
-                  )}
-                  <div>
-                    <span className="text-xs font-medium" style={{ color: '#9CA3AF' }}>Department</span>
-                    <p className="text-sm" style={{ color: '#232E40' }}>{employee.department}</p>
+                    {employee.phone && (
+                      <div className="flex items-start gap-2.5 text-sm">
+                        <svg className="w-4 h-4 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: '#6B7280' }}>
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                        </svg>
+                        <div className="flex-1 min-w-0">
+                          <span className="text-xs font-medium block mb-0.5" style={{ color: '#9CA3AF' }}>Phone</span>
+                          <span className="text-sm" style={{ color: '#374151' }}>{employee.phone}</span>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                  <div>
-                    <span className="text-xs font-medium" style={{ color: '#9CA3AF' }}>Position</span>
-                    <p className="text-sm" style={{ color: '#232E40' }}>{employee.position || 'N/A'}</p>
-                  </div>
-                  {employee.hired_date && (
-                    <div>
-                      <span className="text-xs font-medium" style={{ color: '#9CA3AF' }}>Hired Date</span>
-                      <p className="text-sm" style={{ color: '#232E40' }}>
-                        {new Date(employee.hired_date).toLocaleDateString()}
-                      </p>
+                </div>
+
+                {/* Personal Section */}
+                <div className="mb-6">
+                  <h4 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: '#6B7280' }}>Personal</h4>
+                  <div className="space-y-2.5">
+                    <div className="flex items-start gap-2.5 text-sm">
+                      <svg className="w-4 h-4 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: '#6B7280' }}>
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                      <div className="flex-1 min-w-0">
+                        <span className="text-xs font-medium block mb-0.5" style={{ color: '#9CA3AF' }}>Location</span>
+                        <span className={`text-sm break-words ${employee.address && employee.address !== 'Not Provided' ? '' : 'italic'}`} style={{ color: employee.address && employee.address !== 'Not Provided' ? '#374151' : '#9CA3AF' }}>
+                          {employee.address && employee.address !== 'Not Provided' ? employee.address : 'No data'}
+                        </span>
+                      </div>
                     </div>
-                  )}
-                  <div>
-                    <span className="text-xs font-medium" style={{ color: '#9CA3AF' }}>Status</span>
-                    <p className="text-sm" style={{ color: '#232E40' }}>{employee.status || 'Active'}</p>
+                    <div className="flex items-start gap-2.5 text-sm">
+                      <svg className="w-4 h-4 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: '#6B7280' }}>
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                      <div className="flex-1 min-w-0">
+                        <span className="text-xs font-medium block mb-0.5" style={{ color: '#9CA3AF' }}>Date of Birth</span>
+                        <span className={`text-sm ${employee.date_of_birth ? '' : 'italic'}`} style={{ color: employee.date_of_birth ? '#374151' : '#9CA3AF' }}>
+                          {employee.date_of_birth 
+                            ? new Date(employee.date_of_birth).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })
+                            : 'No data'}
+                        </span>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>

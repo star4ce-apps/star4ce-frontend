@@ -49,7 +49,9 @@ export default function EmployeeRoleHistoryPage() {
   const [historyEntries, setHistoryEntries] = useState<HistoryEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const itemsPerPage = 20;
+  const [sortColumn, setSortColumn] = useState<string>('timestamp');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+  const itemsPerPage = 10;
 
   // Load role history from API
   useEffect(() => {
@@ -184,8 +186,53 @@ export default function EmployeeRoleHistoryPage() {
     return matchesSearch && matchesType && matchesAction;
   });
 
+  const handleSort = (column: string) => {
+    if (sortColumn === column) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortColumn(column);
+      setSortDirection('asc');
+    }
+  };
+
+  const SortIcon = ({ column }: { column: string }) => {
+    if (sortColumn !== column) {
+      return (
+        <svg className="w-3 h-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: '#9CA3AF' }}>
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      );
+    }
+    return (
+      <svg className="w-3 h-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: '#232E40' }}>
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={sortDirection === 'asc' ? 'M5 15l7-7 7 7' : 'M19 9l-7 7-7-7'} />
+      </svg>
+    );
+  };
+
   const sortedEntries = [...filteredEntries].sort((a, b) => {
-    return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
+    let aVal: number | string;
+    let bVal: number | string;
+
+    if (sortColumn === 'name' || sortColumn === 'action' || sortColumn === 'previousValue' || sortColumn === 'newValue' || sortColumn === 'department' || sortColumn === 'changedBy') {
+      aVal = String(a[sortColumn as keyof HistoryEntry] || '').toLowerCase();
+      bVal = String(b[sortColumn as keyof HistoryEntry] || '').toLowerCase();
+    } else if (sortColumn === 'type') {
+      aVal = a.type.toLowerCase();
+      bVal = b.type.toLowerCase();
+    } else if (sortColumn === 'timestamp') {
+      aVal = new Date(a.timestamp).getTime();
+      bVal = new Date(b.timestamp).getTime();
+    } else {
+      aVal = String(a[sortColumn as keyof HistoryEntry] || '');
+      bVal = String(b[sortColumn as keyof HistoryEntry] || '');
+    }
+
+    if (sortDirection === 'asc') {
+      return aVal > bVal ? 1 : -1;
+    } else {
+      return aVal < bVal ? 1 : -1;
+    }
   });
 
   const totalPages = Math.ceil(sortedEntries.length / itemsPerPage);
@@ -384,13 +431,11 @@ export default function EmployeeRoleHistoryPage() {
           )}
 
           {/* History Log Table */}
-          <div className="rounded-lg p-6 transition-all duration-200" style={{ 
+          <div className="rounded-xl p-6 transition-all duration-200" style={{ 
             backgroundColor: '#FFFFFF', 
             border: '1px solid #E5E7EB',
-            boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.03)'
+            boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05)'
           }}>
-            <h2 className="text-xl font-bold mb-4" style={{ color: '#232E40' }}>Change History</h2>
-            
             {loading ? (
               <div className="py-12 text-center">
                 <div className="inline-flex items-center gap-3">
@@ -403,14 +448,78 @@ export default function EmployeeRoleHistoryPage() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr style={{ backgroundColor: '#4D6DBE' }}>
-                      <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider cursor-pointer hover:opacity-90 transition-opacity text-white">Type</th>
-                      <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider cursor-pointer hover:opacity-90 transition-opacity text-white">Name</th>
-                      <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider cursor-pointer hover:opacity-90 transition-opacity text-white">Action</th>
-                      <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider cursor-pointer hover:opacity-90 transition-opacity text-white">Previous Value</th>
-                      <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider cursor-pointer hover:opacity-90 transition-opacity text-white">New Value</th>
-                      <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider cursor-pointer hover:opacity-90 transition-opacity text-white">Department</th>
-                      <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider cursor-pointer hover:opacity-90 transition-opacity text-white">Changed By</th>
-                      <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider cursor-pointer hover:opacity-90 transition-opacity text-white">Timestamp</th>
+                      <th 
+                        className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider cursor-pointer hover:opacity-90 transition-opacity text-white"
+                        onClick={() => handleSort('type')}
+                      >
+                        <div className="flex items-center gap-1.5">
+                          Type
+                          <SortIcon column="type" />
+                        </div>
+                      </th>
+                      <th 
+                        className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider cursor-pointer hover:opacity-90 transition-opacity text-white"
+                        onClick={() => handleSort('name')}
+                      >
+                        <div className="flex items-center gap-1.5">
+                          Name
+                          <SortIcon column="name" />
+                        </div>
+                      </th>
+                      <th 
+                        className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider cursor-pointer hover:opacity-90 transition-opacity text-white"
+                        onClick={() => handleSort('action')}
+                      >
+                        <div className="flex items-center gap-1.5">
+                          Action
+                          <SortIcon column="action" />
+                        </div>
+                      </th>
+                      <th 
+                        className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider cursor-pointer hover:opacity-90 transition-opacity text-white"
+                        onClick={() => handleSort('previousValue')}
+                      >
+                        <div className="flex items-center gap-1.5">
+                          Previous Value
+                          <SortIcon column="previousValue" />
+                        </div>
+                      </th>
+                      <th 
+                        className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider cursor-pointer hover:opacity-90 transition-opacity text-white"
+                        onClick={() => handleSort('newValue')}
+                      >
+                        <div className="flex items-center gap-1.5">
+                          New Value
+                          <SortIcon column="newValue" />
+                        </div>
+                      </th>
+                      <th 
+                        className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider cursor-pointer hover:opacity-90 transition-opacity text-white"
+                        onClick={() => handleSort('department')}
+                      >
+                        <div className="flex items-center gap-1.5">
+                          Department
+                          <SortIcon column="department" />
+                        </div>
+                      </th>
+                      <th 
+                        className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider cursor-pointer hover:opacity-90 transition-opacity text-white"
+                        onClick={() => handleSort('changedBy')}
+                      >
+                        <div className="flex items-center gap-1.5">
+                          Changed By
+                          <SortIcon column="changedBy" />
+                        </div>
+                      </th>
+                      <th 
+                        className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider cursor-pointer hover:opacity-90 transition-opacity text-white"
+                        onClick={() => handleSort('timestamp')}
+                      >
+                        <div className="flex items-center gap-1.5">
+                          Timestamp
+                          <SortIcon column="timestamp" />
+                        </div>
+                      </th>
                       <th className="text-right py-3 px-4"></th>
                     </tr>
                   </thead>
@@ -431,7 +540,7 @@ export default function EmployeeRoleHistoryPage() {
                             borderBottom: '1px solid #F3F4F6'
                           }}
                         >
-                          <td className="py-3.5 px-4">
+                          <td className="py-3 px-4">
                             <span 
                               className="text-xs font-semibold px-2.5 py-1 rounded-full inline-block"
                               style={{ 
@@ -442,8 +551,8 @@ export default function EmployeeRoleHistoryPage() {
                               {entry.type === 'employee' ? 'Employee' : 'Candidate'}
                             </span>
                           </td>
-                          <td className="py-3.5 px-4 text-sm font-semibold" style={{ color: '#232E40' }}>{entry.name}</td>
-                          <td className="py-3.5 px-4 text-sm font-medium" style={{ color: '#374151' }}>
+                          <td className="py-3 px-4 text-sm" style={{ color: '#374151' }}>{entry.name}</td>
+                          <td className="py-3 px-4 text-sm" style={{ color: '#374151' }}>
                             <div className="flex items-center gap-2">
                               <span>{entry.action}</span>
                               {entry.reverted && (
@@ -460,27 +569,25 @@ export default function EmployeeRoleHistoryPage() {
                               )}
                             </div>
                           </td>
-                          <td className="py-3.5 px-4 text-sm" style={{ color: '#6B7280' }}>
+                          <td className="py-3 px-4 text-sm" style={{ color: '#374151' }}>
                             {entry.previousValue || '—'}
                           </td>
-                          <td className="py-3.5 px-4 text-sm font-semibold" style={{ color: '#232E40' }}>
-                            <div>
-                              {entry.newValue || '—'}
-                              {entry.reason && entry.action === 'Terminated' && (
-                                <div className="text-xs mt-1" style={{ color: '#6B7280', fontStyle: 'italic' }}>
-                                  Reason: {entry.reason}
-                                </div>
-                              )}
-                            </div>
+                          <td className="py-3 px-4 text-sm" style={{ color: '#374151' }}>
+                            {entry.newValue || '—'}
+                            {entry.reason && entry.action === 'Terminated' && (
+                              <div className="text-xs mt-1" style={{ color: '#6B7280', fontStyle: 'italic' }}>
+                                Reason: {entry.reason}
+                              </div>
+                            )}
                           </td>
-                          <td className="py-3.5 px-4 text-sm" style={{ color: '#6B7280' }}>
+                          <td className="py-3 px-4 text-sm" style={{ color: '#374151' }}>
                             {entry.department || '—'}
                           </td>
-                          <td className="py-3.5 px-4 text-sm font-medium" style={{ color: '#374151' }}>{entry.changedBy}</td>
-                          <td className="py-3.5 px-4 text-sm" style={{ color: '#6B7280' }}>
+                          <td className="py-3 px-4 text-sm" style={{ color: '#374151' }}>{entry.changedBy}</td>
+                          <td className="py-3 px-4 text-sm" style={{ color: '#374151' }}>
                             {formatTimestamp(entry.timestamp)}
                           </td>
-                          <td className="py-3.5 px-4 text-right">
+                          <td className="py-3 px-4 text-right">
                             <div className="relative action-menu-container inline-block">
                               <button
                                 onClick={() => setOpenMenuId(openMenuId === entry.id ? null : entry.id)}

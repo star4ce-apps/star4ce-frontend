@@ -135,6 +135,7 @@ function DashboardContent() {
   const [surveyFeedback, setSurveyFeedback] = useState<{ name: string; value: number; color: string }[]>([]);
   const [turnoverTimeSeries, setTurnoverTimeSeries] = useState<{ month: string; value: number; retention_rate?: number | null }[]>([]);
   const [interviewingProcessData, setInterviewingProcessData] = useState<{ name: string; value: number }[]>([]);
+  const [candidatesData, setCandidatesData] = useState<Array<{ id: number; name: string; status: string; highestStage: number; updatedAt: string; position: string }>>([]);
   const [dataLoading, setDataLoading] = useState(false);
 
   // Read email from localStorage and check user role
@@ -392,6 +393,140 @@ function DashboardContent() {
         } else {
           setInterviewingProcessData([]);
         }
+
+        // Fetch and process candidates for the interviewing process table
+        try {
+          const candidatesResponse = await getJsonAuth<any>('/candidates');
+          
+          // Handle different response structures
+          let items: any[] = [];
+          if (Array.isArray(candidatesResponse)) {
+            items = candidatesResponse;
+          } else if (candidatesResponse?.items && Array.isArray(candidatesResponse.items)) {
+            items = candidatesResponse.items;
+          } else if (candidatesResponse?.candidates && Array.isArray(candidatesResponse.candidates)) {
+            items = candidatesResponse.candidates;
+          }
+          
+          console.log('Dashboard candidates response:', { candidatesResponse, itemsLength: items.length });
+          
+          if (items.length > 0) {
+            const candidates = items
+              .filter((c: any) => {
+                // Filter out denied and hired candidates
+                const status = (c.status || '').trim();
+                return status !== 'Denied' && status !== 'denied' && status !== 'Hired' && status !== 'hired' && status !== 'Offered' && status !== 'offered';
+              })
+              .map((c: any) => {
+                // Parse highest interview stage from notes
+                let highestStage = 0;
+                let calculatedStatus = c.status || 'Awaiting';
+                const notes = c.notes || '';
+                
+                if (notes) {
+                  // Split by interview separator
+                  const interviewBlocks: string[] = [];
+                  
+                  if (notes.includes('--- INTERVIEW ---')) {
+                    const parts = notes.split(/--- INTERVIEW ---/);
+                    parts.forEach((part: string) => {
+                      const trimmed = part.trim();
+                      if (trimmed && trimmed.includes('Interview Stage:')) {
+                        interviewBlocks.push(trimmed);
+                      }
+                    });
+                  } else {
+                    const stageMatches = [...notes.matchAll(/Interview Stage:/g)];
+                    if (stageMatches.length === 0) {
+                      calculatedStatus = 'Awaiting First Interview';
+                    } else if (stageMatches.length === 1) {
+                      interviewBlocks.push(notes);
+                    } else {
+                      for (let i = 0; i < stageMatches.length; i++) {
+                        const startIndex = stageMatches[i].index || 0;
+                        const endIndex = i < stageMatches.length - 1 
+                          ? (stageMatches[i + 1].index || notes.length)
+                          : notes.length;
+                        const block = notes.substring(startIndex, endIndex).trim();
+                        if (block && block.includes('Interview Stage:')) {
+                          interviewBlocks.push(block);
+                        }
+                      }
+                    }
+                  }
+                  
+                  interviewBlocks.forEach((block: string) => {
+                    const trimmed = block.trim();
+                    if (trimmed) {
+                      const stageMatch = trimmed.match(/Interview Stage:\s*(\d+)/);
+                      if (stageMatch) {
+                        const stageNum = parseInt(stageMatch[1], 10);
+                        if (!isNaN(stageNum) && stageNum >= 1 && stageNum <= 5 && stageNum > highestStage) {
+                          highestStage = stageNum;
+                        }
+                      }
+                    }
+                  });
+                  
+                  // Get the last interview's recommendation
+                  if (interviewBlocks.length > 0) {
+                    const lastBlock = interviewBlocks[interviewBlocks.length - 1];
+                    const normalizedBlock = lastBlock.replace(/(Interviewer Recommendation:)([^\n])/g, '$1\n$2');
+                    const lines = normalizedBlock.split('\n').map((l: string) => l.trim()).filter((l: string) => l.length > 0);
+                    
+                    for (let i = 0; i < lines.length; i++) {
+                      const line = lines[i];
+                      if (line.startsWith('Interviewer Recommendation:')) {
+                        const recommendation = line.replace('Interviewer Recommendation:', '').trim() || 
+                                              (i + 1 < lines.length ? lines[i + 1].trim() : '');
+                        
+                        if (recommendation.toLowerCase() === 'next stage' || recommendation.toLowerCase() === 'next-stage') {
+                          calculatedStatus = 'Awaiting Next Interview';
+                        } else if (recommendation.toLowerCase() === 'hire') {
+                          calculatedStatus = 'Hire';
+                        } else if (recommendation.toLowerCase() === 'no hire' || recommendation.toLowerCase() === 'no-hire') {
+                          calculatedStatus = 'No Hire';
+                        }
+                        break;
+                      }
+                    }
+                  } else {
+                    calculatedStatus = 'Awaiting First Interview';
+                  }
+                } else {
+                  calculatedStatus = 'Awaiting First Interview';
+                }
+                
+                return {
+                  id: c.id,
+                  name: c.name || 'Unknown',
+                  status: calculatedStatus,
+                  highestStage,
+                  updatedAt: c.updated_at || c.applied_at || new Date().toISOString(),
+                  position: c.position || 'N/A',
+                };
+              })
+              .sort((a, b) => {
+                // Sort by highest stage (descending), then by updated_at (descending)
+                if (b.highestStage !== a.highestStage) {
+                  return b.highestStage - a.highestStage;
+                }
+                const dateA = new Date(a.updatedAt).getTime();
+                const dateB = new Date(b.updatedAt).getTime();
+                return dateB - dateA;
+              })
+              .slice(0, 10); // Top 10 candidates
+            
+            console.log('Dashboard processed candidates:', candidates.length, candidates);
+            setCandidatesData(candidates);
+          } else {
+            console.log('Dashboard: No candidates after processing. Items length:', items.length);
+            setCandidatesData([]);
+          }
+        } catch (err) {
+          console.error('Failed to load candidates:', err);
+          setCandidatesData([]);
+        }
       } catch (err: unknown) {
         // Only set error for non-permission related errors
         const errorMsg = err instanceof Error ? err.message : 'Failed to load analytics';
@@ -566,37 +701,50 @@ function DashboardContent() {
             {/* Interviewing Process */}
             <div className="rounded-xl p-4 sm:p-6 min-w-0 overflow-hidden" style={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}` }}>
               <h2 className="text-sm font-medium mb-4" style={{ color: COLORS.gray[900] }}>Interviewing Process</h2>
-              {interviewingProcessData.length > 0 ? (
-                <ResponsiveContainer width="100%" height={180}>
-                  <BarChart data={interviewingProcessData} margin={{ top: 5, right: 5, left: -15, bottom: 40 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke={COLORS.gray[200]} />
-                    <XAxis 
-                      dataKey="name" 
-                      angle={-45} 
-                      textAnchor="end" 
-                      height={50}
-                      tick={{ fill: COLORS.gray[500], fontSize: 9 }}
-                    />
-                    <YAxis tick={{ fill: COLORS.gray[500], fontSize: 9 }} />
-                    <Tooltip 
-                      contentStyle={{ 
-                        backgroundColor: '#fff', 
-                        border: `1px solid ${COLORS.gray[200]}`,
-                        borderRadius: '6px',
-                        padding: '6px 10px',
-                        fontSize: '11px'
-                      }}
-                    />
-                    <Bar dataKey="value" radius={[4, 4, 0, 0]} fill={COLORS.primary}>
-                      {interviewingProcessData.map((_, index) => (
-                        <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
+              {candidatesData.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr style={{ borderBottom: `1px solid ${COLORS.gray[200]}` }}>
+                        <th className="text-left py-2 px-2 font-medium" style={{ color: COLORS.gray[600] }}>Candidate</th>
+                        <th className="text-left py-2 px-2 font-medium" style={{ color: COLORS.gray[600] }}>Position</th>
+                        <th className="text-left py-2 px-2 font-medium" style={{ color: COLORS.gray[600] }}>Status</th>
+                        <th className="text-left py-2 px-2 font-medium" style={{ color: COLORS.gray[600] }}>Updated</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {candidatesData.map((candidate) => {
+                        const updatedDate = candidate.updatedAt 
+                          ? new Date(candidate.updatedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                          : 'N/A';
+                        return (
+                          <tr key={candidate.id} style={{ borderBottom: `1px solid ${COLORS.gray[100]}` }}>
+                            <td className="py-2 px-2" style={{ color: COLORS.gray[900] }}>
+                              <a 
+                                href={`/candidates/${candidate.id}`}
+                                className="hover:underline"
+                                style={{ color: COLORS.primary }}
+                              >
+                                {candidate.name}
+                              </a>
+                            </td>
+                            <td className="py-2 px-2" style={{ color: COLORS.gray[700] }}>{candidate.position}</td>
+                            <td className="py-2 px-2" style={{ color: COLORS.gray[700] }}>
+                              <div>{candidate.status}</div>
+                              <div className="text-xs mt-0.5" style={{ color: COLORS.gray[500] }}>
+                                {candidate.highestStage > 0 ? `Stage ${candidate.highestStage}` : 'Awaiting'}
+                              </div>
+                            </td>
+                            <td className="py-2 px-2" style={{ color: COLORS.gray[500], fontSize: '11px' }}>{updatedDate}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               ) : (
                 <div className="text-center py-12" style={{ color: COLORS.gray[400] }}>
-                  <div className="text-sm">{dataLoading ? 'Loading...' : 'No data available'}</div>
+                  <div className="text-sm">{dataLoading ? 'Loading...' : 'No candidates available'}</div>
                 </div>
               )}
             </div>

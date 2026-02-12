@@ -4,8 +4,8 @@ import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import HubSidebar from '@/components/sidebar/HubSidebar';
 import RequireAuth from '@/components/layout/RequireAuth';
-import { API_BASE, getToken } from '@/lib/auth';
-import { deleteJsonAuth, getJsonAuth, postJsonAuth } from '@/lib/http';
+import { API_BASE, getToken, getCurrentUser } from '@/lib/auth';
+import { deleteJsonAuth, getJsonAuth, postJsonAuth, putJsonAuth } from '@/lib/http';
 import toast from 'react-hot-toast';
 
 // Modern color palette - matching surveys page
@@ -116,7 +116,7 @@ export default function PerformanceReviewsPage() {
   const [improvementInput, setImprovementInput] = useState('');
   const [managerNotes, setManagerNotes] = useState('');
   
-  const itemsPerPage = 9;
+  const itemsPerPage = 10;
 
   useEffect(() => {
     loadEmployees();
@@ -191,7 +191,8 @@ export default function PerformanceReviewsPage() {
 
   const totalPages = Math.ceil(filteredEmployees.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
-  const paginatedEmployees = filteredEmployees.slice(startIndex, startIndex + itemsPerPage);
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedEmployees = filteredEmployees.slice(startIndex, endIndex);
 
   const departments = ['All Departments', ...Array.from(new Set(employees.map(emp => emp.department)))];
 
@@ -340,17 +341,100 @@ export default function PerformanceReviewsPage() {
     if (!selectedEmployee) return;
     setSubmittingReview(true);
     try {
-      await postJsonAuth(`/employees/${selectedEmployee.id}/performance-reviews`, {
-        review_date: new Date().toISOString().split('T')[0],
-        job_knowledge: ratings.jobKnowledge || 0,
-        work_quality: ratings.workQuality || 0,
-        service_performance: ratings.servicePerformance || 0,
-        teamwork: ratings.teamwork || 0,
-        attendance: ratings.attendance || 0,
-        strengths: strengths.length ? strengths : (strengthInput.trim() ? [strengthInput.trim()] : []),
-        improvements: improvements.length ? improvements : (improvementInput.trim() ? [improvementInput.trim()] : []),
-        notes: managerNotes.trim() || undefined,
-      });
+      const token = getToken();
+      if (!token) {
+        toast.error('Not logged in');
+        return;
+      }
+
+      // Get current user info
+      const userData = await getCurrentUser();
+      const currentUserFullName = (userData?.user?.full_name && userData.user.full_name.trim()) ||
+        (userData?.user?.first_name && userData?.user?.last_name ? `${userData.user.first_name} ${userData.user.last_name}`.trim() : null) ||
+        (userData?.user?.first_name || userData?.user?.last_name) ||
+        (userData?.full_name && userData.full_name.trim()) ||
+        (userData?.first_name && userData?.last_name ? `${userData.first_name} ${userData.last_name}`.trim() : null) ||
+        (userData?.first_name || userData?.last_name) ||
+        (userData?.user?.email && userData.user.email.includes('@') ? userData.user.email.split('@')[0].replace(/[._]/g, ' ') : null) ||
+        (userData?.email && userData.email.includes('@') ? userData.email.split('@')[0].replace(/[._]/g, ' ') : null) ||
+        'Unknown Reviewer';
+
+      // Get current employee to access notes
+      const employeeData = await getJsonAuth<{ ok?: boolean; employee?: { notes?: string } }>(
+        `/employees/${selectedEmployee.id}`
+      );
+      const existingNotes = employeeData?.employee?.notes ?? '';
+
+      // Count existing performance reviews
+      let reviewNumber = 1;
+      if (existingNotes && existingNotes.trim()) {
+        const reviewMatches = [...existingNotes.matchAll(/Performance Review Stage:/g)];
+        reviewNumber = reviewMatches.length + 1;
+      }
+
+      // Calculate average score (0-10 scale)
+      const categoryScores = [
+        ratings.jobKnowledge || 0,
+        ratings.workQuality || 0,
+        ratings.servicePerformance || 0,
+        ratings.teamwork || 0,
+        ratings.attendance || 0,
+      ].filter(score => score > 0);
+      const averageScore = categoryScores.length > 0
+        ? categoryScores.reduce((sum, score) => sum + score, 0) / categoryScores.length
+        : 0;
+      const scoreOutOf100 = Math.round(averageScore * 10);
+
+      // Format category scores
+      const categoryNotes = [
+        { name: 'Job Knowledge & Skills', score: ratings.jobKnowledge || 0 },
+        { name: 'Work Quality', score: ratings.workQuality || 0 },
+        { name: 'Service Performance', score: ratings.servicePerformance || 0 },
+        { name: 'Teamwork & Collaboration', score: ratings.teamwork || 0 },
+        { name: 'Attendance & Punctuality', score: ratings.attendance || 0 },
+      ]
+        .filter(cat => cat.score > 0)
+        .map(cat => `${cat.name}: ${cat.score}/10`)
+        .join('\n');
+
+      // Format strengths and improvements
+      const allStrengths = strengths.length ? strengths : (strengthInput.trim() ? [strengthInput.trim()] : []);
+      const allImprovements = improvements.length ? improvements : (improvementInput.trim() ? [improvementInput.trim()] : []);
+
+      // Create structured performance review notes
+      const newReviewNotes = `Performance Review Stage: ${reviewNumber}
+Reviewer: ${currentUserFullName}
+Role: ${selectedEmployee.position || 'N/A'}
+
+Scores:
+${categoryNotes}
+
+Total Weighted Score: ${averageScore.toFixed(2)}/10 (${scoreOutOf100}/100)${allStrengths.length > 0 ? `
+
+Strengths:
+${allStrengths.map(s => `- ${s}`).join('\n')}` : ''}${allImprovements.length > 0 ? `
+
+Areas for Improvement:
+${allImprovements.map(i => `- ${i}`).join('\n')}` : ''}${managerNotes.trim() ? `
+
+Additional Notes:
+${managerNotes.trim()}` : ''}`;
+
+      // Append new review notes to existing notes
+      let updatedNotes: string;
+      if (existingNotes && existingNotes.trim()) {
+        const trimmedExisting = existingNotes.trim();
+        updatedNotes = `${trimmedExisting}\n\n--- PERFORMANCE REVIEW ---\n\n${newReviewNotes}`;
+      } else {
+        updatedNotes = newReviewNotes;
+      }
+
+      // Update employee with notes
+      await putJsonAuth<{ ok?: boolean; employee?: { notes?: string }; error?: string }>(
+        `/employees/${selectedEmployee.id}`,
+        { notes: updatedNotes }
+      );
+
       toast.success('Performance review saved.');
       closeReviewModal();
       await loadEmployees();
@@ -404,51 +488,49 @@ export default function PerformanceReviewsPage() {
 
           {/* Main Content */}
           <div>
-            {/* Employee Table */}
-            <div className="rounded-xl p-6" style={{ backgroundColor: '#FFFFFF', border: '1px solid #E5E7EB' }}>
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold" style={{ color: '#232E40' }}>Employees</h2>
-                <div className="flex items-center gap-3">
-                  <div className="relative">
-                    <input
-                      type="text"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      placeholder="Search..."
-                      className="text-sm rounded-lg px-3 py-2 pl-3 w-40 transition-all focus:outline-none focus:ring-2"
-                      style={{ border: '1px solid #E5E7EB', color: '#374151', backgroundColor: '#FFFFFF' }}
-                    />
-                  </div>
-                  <div className="relative inline-block">
-                    <select
-                      value={selectedDepartment}
-                      onChange={(e) => setSelectedDepartment(e.target.value)}
-                      className="text-sm py-2 pr-8 pl-3 appearance-none cursor-pointer transition-all rounded-lg"
-                      style={{ border: '1px solid #E5E7EB', color: '#374151', backgroundColor: '#FFFFFF' }}
-                    >
-                      {departments.map(dept => (
-                        <option key={dept} value={dept}>{dept}</option>
-                      ))}
-                    </select>
-                    <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: '#6B7280' }}>
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                      </svg>
-                    </div>
-                  </div>
+            {/* Search and Filter Controls */}
+            <div className="flex items-center gap-3 mb-4">
+              <div className="relative">
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search..."
+                  className="text-sm rounded-lg px-3 py-2 pl-3 w-40 transition-all focus:outline-none focus:ring-2"
+                  style={{ border: '1px solid #E5E7EB', color: '#374151', backgroundColor: '#FFFFFF' }}
+                />
+              </div>
+              <div className="relative inline-block">
+                <select
+                  value={selectedDepartment}
+                  onChange={(e) => setSelectedDepartment(e.target.value)}
+                  className="text-sm py-2 pr-8 pl-3 appearance-none cursor-pointer transition-all rounded-lg"
+                  style={{ border: '1px solid #E5E7EB', color: '#374151', backgroundColor: '#FFFFFF' }}
+                >
+                  {departments.map(dept => (
+                    <option key={dept} value={dept}>{dept}</option>
+                  ))}
+                </select>
+                <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: '#6B7280' }}>
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
                 </div>
               </div>
+            </div>
 
+            {/* Employee Table */}
+            <div className="rounded-xl p-6" style={{ backgroundColor: '#FFFFFF', border: '1px solid #E5E7EB' }}>
               {/* Table */}
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr style={{ borderBottom: '1px solid #E5E7EB' }}>
-                      <th className="text-left py-3 px-2 text-xs font-semibold" style={{ color: '#6B7280' }}>Name</th>
-                      <th className="text-left py-3 px-2 text-xs font-semibold" style={{ color: '#6B7280' }}>Department</th>
-                      <th className="text-left py-3 px-2 text-xs font-semibold" style={{ color: '#6B7280' }}>Role</th>
-                      <th className="text-left py-3 px-2 text-xs font-semibold" style={{ color: '#6B7280' }}>Last Review</th>
-                      <th className="text-right py-3 px-2 text-xs font-semibold" style={{ color: '#6B7280' }}>Actions</th>
+                    <tr style={{ backgroundColor: '#4D6DBE' }}>
+                      <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider text-white">Name</th>
+                      <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider text-white">Department</th>
+                      <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider text-white">Role</th>
+                      <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider text-white">Last Review</th>
+                      <th className="text-right py-3 px-4 text-[11px] font-semibold uppercase tracking-wider text-white">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -516,44 +598,69 @@ export default function PerformanceReviewsPage() {
               </div>
 
               {/* Pagination */}
-              {totalPages > 1 && (
-                <div className="flex items-center justify-center gap-2 mt-4 pt-4" style={{ borderTop: '1px solid #E5E7EB' }}>
+              <div className="flex items-center justify-between mt-4 pt-4" style={{ borderTop: '1px solid #E5E7EB' }}>
+                <div className="text-xs" style={{ color: '#6B7280' }}>
+                  Showing {startIndex + 1} to {Math.min(endIndex, filteredEmployees.length)} of {filteredEmployees.length} entries
+                </div>
+                <div className="flex items-center gap-1.5">
                   <button
                     onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                     disabled={currentPage === 1}
-                    className="px-2.5 py-1.5 rounded-md transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100"
-                    style={{ border: '1px solid #E5E7EB', color: '#374151', backgroundColor: '#FFFFFF' }}
+                    className="cursor-pointer px-2.5 py-1.5 rounded-md transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50"
+                    style={{ 
+                      border: '1px solid #E5E7EB',
+                      color: currentPage === 1 ? '#9CA3AF' : '#374151',
+                      backgroundColor: '#FFFFFF'
+                    }}
                   >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                     </svg>
                   </button>
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
-                    <button
-                      key={page}
-                      onClick={() => setCurrentPage(page)}
-                      className="px-3 py-1.5 rounded-md text-sm font-medium transition-all hover:bg-gray-100"
-                      style={{ 
-                        border: '1px solid #E5E7EB',
-                        color: currentPage === page ? '#FFFFFF' : '#374151',
-                        backgroundColor: currentPage === page ? '#4D6DBE' : '#FFFFFF'
-                      }}
-                    >
-                      {page}
-                    </button>
-                  ))}
+                  <div className="flex items-center gap-1">
+                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                      let pageNum: number;
+                      if (totalPages <= 5) {
+                        pageNum = i + 1;
+                      } else if (currentPage <= 3) {
+                        pageNum = i + 1;
+                      } else if (currentPage >= totalPages - 2) {
+                        pageNum = totalPages - 4 + i;
+                      } else {
+                        pageNum = currentPage - 2 + i;
+                      }
+                      return (
+                        <button
+                          key={pageNum}
+                          onClick={() => setCurrentPage(pageNum)}
+                          className="cursor-pointer px-2.5 py-1.5 rounded-md text-xs font-medium transition-all hover:bg-gray-50"
+                          style={{ 
+                            border: '1px solid #E5E7EB',
+                            color: currentPage === pageNum ? '#FFFFFF' : '#374151',
+                            backgroundColor: currentPage === pageNum ? '#4D6DBE' : '#FFFFFF'
+                          }}
+                        >
+                          {pageNum}
+                        </button>
+                      );
+                    })}
+                  </div>
                   <button
                     onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                     disabled={currentPage === totalPages}
-                    className="px-2.5 py-1.5 rounded-md transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100"
-                    style={{ border: '1px solid #E5E7EB', color: '#374151', backgroundColor: '#FFFFFF' }}
+                    className="cursor-pointer px-2.5 py-1.5 rounded-md transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50"
+                    style={{ 
+                      border: '1px solid #E5E7EB',
+                      color: currentPage === totalPages ? '#9CA3AF' : '#374151',
+                      backgroundColor: '#FFFFFF'
+                    }}
                   >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                     </svg>
                   </button>
                 </div>
-              )}
+              </div>
             </div>
           </div>
         </main>
@@ -568,18 +675,19 @@ export default function PerformanceReviewsPage() {
             }}
           >
             <div 
-              className="bg-white rounded-xl shadow-2xl"
+              className="bg-white rounded-xl shadow-2xl overflow-hidden flex flex-col"
               style={{ 
                 width: '90%', 
                 maxWidth: '700px', 
-                maxHeight: '90vh', 
-                overflowY: 'auto',
+                maxHeight: '90vh',
                 border: '1px solid #E5E7EB'
               }}
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="p-6">
-                <h2 className="text-xl font-bold mb-4" style={{ color: '#232E40' }}>Employee Performance</h2>
+              <div className="flex-shrink-0 px-6 py-4 rounded-t-xl" style={{ backgroundColor: '#4D6DBE' }}>
+                <h2 className="text-xl font-bold text-white">Employee Performance</h2>
+              </div>
+              <div className="flex-1 overflow-y-auto p-6" style={{ minHeight: 0 }}>
                 
                 {/* Employee Selector */}
                 <div className="mb-6">
@@ -804,22 +912,20 @@ export default function PerformanceReviewsPage() {
               style={{ backgroundColor: '#FFFFFF' }}
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="p-6 border-b" style={{ borderColor: '#E5E7EB' }}>
-                <div className="flex items-center justify-between">
-                  <h2 className="text-xl font-semibold" style={{ color: '#232E40' }}>
-                    Review history – {historyEmployee.name}
-                  </h2>
-                  <button
-                    type="button"
-                    onClick={closeHistoryModal}
-                    className="cursor-pointer p-2 rounded-lg hover:bg-gray-100 transition-colors"
-                    aria-label="Close"
-                  >
-                    <svg className="w-5 h-5" style={{ color: '#6B7280' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
+              <div className="flex-shrink-0 px-6 py-4 flex items-center justify-between" style={{ backgroundColor: '#4D6DBE' }}>
+                <h2 className="text-xl font-semibold text-white">
+                  Review history – {historyEmployee.name}
+                </h2>
+                <button
+                  type="button"
+                  onClick={closeHistoryModal}
+                  className="cursor-pointer p-2 rounded-lg hover:bg-blue-600 transition-colors"
+                  aria-label="Close"
+                >
+                  <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
               </div>
               <div className="p-6 overflow-y-auto flex-1">
                 {loadingHistory ? (
@@ -908,22 +1014,20 @@ export default function PerformanceReviewsPage() {
               style={{ backgroundColor: '#FFFFFF' }}
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="p-6 border-b" style={{ borderColor: '#E5E7EB' }}>
-                <div className="flex items-center justify-between">
-                  <h2 className="text-xl font-semibold" style={{ color: '#232E40' }}>
-                    Edit review – {historyEmployee.name}
-                  </h2>
-                  <button
-                    type="button"
-                    onClick={closeEditModal}
-                    className="cursor-pointer p-2 rounded-lg hover:bg-gray-100 transition-colors"
-                    aria-label="Close"
-                  >
-                    <svg className="w-5 h-5" style={{ color: '#6B7280' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
+              <div className="flex-shrink-0 px-6 py-4 flex items-center justify-between" style={{ backgroundColor: '#4D6DBE' }}>
+                <h2 className="text-xl font-semibold text-white">
+                  Edit review – {historyEmployee.name}
+                </h2>
+                <button
+                  type="button"
+                  onClick={closeEditModal}
+                  className="cursor-pointer p-2 rounded-lg hover:bg-blue-600 transition-colors"
+                  aria-label="Close"
+                >
+                  <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
               </div>
               <div className="p-6 overflow-y-auto flex-1">
                 <div className="mb-4">
