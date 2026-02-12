@@ -825,18 +825,21 @@ export default function EmployeesPage() {
                         <SortIcon column="status" />
                       </div>
                     </th>
+                    <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider text-white w-24">
+                      Actions
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
                   {loading && paginatedEmployees.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="py-12 text-center text-sm" style={{ color: '#6B7280' }}>
+                      <td colSpan={7} className="py-12 text-center text-sm" style={{ color: '#6B7280' }}>
                         Loading employees...
                       </td>
                     </tr>
                   ) : paginatedEmployees.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="py-12 text-center text-sm" style={{ color: '#6B7280' }}>
+                      <td colSpan={7} className="py-12 text-center text-sm" style={{ color: '#6B7280' }}>
                         No employees found.
                       </td>
                     </tr>
@@ -885,6 +888,29 @@ export default function EmployeesPage() {
                             >
                               {emp.status || (emp.is_active ? 'Active' : 'Inactive')}
                             </span>
+                          </td>
+                          <td className="py-3 px-4" onClick={(e) => e.stopPropagation()}>
+                            {role !== 'corporate' && (
+                              <button
+                                type="button"
+                                onClick={(e) => handleDeleteEmployee(emp, e)}
+                                disabled={deletingEmployeeId === emp.id}
+                                className="cursor-pointer inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-all hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                                style={{ border: '1px solid #FCA5A5', color: '#DC2626' }}
+                                title="Remove employee from system (does not affect turnover)"
+                              >
+                                {deletingEmployeeId === emp.id ? (
+                                  'Removing...'
+                                ) : (
+                                  <>
+                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                    Delete
+                                  </>
+                                )}
+                              </button>
+                            )}
                           </td>
                         </tr>
                       );

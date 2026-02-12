@@ -882,7 +882,7 @@ ${managerNotes.trim()}` : ''}`;
       return;
     }
     
-    if (!confirm(`Are you sure you want to remove "${employee.name}" from the system?\n\nThis will:\n- Mark the employee as inactive (soft delete)\n- This action cannot be undone.\n\nThis will not affect turnover or other data.`)) {
+    if (!confirm(`Are you sure you want to remove "${employee.name}" from the system?\n\nThis will permanently delete the employee record. This action cannot be undone.\n\nThis will not affect turnover or other metrics (only terminated/resigned count toward turnover).`)) {
       return;
     }
     
@@ -1763,7 +1763,7 @@ ${managerNotes.trim()}` : ''}`;
                           <div className="p-4 rounded-lg" style={{ backgroundColor: '#FEF2F2', border: '1px solid #FEE2E2' }}>
                             <h4 className="text-xs font-semibold mb-2" style={{ color: '#991B1B' }}>Danger Zone</h4>
                             <p className="text-xs mb-3" style={{ color: '#6B7280' }}>
-                              Once you delete an employee, they will be marked as inactive. This action cannot be undone.
+                              Permanently remove this employee from the system. This action cannot be undone. Does not affect turnover (only terminated/resigned count).
                             </p>
                             <button
                               type="button"
