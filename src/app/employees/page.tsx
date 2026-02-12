@@ -124,6 +124,8 @@ export default function EmployeesPage() {
     hiredDate: '',
     department: '',
     status: '',
+    university: '',
+    degree: '',
   });
   const [customDepartment, setCustomDepartment] = useState('');
 
@@ -175,7 +177,9 @@ export default function EmployeesPage() {
       }
 
       const data = await getJsonAuth<{ ok: boolean; items: any[] }>('/employees');
-      setEmployees(data.items || []);
+      // Filter out inactive employees (soft-deleted employees have is_active = False)
+      const activeEmployees = (data.items || []).filter((emp: Employee) => emp.is_active !== false);
+      setEmployees(activeEmployees);
     } catch (err: unknown) {
       setEmployees([]);
       setError(err instanceof Error ? err.message : 'Failed to load employees');
@@ -199,7 +203,7 @@ export default function EmployeesPage() {
     }
     
     if (missingFields.length > 0) {
-      setError('All fields must be filled');
+      setError('Please fill in all required fields (marked with *)');
       return;
     }
 
@@ -225,6 +229,8 @@ export default function EmployeesPage() {
         zip_code: formData.zipCode || null,
         date_of_birth: formData.dateOfBirth || null,
         gender: formData.gender || null,
+        university: formData.university || null,
+        degree: formData.degree || null,
       };
 
       const res = await fetch(`${API_BASE}/employees`, {
@@ -277,6 +283,8 @@ export default function EmployeesPage() {
       hiredDate: '',
       department: '',
       status: '',
+      university: '',
+      degree: '',
     });
     setCustomDepartment('');
     setShowModal(false);
@@ -332,13 +340,28 @@ export default function EmployeesPage() {
     e.stopPropagation();
     if (role === 'corporate') return;
     if (!confirm(`Remove "${emp.name}" from the system? This cannot be undone and will not affect turnover or other data.`)) return;
+    
     setDeletingEmployeeId(emp.id);
+    const employeeIdToDelete = emp.id;
+    
+    // Store original list in case we need to revert
+    const originalEmployees = [...employees];
+    
+    // Immediately remove from list for instant feedback
+    setEmployees(prev => prev.filter(e => e.id !== employeeIdToDelete));
+    
     try {
-      await deleteJsonAuth(`/employees/${emp.id}`);
-      await loadEmployees();
+      console.log('Deleting employee:', employeeIdToDelete);
+      const response = await deleteJsonAuth(`/employees/${employeeIdToDelete}`);
+      console.log('Delete response:', response);
+      
       toast.success('Employee removed');
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'Failed to remove employee');
+      console.error('Delete error:', err);
+      // Revert the UI change if deletion failed
+      setEmployees(originalEmployees);
+      const errorMsg = err instanceof Error ? err.message : 'Failed to remove employee';
+      toast.error(errorMsg);
     } finally {
       setDeletingEmployeeId(null);
     }
@@ -362,6 +385,8 @@ export default function EmployeesPage() {
       hiredDate: employee.hired_date ? employee.hired_date.split('T')[0] : '',
       department: employee.department || '',
       status: employee.status || '',
+      university: (employee as any).university || '',
+      degree: (employee as any).degree || '',
     });
     setEditingEmployee(employee);
     setShowEditModal(true);
@@ -543,10 +568,10 @@ export default function EmployeesPage() {
     'Virginia', 'Washington', 'West Virginia', 'Wisconsin', 'Wyoming'
   ];
 
-  const statuses = ['Full-Time', 'Part-time', 'Intern', 'Onboarding'];
+  const statuses = ['Full-Time', 'Part-time', 'Intern'];
   
   // Statuses that should be excluded from the filter (removed from system)
-  const excludedStatuses = ['Resigned', 'Terminated', 'Fired', 'On Leave'];
+  const excludedStatuses = ['Resigned', 'Terminated', 'Fired', 'On Leave', 'Onboarding'];
   
   // Get unique statuses from employees, plus standard options
   // Filter out excluded statuses that are no longer valid options
@@ -800,9 +825,6 @@ export default function EmployeesPage() {
                         <SortIcon column="status" />
                       </div>
                     </th>
-                    <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider text-white">
-                      Actions
-                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -854,53 +876,15 @@ export default function EmployeesPage() {
                                 backgroundColor: emp.status === 'Full-Time' ? '#D1FAE5' : 
                                                 emp.status === 'Part-time' ? '#DBEAFE' :
                                                 emp.status === 'Intern' ? '#FEF3C7' :
-                                                emp.status === 'Onboarding' ? '#F3E8FF' :
                                                 emp.is_active ? '#D1FAE5' : '#F3F4F6',
                                 color: emp.status === 'Full-Time' ? '#065F46' :
                                        emp.status === 'Part-time' ? '#1E40AF' :
                                        emp.status === 'Intern' ? '#92400E' :
-                                       emp.status === 'Onboarding' ? '#6B21A8' :
                                        emp.is_active ? '#065F46' : '#374151'
                               }}
                             >
                               {emp.status || (emp.is_active ? 'Active' : 'Inactive')}
                             </span>
-                          </td>
-                          <td className="py-3 px-4" onClick={(e) => e.stopPropagation()}>
-                            <div className="flex items-center gap-1">
-                              {role !== 'corporate' && (
-                                <>
-                                  <button
-                                    onClick={() => openEditModal(emp)}
-                                    className="cursor-pointer p-1.5 rounded-md transition-all hover:bg-gray-100"
-                                    style={{ color: '#4D6DBE' }}
-                                    title="Edit Employee"
-                                  >
-                                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                                      <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" />
-                                    </svg>
-                                  </button>
-                                  <button
-                                    onClick={(e) => handleDeleteEmployee(emp, e)}
-                                    disabled={deletingEmployeeId === emp.id}
-                                    className="cursor-pointer p-1.5 rounded-md transition-all hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                                    style={{ color: '#DC2626' }}
-                                    title="Remove employee (e.g. created by accident)"
-                                  >
-                                    {deletingEmployeeId === emp.id ? (
-                                      <span className="inline-block w-5 h-5 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
-                                    ) : (
-                                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                      </svg>
-                                    )}
-                                  </button>
-                                </>
-                              )}
-                              {role === 'corporate' && (
-                                <span className="text-xs text-gray-400" title="View-Only Mode">👁️</span>
-                              )}
-                            </div>
                           </td>
                         </tr>
                       );
@@ -1144,12 +1128,10 @@ export default function EmployeesPage() {
                                 backgroundColor: viewingEmployee.status === 'Full-Time' ? '#D1FAE5' : 
                                                 viewingEmployee.status === 'Part-time' ? '#DBEAFE' :
                                                 viewingEmployee.status === 'Intern' ? '#FEF3C7' :
-                                                viewingEmployee.status === 'Onboarding' ? '#F3E8FF' :
                                                 viewingEmployee.is_active ? '#D1FAE5' : '#F3F4F6',
                                 color: viewingEmployee.status === 'Full-Time' ? '#065F46' :
                                        viewingEmployee.status === 'Part-time' ? '#1E40AF' :
                                        viewingEmployee.status === 'Intern' ? '#92400E' :
-                                       viewingEmployee.status === 'Onboarding' ? '#6B21A8' :
                                        viewingEmployee.is_active ? '#065F46' : '#374151'
                               }}
                             >
@@ -1411,8 +1393,9 @@ export default function EmployeesPage() {
                           <option value="">Select Gender</option>
                           <option value="Male">Male</option>
                           <option value="Female">Female</option>
-                          <option value="Other">Other</option>
+                          <option value="Non-binary">Non-binary</option>
                           <option value="Prefer not to say">Prefer not to say</option>
+                          <option value="Other">Other</option>
                         </select>
                         <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: '#6B7280' }}>
@@ -1420,6 +1403,36 @@ export default function EmployeesPage() {
                           </svg>
                         </div>
                       </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold mb-1.5" style={{ color: '#374151' }}>University</label>
+                      <input
+                        type="text"
+                        placeholder="University name"
+                        value={formData.university}
+                        onChange={(e) => setFormData({ ...formData, university: e.target.value })}
+                        className="w-full px-3 py-2 text-sm rounded-lg transition-all focus:outline-none focus:ring-2"
+                        style={{ 
+                          border: '1px solid #D1D5DB', 
+                          color: '#374151', 
+                          backgroundColor: '#FFFFFF',
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold mb-1.5" style={{ color: '#374151' }}>Degree</label>
+                      <input
+                        type="text"
+                        placeholder="Degree (e.g., Bachelor's, Master's)"
+                        value={formData.degree}
+                        onChange={(e) => setFormData({ ...formData, degree: e.target.value })}
+                        className="w-full px-3 py-2 text-sm rounded-lg transition-all focus:outline-none focus:ring-2"
+                        style={{ 
+                          border: '1px solid #D1D5DB', 
+                          color: '#374151', 
+                          backgroundColor: '#FFFFFF',
+                        }}
+                      />
                     </div>
                     <div>
                       <label className="block text-xs font-semibold mb-1.5" style={{ color: '#374151' }}>Employee ID</label>
@@ -1636,7 +1649,7 @@ export default function EmployeesPage() {
               >
                 <div className="p-4 border-b" style={{ borderColor: '#E5E7EB', backgroundColor: '#4D6DBE' }}>
                   <h2 className="text-xl font-bold mb-0.5" style={{ color: '#FFFFFF' }}>Add an Existing Employee</h2>
-                  <p className="text-xs" style={{ color: '#E0E7FF' }}>All fields must be filled *</p>
+                  <p className="text-xs" style={{ color: '#E0E7FF' }}>Fields marked with * are required</p>
                 </div>
                 <form onSubmit={handleSubmit} className="p-5">
                   <div className="grid grid-cols-2 gap-3 mb-3">
@@ -1767,8 +1780,9 @@ export default function EmployeesPage() {
                           <option value="">Select Gender</option>
                           <option value="Male">Male</option>
                           <option value="Female">Female</option>
-                          <option value="Other">Other</option>
+                          <option value="Non-binary">Non-binary</option>
                           <option value="Prefer not to say">Prefer not to say</option>
+                          <option value="Other">Other</option>
                         </select>
                         <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: '#6B7280' }}>
@@ -1776,6 +1790,36 @@ export default function EmployeesPage() {
                           </svg>
                         </div>
                       </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold mb-1.5" style={{ color: '#374151' }}>University</label>
+                      <input
+                        type="text"
+                        placeholder="University name"
+                        value={formData.university}
+                        onChange={(e) => setFormData({ ...formData, university: e.target.value })}
+                        className="w-full px-3 py-2 text-sm rounded-lg transition-all focus:outline-none focus:ring-2"
+                        style={{ 
+                          border: '1px solid #D1D5DB', 
+                          color: '#374151', 
+                          backgroundColor: '#FFFFFF',
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold mb-1.5" style={{ color: '#374151' }}>Degree</label>
+                      <input
+                        type="text"
+                        placeholder="Degree (e.g., Bachelor's, Master's)"
+                        value={formData.degree}
+                        onChange={(e) => setFormData({ ...formData, degree: e.target.value })}
+                        className="w-full px-3 py-2 text-sm rounded-lg transition-all focus:outline-none focus:ring-2"
+                        style={{ 
+                          border: '1px solid #D1D5DB', 
+                          color: '#374151', 
+                          backgroundColor: '#FFFFFF',
+                        }}
+                      />
                     </div>
                     <div>
                       <label className="block text-xs font-semibold mb-1.5" style={{ color: '#374151' }}>Employee ID</label>

@@ -507,15 +507,12 @@ function DashboardContent() {
                 };
               })
               .sort((a, b) => {
-                // Sort by highest stage (descending), then by updated_at (descending)
-                if (b.highestStage !== a.highestStage) {
-                  return b.highestStage - a.highestStage;
-                }
+                // Sort by updated_at (ascending - oldest first) to prioritize least updated
                 const dateA = new Date(a.updatedAt).getTime();
                 const dateB = new Date(b.updatedAt).getTime();
-                return dateB - dateA;
+                return dateA - dateB; // Ascending order (oldest first)
               })
-              .slice(0, 10); // Top 10 candidates
+              .slice(0, 5); // Top 5 candidates (least updated)
             
             console.log('Dashboard processed candidates:', candidates.length, candidates);
             setCandidatesData(candidates);
@@ -741,6 +738,17 @@ function DashboardContent() {
                       })}
                     </tbody>
                   </table>
+                  {candidatesData.length >= 5 && (
+                    <div className="mt-4 pt-4" style={{ borderTop: `1px solid ${COLORS.gray[200]}` }}>
+                      <a
+                        href="/candidates"
+                        className="block text-center text-sm font-medium cursor-pointer hover:opacity-80 transition-opacity"
+                        style={{ color: COLORS.primary }}
+                      >
+                        View More →
+                      </a>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="text-center py-12" style={{ color: COLORS.gray[400] }}>

@@ -158,8 +158,10 @@ export default function PerformanceReviewsPage() {
 
       const data = await getJsonAuth<{ ok?: boolean; items?: any[]; employees?: any[] }>('/employees');
       const list = data?.items ?? data?.employees ?? [];
-      const employeesWithReviews = Array.isArray(list)
-        ? list.map((emp: any) => {
+      // Filter out inactive employees (soft-deleted employees have is_active = False)
+      const activeEmployees = Array.isArray(list) ? list.filter((emp: any) => emp.is_active !== false) : [];
+      const employeesWithReviews = Array.isArray(activeEmployees)
+        ? activeEmployees.map((emp: any) => {
             const lastDate = emp.last_review_date;
             return {
               ...emp,
@@ -573,14 +575,6 @@ ${managerNotes.trim()}` : ''}`;
                           </td>
                           <td className="py-3 px-2">
                             <div className="flex gap-2 justify-end items-center">
-                              <button
-                                type="button"
-                                onClick={() => openHistoryModal(emp)}
-                                className="cursor-pointer px-3 py-1.5 text-xs font-semibold rounded-lg transition-all hover:opacity-90 border"
-                                style={{ borderColor: '#4D6DBE', color: '#4D6DBE', backgroundColor: 'transparent' }}
-                              >
-                                History
-                              </button>
                               <button
                                 onClick={() => openReviewModal(emp)}
                                 className="px-3 py-1.5 text-xs font-semibold rounded-lg transition-all hover:opacity-90 cursor-pointer text-white"

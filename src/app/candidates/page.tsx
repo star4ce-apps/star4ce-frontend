@@ -489,8 +489,10 @@ export default function CandidatesPage() {
     // Calculate the actual status from notes
     const calculatedStatus = calculateStatusFromNotes(candidate.notes, candidate.status);
     
-    // Filter out hired candidates
-    if (calculatedStatus === 'Hired' || calculatedStatus === 'hired') {
+    // Filter out hired candidates (check both status field and calculated status)
+    const status = candidate.status?.toLowerCase() || '';
+    const calcStatus = calculatedStatus?.toLowerCase() || '';
+    if (status === 'hired' || calcStatus === 'hired' || calcStatus === 'hire') {
       return false;
     }
     

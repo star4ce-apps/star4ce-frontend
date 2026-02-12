@@ -510,12 +510,17 @@ export default function CandidateProfilePage() {
         }
       }
 
-      // Update candidate status to "Hired"
-      await updateCandidate({ status: 'Hired' });
+      // Update candidate status to "Hired" to remove them from candidate list
+      try {
+        await updateCandidate({ status: 'Hired' });
+      } catch (updateErr) {
+        console.error('Failed to update candidate status:', updateErr);
+        // Continue even if status update fails - employee was created successfully
+      }
 
       toast.success('Candidate successfully converted to employee!');
       
-      // Optionally redirect to employees page
+      // Redirect to employees page
       setTimeout(() => {
         router.push('/employees');
       }, 1500);
@@ -1354,11 +1359,17 @@ export default function CandidateProfilePage() {
                                 </div>
                               </div>
                               <div className="flex-1 min-w-0">
-                                <h3 className="text-base font-bold mb-1" style={{ color: '#232E40' }}>{event.title}</h3>
-                                <p className="text-sm mb-2" style={{ color: '#6B7280' }}>{event.description}</p>
-                                {event.date && (
-                                  <p className="text-xs mt-2" style={{ color: '#9CA3AF' }}>{event.date}</p>
-                                )}
+                                <div className="flex items-start justify-between gap-4">
+                                  <div className="flex-1 min-w-0">
+                                    <h3 className="text-base font-bold mb-1" style={{ color: '#232E40' }}>{event.title}</h3>
+                                    <p className="text-sm" style={{ color: '#6B7280' }}>{event.description}</p>
+                                  </div>
+                                  {event.date && (
+                                    <div className="flex-shrink-0 text-sm" style={{ color: '#6B7280' }}>
+                                      {new Date(event.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                    </div>
+                                  )}
+                                </div>
                               </div>
                             </div>
                           </div>
@@ -1385,12 +1396,21 @@ export default function CandidateProfilePage() {
                               </div>
                             </div>
                             <div className="flex-1 min-w-0">
-                              <h3 className="text-lg font-bold mb-1" style={{ color: '#232E40' }}>{event.title}</h3>
-                              <p className="text-sm" style={{ color: '#6B7280' }}>
-                                {event.manager && event.manager.toLowerCase() !== 'interviewer not specified' 
-                                  ? `Interview ${event.title.match(/\d+/)?.[0] || ''} completed by ${event.manager}`
-                                  : event.description}
-                              </p>
+                              <div className="flex items-start justify-between gap-4">
+                                <div className="flex-1 min-w-0">
+                                  <h3 className="text-lg font-bold mb-1" style={{ color: '#232E40' }}>{event.title}</h3>
+                                  <p className="text-sm" style={{ color: '#6B7280' }}>
+                                    {event.manager && event.manager.toLowerCase() !== 'interviewer not specified' 
+                                      ? `Interview ${event.title.match(/\d+/)?.[0] || ''} completed by ${event.manager}`
+                                      : event.description}
+                                  </p>
+                                </div>
+                                {event.date && (
+                                  <div className="flex-shrink-0 text-sm self-start" style={{ color: '#6B7280' }}>
+                                    {new Date(event.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                  </div>
+                                )}
+                              </div>
                             </div>
                           </div>
 
@@ -2031,8 +2051,31 @@ export default function CandidateProfilePage() {
                       </div>
                         </div>
                       </div>
+
+                      {/* Danger Zone */}
+                      <div className="pt-6 mt-6 border-t" style={{ borderColor: '#FEE2E2' }}>
+                        <div className="p-4 rounded-lg" style={{ backgroundColor: '#FEF2F2', border: '1px solid #FEE2E2' }}>
+                          <h4 className="text-xs font-semibold mb-2" style={{ color: '#991B1B' }}>Danger Zone</h4>
+                          <p className="text-xs mb-3" style={{ color: '#6B7280' }}>
+                            Once you delete a candidate, they will be permanently rejected and their status will be set to "Denied". This action cannot be undone.
+                          </p>
+                          <button
+                            type="button"
+                            onClick={handleDenyApplication}
+                            disabled={savingPersonal || role === 'corporate'}
+                            className="px-4 py-2 text-sm font-medium rounded-lg cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:opacity-90"
+                            style={{ 
+                              backgroundColor: '#FFFFFF', 
+                              color: '#DC2626',
+                              border: '1px solid #FCA5A5'
+                            }}
+                          >
+                            Delete Candidate
+                          </button>
+                        </div>
+                      </div>
                     </div>
-                    <div className="flex gap-2 mt-4 pt-4 border-t" style={{ borderColor: '#E5E7EB' }}>
+                    <div className="flex gap-2 mt-4 pt-4 border-t px-5 pb-5" style={{ borderColor: '#E5E7EB' }}>
                       <button
                         type="button"
                         onClick={() => !savingPersonal && setShowEditPersonal(false)}

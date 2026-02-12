@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import HubSidebar from '@/components/sidebar/HubSidebar';
 import RequireAuth from '@/components/layout/RequireAuth';
 import { API_BASE, getToken } from '@/lib/auth';
-import { getJsonAuth } from '@/lib/http';
+import { getJsonAuth, deleteJsonAuth, postJsonAuth } from '@/lib/http';
 import toast from 'react-hot-toast';
 
 // Modern color palette - matching surveys page
@@ -45,7 +45,6 @@ export default function EmployeeRoleHistoryPage() {
   const [selectedType, setSelectedType] = useState('All Types');
   const [selectedAction, setSelectedAction] = useState('All Actions');
   const [currentPage, setCurrentPage] = useState(1);
-  const [openMenuId, setOpenMenuId] = useState<number | string | null>(null);
   const [historyEntries, setHistoryEntries] = useState<HistoryEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -254,30 +253,54 @@ export default function EmployeeRoleHistoryPage() {
 
   const actions = Array.from(new Set(entriesToFilter.map(entry => entry.action)));
 
-  // Close menu when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as HTMLElement;
-      if (openMenuId !== null && !target.closest('.action-menu-container')) {
-        setOpenMenuId(null);
-      }
-    };
-
-    if (openMenuId !== null) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [openMenuId]);
-
   async function handleRevert(entry: HistoryEntry) {
-    setOpenMenuId(null);
     
     // Cannot revert creation or termination
     if (entry.action === 'Employee Created' || entry.action === 'Candidate Created' || entry.action === 'Terminated') {
       toast.error(`Cannot revert ${entry.action}`);
+      return;
+    }
+    
+    // Special handling for "Hired" action (boarding candidate to employee)
+    if (entry.action === 'Hired' && entry.previousValue === 'Candidate') {
+      if (!window.confirm(`Are you sure you want to revert the boarding of "${entry.name}"?\n\nThis will:\n- Remove them from the employee list\n- Restore them to the candidate list\n- Update their candidate status`)) {
+        return;
+      }
+      
+      try {
+        const token = getToken();
+        if (!token) {
+          toast.error('Not logged in');
+          return;
+        }
+        
+        // Find the employee by name to get their ID
+        const employeesRes = await getJsonAuth<{ ok: boolean; items: any[] }>('/employees');
+        const employee = employeesRes.items?.find((emp: any) => emp.name === entry.name && emp.is_active !== false);
+        
+        if (employee) {
+          // Delete/soft-delete the employee
+          await deleteJsonAuth(`/employees/${employee.id}`);
+        }
+        
+        // Find the candidate by name and update their status from "Hired" back to a previous status
+        const candidatesRes = await getJsonAuth<{ ok: boolean; items: any[] }>('/candidates');
+        const candidate = candidatesRes.items?.find((cand: any) => cand.name === entry.name);
+        
+        if (candidate) {
+          // Update candidate status from "Hired" back to "Awaiting" or previous status
+          await postJsonAuth(`/candidates/${candidate.id}`, { status: 'Awaiting' }, { method: 'PUT' });
+        }
+        
+        toast.success('Successfully reverted boarding - candidate restored to candidate list');
+        
+        // Reload history to show updated data
+        await loadRoleHistory();
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : 'Failed to revert boarding';
+        toast.error(msg);
+        console.error('Revert boarding error:', err);
+      }
       return;
     }
     
@@ -334,7 +357,7 @@ export default function EmployeeRoleHistoryPage() {
     <RequireAuth>
       <div className="flex min-h-screen" style={{ backgroundColor: COLORS.gray[50] }}>
         <HubSidebar />
-        <main className="ml-64 p-8 flex-1" style={{ maxWidth: 'calc(100vw - 256px)' }}>
+        <main className="ml-64 p-8 flex-1" style={{ maxWidth: 'calc(100vw - 256px)', overflow: 'visible' }}>
           {/* Header */}
           <div className="mb-8">
             <div className="flex items-start justify-between">
@@ -434,7 +457,8 @@ export default function EmployeeRoleHistoryPage() {
           <div className="rounded-xl p-6 transition-all duration-200" style={{ 
             backgroundColor: '#FFFFFF', 
             border: '1px solid #E5E7EB',
-            boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05)'
+            boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05)',
+            overflow: 'visible'
           }}>
             {loading ? (
               <div className="py-12 text-center">
@@ -444,7 +468,7 @@ export default function EmployeeRoleHistoryPage() {
                 </div>
               </div>
             ) : (
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto" style={{ overflowY: 'visible' }}>
                 <table className="w-full text-sm">
                   <thead>
                     <tr style={{ backgroundColor: '#4D6DBE' }}>
@@ -588,35 +612,18 @@ export default function EmployeeRoleHistoryPage() {
                             {formatTimestamp(entry.timestamp)}
                           </td>
                           <td className="py-3 px-4 text-right">
-                            <div className="relative action-menu-container inline-block">
+                            <div className="relative inline-block">
                               <button
-                                onClick={() => setOpenMenuId(openMenuId === entry.id ? null : entry.id)}
-                                className="p-1.5 rounded-md hover:bg-gray-100 transition-colors"
+                                onClick={() => handleRevert(entry)}
+                                disabled={entry.action === 'Employee Created' || entry.action === 'Candidate Created' || entry.action === 'Terminated' || !entry.previousValue || entry.previousValue === '—' || entry.previousValue === 'N/A' || entry.reverted}
+                                className="p-1.5 rounded-md hover:bg-gray-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                                 style={{ color: '#6B7280' }}
+                                title="Revert this change"
                               >
-                                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                                  <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" />
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
                                 </svg>
                               </button>
-                              {openMenuId === entry.id && (
-                                <div className="absolute right-0 mt-1 w-40 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
-                                  <button
-                                    onClick={() => handleRevert(entry)}
-                                    disabled={entry.action === 'Employee Created' || entry.action === 'Candidate Created' || entry.action === 'Terminated' || !entry.previousValue || entry.previousValue === '—' || entry.previousValue === 'N/A'}
-                                    className="w-full text-left px-4 py-2 text-sm font-medium transition-colors hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                                    style={{ color: '#374151' }}
-                                    title={
-                                      entry.action === 'Employee Created' || entry.action === 'Candidate Created' || entry.action === 'Terminated'
-                                        ? 'Cannot revert creation or termination'
-                                        : !entry.previousValue || entry.previousValue === '—' || entry.previousValue === 'N/A'
-                                        ? 'Previous value not available'
-                                        : 'Revert this change'
-                                    }
-                                  >
-                                    Revert
-                                  </button>
-                                </div>
-                              )}
                             </div>
                           </td>
                         </tr>
