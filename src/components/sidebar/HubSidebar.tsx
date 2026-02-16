@@ -332,8 +332,6 @@ export default function HubSidebar() {
     { label: 'Dealership Requests', href: '/admin/dealership-requests', icon: <DealershipRequestIcon /> },
     { label: 'Manager Requests', href: '/admin/manager-requests', icon: <ManagerRequestIcon /> },
     { label: 'Corporate Requests', href: '/admin/corporate-requests', icon: <CorporateRequestIcon /> }
-  ] : role === 'corporate' ? [
-    { label: 'Invite', href: '/invite', icon: <InviteIcon /> },
   ] : [];
 
   const paymentItems: MenuItem[] = [];
@@ -571,7 +569,7 @@ export default function HubSidebar() {
       {administratorItems.length > 0 && (
         <div className="px-4 pb-4 border-t pt-4" style={{ borderColor: '#D1D5DB' }}>
           <h3 className="text-xs font-semibold uppercase mb-3" style={{ color: '#394B67' }}>
-            {role === 'corporate' && administratorItems.length === 1 ? 'INVITE' : 'ADMINISTRATOR'}
+            ADMINISTRATOR
           </h3>
           <nav className="space-y-1">
             {administratorItems.map((item, idx) => (

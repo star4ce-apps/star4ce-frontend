@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import RequireAuth from '@/components/layout/RequireAuth';
 import HubSidebar from '@/components/sidebar/HubSidebar';
 import { API_BASE, getToken } from '@/lib/auth';
@@ -36,6 +37,7 @@ type InviteCodeRow = {
 };
 
 export default function InviteClient() {
+  const router = useRouter();
   const [role, setRole] = useState<string | null>(null);
   const [creatingCode, setCreatingCode] = useState(false);
   const [createdCode, setCreatedCode] = useState<{ code: string; dealership_name: string; expires_at: string; role?: string } | null>(null);
@@ -57,6 +59,13 @@ export default function InviteClient() {
 
   const isAdmin = role === 'admin';
   const isCorporate = role === 'corporate';
+
+  // Invite page is admin-only; corporate users are redirected
+  useEffect(() => {
+    if (role === 'corporate') {
+      router.replace('/dashboard');
+    }
+  }, [role, router]);
 
   async function loadInviteCodes() {
     if (!isAdmin) return;
@@ -226,8 +235,8 @@ export default function InviteClient() {
           </div>
 
           <div className="max-w-5xl space-y-6">
-            {/* Create invites / codes (admin or corporate) */}
-            {(isAdmin || isCorporate) && (
+            {/* Create invites / codes (admin only; corporate cannot access this page) */}
+            {isAdmin && (
               <div
                 className="rounded-xl p-8 transition-all duration-200 hover:shadow-lg"
                 style={{
@@ -240,88 +249,66 @@ export default function InviteClient() {
                   Create invites &amp; join codes
                 </h2>
 
-                {isAdmin && (
-                  <div className="mb-6 pb-6" style={{ borderBottom: '1px solid #E5E7EB' }}>
-                    <h3 className="text-sm font-semibold mb-2" style={{ color: '#374151' }}>Invite Manager or Hiring Manager</h3>
-                    <p className="text-sm mb-3" style={{ color: COLORS.gray[600] }}>
-                      Send an invitation email with a link and a unique code. They can register at the Manager Registration page.
-                    </p>
-                    <Link
-                      href="/users"
-                      className="cursor-pointer inline-flex items-center rounded-lg px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:opacity-90"
-                      style={{ backgroundColor: '#4D6DBE' }}
-                    >
-                      Go to User Management →
-                    </Link>
-                  </div>
-                )}
+                <div className="mb-6 pb-6" style={{ borderBottom: '1px solid #E5E7EB' }}>
+                  <h3 className="text-sm font-semibold mb-2" style={{ color: '#374151' }}>Invite Manager or Hiring Manager</h3>
+                  <p className="text-sm mb-3" style={{ color: COLORS.gray[600] }}>
+                    Send an invitation email with a link and a unique code. They can register at the Manager Registration page.
+                  </p>
+                  <Link
+                    href="/users"
+                    className="cursor-pointer inline-flex items-center rounded-lg px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:opacity-90"
+                    style={{ backgroundColor: '#4D6DBE' }}
+                  >
+                    Go to User Management →
+                  </Link>
+                </div>
 
                 <div>
                   <h3 className="text-sm font-semibold mb-2" style={{ color: '#374151' }}>
-                    {isAdmin ? 'Invite code (7 days)' : 'Corporate join code'}
+                    Invite code (7 days)
                   </h3>
                   <p className="text-sm mb-3" style={{ color: COLORS.gray[600] }}>
-                    {isAdmin
-                      ? 'Create a code so someone can register as Corporate, Manager, or Hiring Manager and join your dealership.'
-                      : 'Create a code for a dealership you have access to. Share it so someone can register as corporate and join that dealership.'}
+                    Create a code so someone can register as Corporate, Manager, or Hiring Manager and join your dealership.
                   </p>
-                  {isCorporate && !corporateDealershipId && (
-                    <p className="text-xs mb-2" style={{ color: '#D97706' }}>
-                      Select a dealership in the sidebar first, then create a code.
-                    </p>
-                  )}
-                  {isAdmin ? (
-                    <>
-                      <button
-                        onClick={() => setTypePickerOpen(true)}
-                        disabled={creatingCode}
-                        className="cursor-pointer inline-flex items-center rounded-lg px-4 py-2.5 text-sm font-semibold text-white transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-                        style={{ backgroundColor: '#4D6DBE' }}
-                      >
-                        {creatingCode ? 'Creating…' : 'Create 7-day invite code'}
-                      </button>
-                      {typePickerOpen && (
-                        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                          <div className="rounded-xl p-6 max-w-sm w-full mx-4 bg-white shadow-xl">
-                            <h3 className="text-lg font-bold mb-2" style={{ color: '#232E40' }}>Choose invite type</h3>
-                            <p className="text-sm mb-4" style={{ color: COLORS.gray[600] }}>
-                              Who will use this code to register?
-                            </p>
-                            <div className="flex flex-col gap-2">
-                              {(['corporate', 'manager', 'hiring_manager'] as const).map((r) => (
-                                <button
-                                  key={r}
-                                  type="button"
-                                  onClick={() => handleCreateAdminJoinCode(r)}
-                                  disabled={creatingCode}
-                                  className="cursor-pointer w-full px-4 py-3 rounded-lg font-semibold text-sm text-white transition-colors disabled:opacity-60"
-                                  style={{ backgroundColor: '#4D6DBE' }}
-                                >
-                                  {roleLabel(r)}
-                                </button>
-                              ))}
-                            </div>
+                  <button
+                    onClick={() => setTypePickerOpen(true)}
+                    disabled={creatingCode}
+                    className="cursor-pointer inline-flex items-center rounded-lg px-4 py-2.5 text-sm font-semibold text-white transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                    style={{ backgroundColor: '#4D6DBE' }}
+                  >
+                    {creatingCode ? 'Creating…' : 'Create 7-day invite code'}
+                  </button>
+                  {typePickerOpen && (
+                    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                      <div className="rounded-xl p-6 max-w-sm w-full mx-4 bg-white shadow-xl">
+                        <h3 className="text-lg font-bold mb-2" style={{ color: '#232E40' }}>Choose invite type</h3>
+                        <p className="text-sm mb-4" style={{ color: COLORS.gray[600] }}>
+                          Who will use this code to register?
+                        </p>
+                        <div className="flex flex-col gap-2">
+                          {(['corporate', 'manager', 'hiring_manager'] as const).map((r) => (
                             <button
+                              key={r}
                               type="button"
-                              onClick={() => setTypePickerOpen(false)}
-                              className="cursor-pointer w-full mt-3 px-4 py-2 rounded-lg font-semibold text-sm"
-                              style={{ backgroundColor: '#F3F4F6', color: '#6B7280' }}
+                              onClick={() => handleCreateAdminJoinCode(r)}
+                              disabled={creatingCode}
+                              className="cursor-pointer w-full px-4 py-3 rounded-lg font-semibold text-sm text-white transition-colors disabled:opacity-60"
+                              style={{ backgroundColor: '#4D6DBE' }}
                             >
-                              Cancel
+                              {roleLabel(r)}
                             </button>
-                          </div>
+                          ))}
                         </div>
-                      )}
-                    </>
-                  ) : (
-                    <button
-                      onClick={handleCreateCorporateJoinCode}
-                      disabled={creatingCode || !corporateDealershipId}
-                      className="cursor-pointer inline-flex items-center rounded-lg px-4 py-2.5 text-sm font-semibold text-white transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-                      style={{ backgroundColor: '#4D6DBE' }}
-                    >
-                      {creatingCode ? 'Creating…' : 'Create 7-day corporate join code'}
-                    </button>
+                        <button
+                          type="button"
+                          onClick={() => setTypePickerOpen(false)}
+                          className="cursor-pointer w-full mt-3 px-4 py-2 rounded-lg font-semibold text-sm"
+                          style={{ backgroundColor: '#F3F4F6', color: '#6B7280' }}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
                   )}
                   {createdCode && (
                     <div className="mt-4 p-4 rounded-lg flex items-center justify-between gap-4" style={{ backgroundColor: '#F0F9FF', border: '1px solid #0B2E65' }}>
