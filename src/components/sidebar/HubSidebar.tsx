@@ -72,6 +72,12 @@ const UserManagementIcon = () => (
   </svg>
 );
 
+const InviteIcon = () => (
+  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+  </svg>
+);
+
 const EmploymentHistoryIcon = () => (
   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -321,10 +327,13 @@ export default function HubSidebar() {
   ];
 
   const administratorItems: MenuItem[] = role === 'admin' ? [
+    { label: 'Invite', href: '/invite', icon: <InviteIcon /> },
     { label: 'Change History', href: '/employees/history', icon: <EmploymentHistoryIcon /> },
     { label: 'Dealership Requests', href: '/admin/dealership-requests', icon: <DealershipRequestIcon /> },
     { label: 'Manager Requests', href: '/admin/manager-requests', icon: <ManagerRequestIcon /> },
     { label: 'Corporate Requests', href: '/admin/corporate-requests', icon: <CorporateRequestIcon /> }
+  ] : role === 'corporate' ? [
+    { label: 'Invite', href: '/invite', icon: <InviteIcon /> },
   ] : [];
 
   const paymentItems: MenuItem[] = [];
@@ -558,10 +567,12 @@ export default function HubSidebar() {
         </nav>
       </div>
 
-      {/* ADMINISTRATOR */}
+      {/* ADMINISTRATOR / INVITE */}
       {administratorItems.length > 0 && (
         <div className="px-4 pb-4 border-t pt-4" style={{ borderColor: '#D1D5DB' }}>
-          <h3 className="text-xs font-semibold uppercase mb-3" style={{ color: '#394B67' }}>ADMINISTRATOR</h3>
+          <h3 className="text-xs font-semibold uppercase mb-3" style={{ color: '#394B67' }}>
+            {role === 'corporate' && administratorItems.length === 1 ? 'INVITE' : 'ADMINISTRATOR'}
+          </h3>
           <nav className="space-y-1">
             {administratorItems.map((item, idx) => (
               isManagerNotApproved ? (
