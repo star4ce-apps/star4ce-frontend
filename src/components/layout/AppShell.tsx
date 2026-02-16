@@ -3,6 +3,7 @@ import { ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import Footer from "../nav/Footer";
 import PageScripts from "../PageScripts";
+import TopNav from "../nav/TopNav";
 
 export default function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
@@ -43,7 +44,8 @@ export default function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-screen flex flex-col bg-white">
-      <main className="flex-1">{children}</main>
+      <TopNav />
+      <main className="flex-1 pt-[110px]">{children}</main>
       {showFooter && <Footer />}
       <PageScripts />
     </div>
