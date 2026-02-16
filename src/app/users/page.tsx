@@ -43,6 +43,15 @@ export default function UserManagementPage() {
     email: '',
     role: 'manager' as 'manager' | 'hiring_manager',
   });
+  const [showCreateJoinCodeModal, setShowCreateJoinCodeModal] = useState(false);
+  const [createdJoinCode, setCreatedJoinCode] = useState<{ code: string; dealership_name: string; expires_at: string; role?: string } | null>(null);
+  const [creatingJoinCode, setCreatingJoinCode] = useState(false);
+
+  function joinCodeRoleLabel(r: string) {
+    if (r === 'hiring_manager') return 'Hiring Manager';
+    if (r === 'manager') return 'Manager';
+    return 'Corporate';
+  }
   const modalContentRef = useRef<HTMLDivElement>(null);
   const [pendingPermissions, setPendingPermissions] = useState<{ [key: string]: boolean } | null>(null);
   const [pendingRole, setPendingRole] = useState<string | null>(null);
@@ -127,7 +136,15 @@ export default function UserManagementPage() {
 
       const data = await res.json();
       if (res.ok) {
-        toast.success(data.message || 'Invitation sent successfully');
+        const code = data.invite?.code;
+        if (code) {
+          toast.success(
+            `${data.message || 'Invitation sent.'} Invite code: ${code}`,
+            { duration: 8000 }
+          );
+        } else {
+          toast.success(data.message || 'Invitation sent successfully');
+        }
         setShowCreateModal(false);
         setCreateFormData({ email: '', role: 'manager' });
         await loadManagers();
@@ -137,6 +154,38 @@ export default function UserManagementPage() {
     } catch (err) {
       toast.error('Failed to send invitation');
       console.error(err);
+    }
+  }
+
+  async function handleCreateJoinCode(role: 'corporate' | 'manager' | 'hiring_manager') {
+    setCreatingJoinCode(true);
+    setCreatedJoinCode(null);
+    try {
+      const token = getToken();
+      if (!token) return;
+      const res = await fetch(`${API_BASE}/admin/join-codes`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role, expires_days: 7 }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        const resolvedRole = data.role || role;
+        setCreatedJoinCode({
+          code: data.code,
+          dealership_name: data.dealership_name || 'Your dealership',
+          expires_at: data.expires_at || '',
+          role: resolvedRole,
+        });
+        toast.success(`Join code created for ${joinCodeRoleLabel(resolvedRole)}. Share it so they can register.`);
+      } else {
+        toast.error(data.error || 'Failed to create join code');
+      }
+    } catch (err) {
+      toast.error('Failed to create join code');
+      console.error(err);
+    } finally {
+      setCreatingJoinCode(false);
     }
   }
 
@@ -796,6 +845,18 @@ export default function UserManagementPage() {
                   + Create Manager
                 </button>
               )}
+              <button
+                onClick={() => {
+                  setShowCreateJoinCodeModal(true);
+                  setCreatedJoinCode(null);
+                }}
+                className="cursor-pointer px-6 py-3 rounded-lg font-semibold text-sm transition-colors"
+                style={{ backgroundColor: '#0B2E65', color: '#FFFFFF' }}
+                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#2c5aa0'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#0B2E65'; }}
+              >
+                Create join code
+              </button>
             </div>
 
             {/* Tabs */}
@@ -1106,7 +1167,7 @@ export default function UserManagementPage() {
                     />
                   </div>
                   <p className="text-xs" style={{ color: '#6B7280', marginTop: '0.5rem' }}>
-                    An invitation email will be sent to this address with a registration link.
+                    An invitation email will be sent with a registration link and a unique code. They can register at the Manager Registration page and enter the code if they don&apos;t use the link. The code will be shown after sending.
                   </p>
                   <div>
                     <label className="block text-sm font-medium mb-1" style={{ color: '#6B7280' }}>Role *</label>
@@ -1155,6 +1216,74 @@ export default function UserManagementPage() {
                     Send Invitation
                   </button>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* Create join code modal (Corporate / Manager / Hiring Manager) */}
+          {showCreateJoinCodeModal && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+              <div className="rounded-xl p-6 max-w-md w-full mx-4" style={{ backgroundColor: '#FFFFFF' }}>
+                <h2 className="text-2xl font-bold mb-4" style={{ color: '#232E40' }}>Create join code</h2>
+                {!createdJoinCode ? (
+                  <>
+                    <p className="text-sm mb-4" style={{ color: '#6B7280' }}>
+                      Choose who will use this code to register. They can enter it on the Manager Registration or Corporate Registration page.
+                    </p>
+                    <div className="flex flex-col gap-2 mb-4">
+                      {(['corporate', 'manager', 'hiring_manager'] as const).map((r) => (
+                        <button
+                          key={r}
+                          type="button"
+                          onClick={() => handleCreateJoinCode(r)}
+                          disabled={creatingJoinCode}
+                          className="cursor-pointer w-full px-4 py-3 rounded-lg font-semibold text-sm transition-colors disabled:opacity-60"
+                          style={{ backgroundColor: '#0B2E65', color: '#FFFFFF' }}
+                        >
+                          {creatingJoinCode ? 'Creating...' : joinCodeRoleLabel(r)}
+                        </button>
+                      ))}
+                    </div>
+                    <button
+                      onClick={() => setShowCreateJoinCodeModal(false)}
+                      className="cursor-pointer w-full px-4 py-2 rounded-lg font-semibold text-sm"
+                      style={{ backgroundColor: '#F3F4F6', color: '#6B7280' }}
+                    >
+                      Cancel
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-sm mb-2" style={{ color: '#6B7280' }}>
+                      Share this code (expires in 7 days){createdJoinCode.role ? ` — ${joinCodeRoleLabel(createdJoinCode.role)}` : ''}:
+                    </p>
+                    <div className="flex items-center gap-2 p-3 rounded-lg mb-4" style={{ backgroundColor: '#F0F9FF', border: '1px solid #0B2E65' }}>
+                      <span className="font-mono font-bold text-lg" style={{ color: '#0B2E65' }}>{createdJoinCode.code}</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigator.clipboard.writeText(createdJoinCode.code);
+                          toast.success('Copied to clipboard');
+                        }}
+                        className="cursor-pointer px-2 py-1 rounded text-sm font-medium"
+                        style={{ backgroundColor: '#0B2E65', color: '#FFFFFF' }}
+                      >
+                        Copy
+                      </button>
+                    </div>
+                    <p className="text-xs mb-4" style={{ color: '#6B7280' }}>Dealership: {createdJoinCode.dealership_name}</p>
+                    <button
+                      onClick={() => {
+                        setShowCreateJoinCodeModal(false);
+                        setCreatedJoinCode(null);
+                      }}
+                      className="cursor-pointer w-full px-4 py-2 rounded-lg font-semibold text-sm"
+                      style={{ backgroundColor: '#0B2E65', color: '#FFFFFF' }}
+                    >
+                      Done
+                    </button>
+                  </>
+                )}
               </div>
             </div>
           )}
