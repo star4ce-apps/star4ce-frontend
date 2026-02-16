@@ -491,45 +491,6 @@ export default function InviteClient() {
                 </div>
               </div>
             )}
-
-            {/* Enter your invite code */}
-            <div
-              className="rounded-xl p-8 transition-all duration-200"
-              style={{
-                backgroundColor: '#FFFFFF',
-                border: '1px solid #E5E7EB',
-                boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05)',
-              }}
-            >
-              <h2 className="text-lg font-bold mb-2" style={{ color: '#232E40' }}>Enter your invite code</h2>
-              <p className="text-sm mb-6" style={{ color: COLORS.gray[600] }}>
-                If you received an invite link or code, use the right registration page and enter your code there.
-              </p>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <Link
-                  href="/manager-register"
-                  className="flex flex-col p-4 rounded-lg border-2 transition-colors hover:border-[#4D6DBE] hover:bg-slate-50"
-                  style={{ borderColor: '#E5E7EB' }}
-                >
-                  <span className="text-sm font-semibold mb-1" style={{ color: '#232E40' }}>Manager or Hiring Manager</span>
-                  <span className="text-xs" style={{ color: COLORS.gray[600] }}>
-                    I have a manager invite code or link. Register and enter the code on the next page.
-                  </span>
-                  <span className="mt-2 text-sm font-medium" style={{ color: '#4D6DBE' }}>Go to Manager Registration →</span>
-                </Link>
-                <Link
-                  href="/corporate-register"
-                  className="flex flex-col p-4 rounded-lg border-2 transition-colors hover:border-[#4D6DBE] hover:bg-slate-50"
-                  style={{ borderColor: '#E5E7EB' }}
-                >
-                  <span className="text-sm font-semibold mb-1" style={{ color: '#232E40' }}>Corporate</span>
-                  <span className="text-xs" style={{ color: COLORS.gray[600] }}>
-                    I have a corporate join code. Register and enter the code on the next page.
-                  </span>
-                  <span className="mt-2 text-sm font-medium" style={{ color: '#4D6DBE' }}>Go to Corporate Registration →</span>
-                </Link>
-              </div>
-            </div>
           </div>
         </main>
       </div>
