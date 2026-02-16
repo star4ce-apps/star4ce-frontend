@@ -4,7 +4,8 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import HubSidebar from '@/components/sidebar/HubSidebar';
 import RequireAuth from '@/components/layout/RequireAuth';
-import { getToken, API_BASE } from '@/lib/auth';
+import { getToken, API_BASE, clearSession } from '@/lib/auth';
+import { deleteJsonAuth } from '@/lib/http';
 import toast from 'react-hot-toast';
 
 export default function SettingsPage() {
@@ -30,6 +31,7 @@ export default function SettingsPage() {
   });
   const [dealershipId, setDealershipId] = useState<number | null>(null);
   const [showDangerZone, setShowDangerZone] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
 
   useEffect(() => {
     loadUserProfile();
@@ -369,15 +371,26 @@ export default function SettingsPage() {
                         <h3 className="text-sm font-semibold mb-1" style={{ color: '#DC2626' }}>Delete Account</h3>
                         <p className="text-xs mb-3" style={{ color: '#991B1B' }}>Once you delete your account, there is no going back. Please be certain.</p>
                         <button
-                          onClick={() => {
-                            if (confirm('Are you sure you want to delete your account? This action cannot be undone.')) {
-                              toast.error('Account deletion is not yet implemented');
+                          disabled={deletingAccount}
+                          onClick={async () => {
+                            if (!confirm('Are you sure you want to delete your account? This action cannot be undone.')) return;
+                            setDeletingAccount(true);
+                            try {
+                              await deleteJsonAuth('/auth/me');
+                              toast.success('Account deleted');
+                              clearSession();
+                              router.push('/login');
+                            } catch (err: unknown) {
+                              const msg = err instanceof Error ? err.message : 'Failed to delete account';
+                              toast.error(msg);
+                            } finally {
+                              setDeletingAccount(false);
                             }
                           }}
-                          className="cursor-pointer px-4 py-2 text-sm font-medium rounded-lg transition-all hover:opacity-90"
+                          className="cursor-pointer px-4 py-2 text-sm font-medium rounded-lg transition-all hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed"
                           style={{ backgroundColor: '#DC2626', color: '#FFFFFF', border: '1px solid #DC2626' }}
                         >
-                          Delete Account
+                          {deletingAccount ? 'Deleting…' : 'Delete Account'}
                         </button>
                       </div>
                     </div>

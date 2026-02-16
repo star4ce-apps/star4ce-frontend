@@ -182,15 +182,34 @@ export default function HubSidebar() {
 
       if (res.ok) {
         const data = await res.json();
-        setDealerships((data.dealerships || []).map((d: any) => ({ id: d.id, name: d.name })));
-        
-        // If no selected dealership but we have dealerships, select the first one
-        if (!selectedDealership && data.dealerships && data.dealerships.length > 0) {
-          const first = data.dealerships[0];
-          setSelectedDealership({ id: first.id, name: first.name });
-          localStorage.setItem('selected_dealership_id', first.id.toString());
-          localStorage.setItem('selected_dealership_name', first.name);
-        }
+        const list = (data.dealerships || []).map((d: any) => ({ id: d.id, name: d.name }));
+        const ids = list.map((d: { id: number; name: string }) => d.id);
+        setDealerships(list);
+
+        // Clear selected dealership if it's no longer in the list (e.g. dealership was deleted); optionally pick first
+        setSelectedDealership((prev) => {
+          if (!prev) {
+            if (list.length > 0) {
+              const first = list[0];
+              localStorage.setItem('selected_dealership_id', first.id.toString());
+              localStorage.setItem('selected_dealership_name', first.name);
+              return { id: first.id, name: first.name };
+            }
+            return null;
+          }
+          if (ids.length > 0 && !ids.includes(prev.id)) {
+            localStorage.removeItem('selected_dealership_id');
+            localStorage.removeItem('selected_dealership_name');
+            if (list.length > 0) {
+              const first = list[0];
+              localStorage.setItem('selected_dealership_id', first.id.toString());
+              localStorage.setItem('selected_dealership_name', first.name);
+              return { id: first.id, name: first.name };
+            }
+            return null;
+          }
+          return prev;
+        });
       }
     } catch (err) {
       // Suppress errors
