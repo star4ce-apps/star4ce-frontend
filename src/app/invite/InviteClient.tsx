@@ -38,7 +38,8 @@ type InviteCodeRow = {
 export default function InviteClient() {
   const [role, setRole] = useState<string | null>(null);
   const [creatingCode, setCreatingCode] = useState(false);
-  const [createdCode, setCreatedCode] = useState<{ code: string; dealership_name: string; expires_at: string } | null>(null);
+  const [createdCode, setCreatedCode] = useState<{ code: string; dealership_name: string; expires_at: string; role?: string } | null>(null);
+  const [typePickerOpen, setTypePickerOpen] = useState(false);
   const [corporateDealershipId, setCorporateDealershipId] = useState<number | null>(null);
   const [inviteHistory, setInviteHistory] = useState<InviteCodeRow[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
@@ -85,7 +86,14 @@ export default function InviteClient() {
     if (isAdmin) loadInviteCodes();
   }, [isAdmin]);
 
-  async function handleCreateAdminJoinCode() {
+  function roleLabel(r: string) {
+    if (r === 'hiring_manager') return 'Hiring Manager';
+    if (r === 'manager') return 'Manager';
+    return 'Corporate';
+  }
+
+  async function handleCreateAdminJoinCode(selectedRole: 'corporate' | 'manager' | 'hiring_manager') {
+    setTypePickerOpen(false);
     setCreatingCode(true);
     setCreatedCode(null);
     try {
@@ -94,7 +102,7 @@ export default function InviteClient() {
       const res = await fetch(`${API_BASE}/admin/join-codes`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ expires_days: 7 }),
+        body: JSON.stringify({ role: selectedRole, expires_days: 7 }),
       });
       const data = await res.json();
       if (res.ok) {
@@ -102,8 +110,9 @@ export default function InviteClient() {
           code: data.code,
           dealership_name: data.dealership_name || 'Your dealership',
           expires_at: data.expires_at || '',
+          role: data.role || selectedRole,
         });
-        toast.success('Join code created. Share it for corporate registration.');
+        toast.success(`Join code created for ${roleLabel(data.role || selectedRole)}. Share it so they can register.`);
         loadInviteCodes();
       } else {
         toast.error(data.error || 'Failed to create join code');
@@ -248,10 +257,12 @@ export default function InviteClient() {
                 )}
 
                 <div>
-                  <h3 className="text-sm font-semibold mb-2" style={{ color: '#374151' }}>Corporate join code</h3>
+                  <h3 className="text-sm font-semibold mb-2" style={{ color: '#374151' }}>
+                    {isAdmin ? 'Invite code (7 days)' : 'Corporate join code'}
+                  </h3>
                   <p className="text-sm mb-3" style={{ color: COLORS.gray[600] }}>
                     {isAdmin
-                      ? 'Create a code so someone can register as corporate and join your dealership.'
+                      ? 'Create a code so someone can register as Corporate, Manager, or Hiring Manager and join your dealership.'
                       : 'Create a code for a dealership you have access to. Share it so someone can register as corporate and join that dealership.'}
                   </p>
                   {isCorporate && !corporateDealershipId && (
@@ -259,18 +270,65 @@ export default function InviteClient() {
                       Select a dealership in the sidebar first, then create a code.
                     </p>
                   )}
-                  <button
-                    onClick={isAdmin ? handleCreateAdminJoinCode : handleCreateCorporateJoinCode}
-                    disabled={creatingCode || (isCorporate && !corporateDealershipId)}
-                    className="cursor-pointer inline-flex items-center rounded-lg px-4 py-2.5 text-sm font-semibold text-white transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-                    style={{ backgroundColor: '#4D6DBE' }}
-                  >
-                    {creatingCode ? 'Creating…' : 'Create 7-day corporate join code'}
-                  </button>
+                  {isAdmin ? (
+                    <>
+                      <button
+                        onClick={() => setTypePickerOpen(true)}
+                        disabled={creatingCode}
+                        className="cursor-pointer inline-flex items-center rounded-lg px-4 py-2.5 text-sm font-semibold text-white transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                        style={{ backgroundColor: '#4D6DBE' }}
+                      >
+                        {creatingCode ? 'Creating…' : 'Create 7-day invite code'}
+                      </button>
+                      {typePickerOpen && (
+                        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                          <div className="rounded-xl p-6 max-w-sm w-full mx-4 bg-white shadow-xl">
+                            <h3 className="text-lg font-bold mb-2" style={{ color: '#232E40' }}>Choose invite type</h3>
+                            <p className="text-sm mb-4" style={{ color: COLORS.gray[600] }}>
+                              Who will use this code to register?
+                            </p>
+                            <div className="flex flex-col gap-2">
+                              {(['corporate', 'manager', 'hiring_manager'] as const).map((r) => (
+                                <button
+                                  key={r}
+                                  type="button"
+                                  onClick={() => handleCreateAdminJoinCode(r)}
+                                  disabled={creatingCode}
+                                  className="cursor-pointer w-full px-4 py-3 rounded-lg font-semibold text-sm text-white transition-colors disabled:opacity-60"
+                                  style={{ backgroundColor: '#4D6DBE' }}
+                                >
+                                  {roleLabel(r)}
+                                </button>
+                              ))}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setTypePickerOpen(false)}
+                              className="cursor-pointer w-full mt-3 px-4 py-2 rounded-lg font-semibold text-sm"
+                              style={{ backgroundColor: '#F3F4F6', color: '#6B7280' }}
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <button
+                      onClick={handleCreateCorporateJoinCode}
+                      disabled={creatingCode || !corporateDealershipId}
+                      className="cursor-pointer inline-flex items-center rounded-lg px-4 py-2.5 text-sm font-semibold text-white transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                      style={{ backgroundColor: '#4D6DBE' }}
+                    >
+                      {creatingCode ? 'Creating…' : 'Create 7-day corporate join code'}
+                    </button>
+                  )}
                   {createdCode && (
                     <div className="mt-4 p-4 rounded-lg flex items-center justify-between gap-4" style={{ backgroundColor: '#F0F9FF', border: '1px solid #0B2E65' }}>
                       <div>
-                        <p className="text-xs font-medium mb-1" style={{ color: '#374151' }}>Share this code (expires in 7 days)</p>
+                        <p className="text-xs font-medium mb-1" style={{ color: '#374151' }}>
+                          Share this code (expires in 7 days){createdCode.role ? ` — ${roleLabel(createdCode.role)}` : ''}
+                        </p>
                         <p className="font-mono font-bold text-lg" style={{ color: '#0B2E65' }}>{createdCode.code}</p>
                         <p className="text-xs mt-1" style={{ color: COLORS.gray[600] }}>Dealership: {createdCode.dealership_name}</p>
                       </div>
@@ -333,7 +391,7 @@ export default function InviteClient() {
                           <tr key={`${row.type}-${row.id}`} style={{ borderTop: '1px solid #E5E7EB' }}>
                             <td className="px-4 py-3 font-mono" style={{ color: '#232E40' }}>{row.code}</td>
                             <td className="px-4 py-3" style={{ color: '#374151' }}>
-                              {row.type === 'manager_invite' ? (row.role === 'hiring_manager' ? 'Hiring Manager' : 'Manager') : 'Corporate'}
+                              {roleLabel(row.role)}
                             </td>
                             <td className="px-4 py-3" style={{ color: '#374151' }}>{row.email || '—'}</td>
                             <td className="px-4 py-3" style={{ color: '#374151' }}>{new Date(row.created_at).toLocaleString()}</td>
