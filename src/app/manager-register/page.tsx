@@ -41,6 +41,8 @@ function ManagerRegisterContent() {
   const [error, setError] = useState('');
   const [inviteInfo, setInviteInfo] = useState<InviteInfo | null>(null);
   const [isInviteMode, setIsInviteMode] = useState(false);
+  const [inviteCode, setInviteCode] = useState('');
+  const [validatingCode, setValidatingCode] = useState(false);
 
   // Prevent body scrolling when manager registration page is mounted
   useEffect(() => {
@@ -60,6 +62,40 @@ function ManagerRegisterContent() {
       loadDealerships();
     }
   }, [inviteToken]);
+
+  async function validateInviteCode() {
+    const code = inviteCode.trim().toUpperCase();
+    if (!code) return;
+    setValidatingCode(true);
+    setError('');
+    try {
+      const res = await fetch(`${API_BASE}/auth/validate-join-code?code=${encodeURIComponent(code)}`);
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        if (data.role !== 'manager' && data.role !== 'hiring_manager') {
+          setError('This code is not for manager registration. Use the corporate registration page for corporate codes.');
+          return;
+        }
+        setIsInviteMode(true);
+        setInviteInfo({
+          email: data.email || '',
+          dealership_name: data.dealership_name || null,
+          role: data.role,
+          expires_at: '',
+        });
+        if (data.email) setEmail(data.email);
+        toast.success(data.role === 'hiring_manager' ? 'Hiring Manager invite code accepted' : 'Invite code accepted');
+      } else {
+        setError(data.error || 'Invalid or expired code');
+        toast.error(data.error || 'Invalid or expired code');
+      }
+    } catch (err) {
+      setError('Failed to validate code');
+      toast.error('Failed to validate code');
+    } finally {
+      setValidatingCode(false);
+    }
+  }
 
   async function validateInviteToken() {
     if (!inviteToken) return;
@@ -142,17 +178,20 @@ function ManagerRegisterContent() {
 
     setLoading(true);
     try {
-      if (isInviteMode && inviteToken) {
-        // Register via invite token
+      if (isInviteMode && (inviteToken || inviteCode.trim())) {
+        // Register via invite token or code
+        const body: Record<string, string> = {
+          password,
+          first_name: firstName.trim(),
+          last_name: lastName.trim(),
+          email: email.trim().toLowerCase(),
+        };
+        if (inviteToken) body.token = inviteToken;
+        else body.code = inviteCode.trim().toUpperCase();
         const res = await fetch(`${API_BASE}/auth/register-manager-invite`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              token: inviteToken,
-              password,
-              first_name: firstName.trim(),
-              last_name: lastName.trim(),
-            }),
+          body: JSON.stringify(body),
         });
 
         const data = await res.json();
@@ -205,7 +244,7 @@ function ManagerRegisterContent() {
     <div 
       className="fixed flex items-center justify-center overflow-hidden"
       style={{
-        top: '110px',
+        top: 0,
         left: 0,
         right: 0,
         bottom: 0,
@@ -274,6 +313,31 @@ function ManagerRegisterContent() {
 
             {/* Registration Form */}
             <form onSubmit={handleSubmit} className="space-y-4 flex-1 min-h-0">
+              {/* Invite code entry (when no token in URL) */}
+              {!inviteToken && !isInviteMode && (
+                <div className="mb-4 p-3 rounded-lg border border-gray-200 bg-gray-50">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Have an invite code?</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="Enter code (e.g. ABC12XYZ)"
+                      className="flex-1 px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#0B2E65] focus:border-transparent uppercase"
+                      value={inviteCode}
+                      onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
+                      maxLength={12}
+                    />
+                    <button
+                      type="button"
+                      onClick={validateInviteCode}
+                      disabled={!inviteCode.trim() || validatingCode}
+                      className="cursor-pointer px-4 py-2.5 rounded-lg font-medium bg-[#0B2E65] text-white hover:bg-[#2c5aa0] disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                      {validatingCode ? 'Checking...' : 'Apply'}
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* Loading Invite */}
               {loadingInvite && (
                 <div className="text-center py-4">
@@ -320,7 +384,7 @@ function ManagerRegisterContent() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
-                  disabled={isInviteMode}
+                  disabled={isInviteMode && !!inviteToken}
                 />
                 </div>
                 <div className="mb-3">
@@ -444,8 +508,13 @@ function ManagerRegisterContent() {
               {/* Info Box */}
               {isInviteMode ? (
                 <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 flex-shrink-0">
-                  <h3 className="text-xs font-semibold text-[#0B2E65] mb-1">Invited Account:</h3>
+                  <h3 className="text-xs font-semibold text-[#0B2E65] mb-1">
+                    {inviteInfo?.role === 'hiring_manager' ? 'Hiring Manager invite' : 'Invited account'}
+                  </h3>
                   <p className="text-xs text-gray-700">
+                    {inviteInfo?.dealership_name && (
+                      <span className="block mb-1">Dealership: {inviteInfo.dealership_name}</span>
+                    )}
                     Your account will be automatically approved and you'll have immediate access once you complete registration.
                   </p>
                 </div>
@@ -462,10 +531,10 @@ function ManagerRegisterContent() {
               {/* Register Button */}
               <button
                 type="submit"
-                disabled={loading || loadingInvite || (!isInviteMode && !dealershipId)}
+                disabled={loading || loadingInvite || (!isInviteMode && !dealershipId) || (isInviteMode && !inviteToken && !inviteCode.trim())}
                 className="cursor-pointer w-full bg-[#0B2E65] text-white py-2.5 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                {loading ? 'Registering...' : isInviteMode ? 'Create Account' : 'Register as Manager'}
+                {loading ? 'Registering...' : isInviteMode ? (inviteInfo?.role === 'hiring_manager' ? 'Create account as Hiring Manager' : 'Create Account') : 'Register as Manager'}
               </button>
 
               {/* Login Link */}

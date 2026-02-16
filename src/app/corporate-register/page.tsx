@@ -16,6 +16,9 @@ export default function CorporateRegisterPage() {
   const [lastName, setLastName] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [joinCode, setJoinCode] = useState('');
+  const [codeInfo, setCodeInfo] = useState<{ dealership_name: string } | null>(null);
+  const [validatingCode, setValidatingCode] = useState(false);
 
   // Prevent body scrolling when corporate registration page is mounted
   useEffect(() => {
@@ -27,6 +30,37 @@ export default function CorporateRegisterPage() {
       document.documentElement.style.overflow = '';
     };
   }, []);
+
+  async function validateJoinCode() {
+    const code = joinCode.trim().toUpperCase();
+    if (!code) return;
+    setValidatingCode(true);
+    setError('');
+    try {
+      const res = await fetch(`${API_BASE}/auth/validate-join-code?code=${encodeURIComponent(code)}`);
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        if (data.role !== 'corporate') {
+          setError('This code is not for corporate registration. Use the manager registration page for manager/hiring manager codes.');
+          setCodeInfo(null);
+          toast.error('Wrong code type');
+          return;
+        }
+        setCodeInfo({ dealership_name: data.dealership_name || '' });
+        toast.success(`Code valid. You will join: ${data.dealership_name || 'dealership'}`);
+      } else {
+        setCodeInfo(null);
+        setError(data.error || 'Invalid or expired code');
+        toast.error(data.error || 'Invalid or expired code');
+      }
+    } catch (err) {
+      setCodeInfo(null);
+      setError('Failed to validate code');
+      toast.error('Failed to validate code');
+    } finally {
+      setValidatingCode(false);
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -63,9 +97,42 @@ export default function CorporateRegisterPage() {
       return;
     }
 
+    const code = joinCode.trim().toUpperCase();
+    const useCode = code.length > 0;
+
     setLoading(true);
     try {
-      // Register as corporate user
+      if (useCode) {
+        // Register with join code (assigns to dealership)
+        const res = await fetch(`${API_BASE}/auth/register-corporate-with-code`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            code,
+            email: email.trim().toLowerCase(),
+            password,
+            first_name: firstName.trim(),
+            last_name: lastName.trim(),
+          }),
+        }).catch((fetchError) => {
+          console.error('Network error:', fetchError);
+          throw new Error('Unable to connect to server. Please check if the backend is running.');
+        });
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          setError(errData.error || 'Registration failed');
+          toast.error(errData.error || 'Registration failed');
+          return;
+        }
+        const data = await res.json().catch(() => ({}));
+        if (data.ok) {
+          toast.success(data.message || 'Registration successful! Please check your email for the verification code.');
+          router.push(`/verify?email=${encodeURIComponent(email)}`);
+        }
+        return;
+      }
+
+      // Register as corporate user (no code)
       const res = await fetch(`${API_BASE}/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -125,7 +192,7 @@ export default function CorporateRegisterPage() {
     <div 
       className="fixed flex items-center justify-center overflow-hidden"
       style={{
-        top: '110px',
+        top: 0,
         left: 0,
         right: 0,
         bottom: 0,
@@ -200,6 +267,35 @@ export default function CorporateRegisterPage() {
 
             {/* Registration Form - like admin register */}
             <form onSubmit={handleSubmit} className="space-y-4 flex-1 min-h-0">
+              <div className="mb-4 p-3 rounded-lg border border-gray-200 bg-gray-50">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Have a join code? (optional)</label>
+                <p className="text-xs text-gray-600 mb-2">Enter a code from your admin to join a specific dealership as corporate.</p>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="Enter code (e.g. ABC12XYZ)"
+                    className="flex-1 px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#0B2E65] focus:border-transparent uppercase"
+                    value={joinCode}
+                    onChange={(e) => {
+                      setJoinCode(e.target.value.toUpperCase());
+                      setCodeInfo(null);
+                    }}
+                    maxLength={12}
+                  />
+                  <button
+                    type="button"
+                    onClick={validateJoinCode}
+                    disabled={!joinCode.trim() || validatingCode}
+                    className="cursor-pointer px-4 py-2.5 rounded-lg font-medium bg-[#0B2E65] text-white hover:bg-[#2c5aa0] disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    {validatingCode ? 'Checking...' : 'Validate'}
+                  </button>
+                </div>
+                {codeInfo && (
+                  <p className="mt-2 text-xs text-green-700">You will be assigned to: {codeInfo.dealership_name}</p>
+                )}
+              </div>
+
               <div className="mb-4">
                 <h3 className="font-semibold text-gray-700 mb-3">Account Information</h3>
                 <div className="grid grid-cols-2 gap-4 mb-3">
