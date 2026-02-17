@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, useRef } from 'react';
+import { useSearchParams } from 'next/navigation';
 import HubSidebar from '@/components/sidebar/HubSidebar';
 import RequireAuth from '@/components/layout/RequireAuth';
 import { API_BASE, getToken } from '@/lib/auth';
@@ -25,6 +26,19 @@ type PermissionMatrix = {
   };
 };
 
+type InviteCodeRow = {
+  id: number;
+  type: 'manager_invite' | 'join_code';
+  code: string;
+  email: string | null;
+  role: string;
+  created_at: string;
+  expires_at: string;
+  is_used: boolean;
+  used_at: string | null;
+  status: 'active' | 'used' | 'expired';
+};
+
 export default function UserManagementPage() {
   const [managers, setManagers] = useState<Manager[]>([]);
   const [pendingManagers, setPendingManagers] = useState<Manager[]>([]);
@@ -32,7 +46,8 @@ export default function UserManagementPage() {
   const [error, setError] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [activeTab, setActiveTab] = useState<'managers' | 'permissions'>('managers');
+  const searchParams = useSearchParams();
+  const [activeTab, setActiveTab] = useState<'managers' | 'permissions' | 'invite'>('managers');
   const [permissions, setPermissions] = useState<PermissionMatrix>({});
   const [permissionKeys, setPermissionKeys] = useState<string[]>([]);
   const [roles, setRoles] = useState<string[]>([]);
@@ -46,6 +61,11 @@ export default function UserManagementPage() {
   const [showCreateJoinCodeModal, setShowCreateJoinCodeModal] = useState(false);
   const [createdJoinCode, setCreatedJoinCode] = useState<{ code: string; dealership_name: string; expires_at: string; role?: string } | null>(null);
   const [creatingJoinCode, setCreatingJoinCode] = useState(false);
+  const [inviteHistory, setInviteHistory] = useState<InviteCodeRow[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [sendingId, setSendingId] = useState<number | null>(null);
+  const [sendJoinCodeModal, setSendJoinCodeModal] = useState<{ id: number; type: 'join_code'; code: string } | null>(null);
+  const [sendEmail, setSendEmail] = useState('');
 
   function joinCodeRoleLabel(r: string) {
     if (r === 'hiring_manager') return 'Hiring Manager';
@@ -60,12 +80,101 @@ export default function UserManagementPage() {
     loadUserRole();
   }, []);
 
+  const tabParam = searchParams?.get('tab');
+  useEffect(() => {
+    if (tabParam === 'invite' || tabParam === 'permissions') {
+      setActiveTab(tabParam);
+    } else if (tabParam === 'managers') {
+      setActiveTab('managers');
+    }
+  }, [tabParam]);
+
   useEffect(() => {
     if (userRole === 'admin') {
       loadManagers();
       loadPermissions();
     }
   }, [userRole]);
+
+  async function loadInviteCodes() {
+    if (userRole !== 'admin') return;
+    setLoadingHistory(true);
+    try {
+      const token = getToken();
+      if (!token) return;
+      const res = await fetch(`${API_BASE}/admin/invite-codes`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (res.ok) {
+        const list: InviteCodeRow[] = [
+          ...(data.manager_invites || []),
+          ...(data.join_codes || []),
+        ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+        setInviteHistory(list);
+      }
+    } catch {
+      toast.error('Failed to load invite codes');
+    } finally {
+      setLoadingHistory(false);
+    }
+  }
+
+  useEffect(() => {
+    if (userRole === 'admin' && activeTab === 'invite') {
+      loadInviteCodes();
+    }
+  }, [userRole, activeTab]);
+
+  async function handleResendManagerInvite(id: number) {
+    setSendingId(id);
+    try {
+      const token = getToken();
+      if (!token) return;
+      const res = await fetch(`${API_BASE}/admin/manager-invites/${id}/resend`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast.success(data.message || 'Invitation resent');
+        loadInviteCodes();
+      } else {
+        toast.error(data.error || 'Failed to resend');
+      }
+    } catch {
+      toast.error('Failed to resend');
+    } finally {
+      setSendingId(null);
+    }
+  }
+
+  async function handleSendJoinCode() {
+    if (!sendJoinCodeModal || !sendEmail.trim()) return;
+    setSendingId(sendJoinCodeModal.id);
+    try {
+      const token = getToken();
+      if (!token) return;
+      const res = await fetch(`${API_BASE}/admin/join-codes/${sendJoinCodeModal.id}/send`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: sendEmail.trim().toLowerCase() }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast.success(data.message || 'Join code sent');
+        setSendJoinCodeModal(null);
+        setSendEmail('');
+        loadInviteCodes();
+      } else {
+        toast.error(data.error || 'Failed to send');
+      }
+    } catch {
+      toast.error('Failed to send');
+    } finally {
+      setSendingId(null);
+    }
+  }
 
   async function loadUserRole() {
     try {
@@ -178,6 +287,7 @@ export default function UserManagementPage() {
           role: resolvedRole,
         });
         toast.success(`Join code created for ${joinCodeRoleLabel(resolvedRole)}. Share it so they can register.`);
+        loadInviteCodes();
       } else {
         toast.error(data.error || 'Failed to create join code');
       }
@@ -831,32 +941,6 @@ export default function UserManagementPage() {
                 <h1 className="text-3xl font-bold mb-2" style={{ color: '#232E40' }}>User Management</h1>
                 <p className="text-sm" style={{ color: '#6B7280' }}>Manage manager accounts, roles, and permissions for your dealership</p>
               </div>
-              {activeTab === 'managers' && (
-                <button
-                  onClick={() => setShowCreateModal(true)}
-                  className="cursor-pointer px-6 py-3 rounded-lg font-semibold text-sm transition-colors"
-                  style={{ 
-                    backgroundColor: '#0B2E65', 
-                    color: '#FFFFFF'
-                  }}
-                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#2c5aa0'}
-                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#0B2E65'}
-                >
-                  + Create Manager
-                </button>
-              )}
-              <button
-                onClick={() => {
-                  setShowCreateJoinCodeModal(true);
-                  setCreatedJoinCode(null);
-                }}
-                className="cursor-pointer px-6 py-3 rounded-lg font-semibold text-sm transition-colors"
-                style={{ backgroundColor: '#0B2E65', color: '#FFFFFF' }}
-                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#2c5aa0'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#0B2E65'; }}
-              >
-                Create join code
-              </button>
             </div>
 
             {/* Tabs */}
@@ -884,6 +968,18 @@ export default function UserManagementPage() {
                 }}
               >
                 User Role Permissions
+              </button>
+              <button
+                onClick={() => setActiveTab('invite')}
+                className={`cursor-pointer px-4 py-2 text-sm font-semibold transition-colors ${
+                  activeTab === 'invite' ? 'border-b-2' : ''
+                }`}
+                style={{
+                  color: activeTab === 'invite' ? '#0B2E65' : '#6B7280',
+                  borderBottomColor: activeTab === 'invite' ? '#0B2E65' : 'transparent',
+                }}
+              >
+                Invite
               </button>
             </div>
           </div>
@@ -975,6 +1071,145 @@ export default function UserManagementPage() {
                   </table>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Invite Tab */}
+          {activeTab === 'invite' && (
+            <div className="space-y-6">
+              <div className="rounded-xl p-8" style={{ backgroundColor: '#FFFFFF', border: '1px solid #E5E7EB', boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05)' }}>
+                <h2 className="text-lg font-bold mb-4" style={{ color: '#232E40' }}>Create invites &amp; join codes</h2>
+                <p className="text-sm mb-4" style={{ color: '#6B7280' }}>
+                  Create a 7-day code so someone can register as Corporate, Manager, or Hiring Manager and join your dealership.
+                </p>
+                <button
+                  onClick={() => {
+                    setShowCreateJoinCodeModal(true);
+                    setCreatedJoinCode(null);
+                  }}
+                  disabled={creatingJoinCode}
+                  className="cursor-pointer inline-flex items-center rounded-lg px-4 py-2.5 text-sm font-semibold text-white transition-colors disabled:opacity-60"
+                  style={{ backgroundColor: '#0B2E65' }}
+                >
+                  {creatingJoinCode ? 'Creating…' : 'Create 7-day invite code'}
+                </button>
+                {createdJoinCode && (
+                  <div className="mt-4 p-4 rounded-lg flex items-center justify-between gap-4" style={{ backgroundColor: '#F0F9FF', border: '1px solid #0B2E65' }}>
+                    <div>
+                      <p className="text-xs font-medium mb-1" style={{ color: '#374151' }}>
+                        Share this code (expires in 7 days){createdJoinCode.role ? ` — ${joinCodeRoleLabel(createdJoinCode.role)}` : ''}
+                      </p>
+                      <p className="font-mono font-bold text-lg" style={{ color: '#0B2E65' }}>{createdJoinCode.code}</p>
+                      <p className="text-xs mt-1" style={{ color: '#6B7280' }}>Dealership: {createdJoinCode.dealership_name}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(createdJoinCode.code);
+                        toast.success('Copied to clipboard');
+                      }}
+                      className="cursor-pointer px-3 py-2 rounded-lg text-sm font-semibold text-white shrink-0"
+                      style={{ backgroundColor: '#0B2E65' }}
+                    >
+                      Copy
+                    </button>
+                  </div>
+                )}
+              </div>
+              <div className="rounded-xl p-8" style={{ backgroundColor: '#FFFFFF', border: '1px solid #E5E7EB', boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05)' }}>
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-bold" style={{ color: '#232E40' }}>Your invite codes</h2>
+                  <button
+                    type="button"
+                    onClick={() => loadInviteCodes()}
+                    disabled={loadingHistory}
+                    className="cursor-pointer text-sm font-medium transition-colors disabled:opacity-60 hover:underline"
+                    style={{ color: '#4D6DBE' }}
+                  >
+                    {loadingHistory ? 'Refreshing…' : 'Refresh'}
+                  </button>
+                </div>
+                {loadingHistory && inviteHistory.length === 0 ? (
+                  <p className="text-sm" style={{ color: '#6B7280' }}>Loading invite codes…</p>
+                ) : inviteHistory.length === 0 ? (
+                  <p className="text-sm" style={{ color: '#6B7280' }}>No invite codes yet. Create one above or send invites from the Managers tab.</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full text-sm rounded-lg overflow-hidden" style={{ border: '1px solid #E5E7EB' }}>
+                      <thead style={{ backgroundColor: '#F9FAFB' }}>
+                        <tr>
+                          <th className="px-4 py-3 text-left font-semibold" style={{ color: '#374151' }}>Code</th>
+                          <th className="px-4 py-3 text-left font-semibold" style={{ color: '#374151' }}>Type</th>
+                          <th className="px-4 py-3 text-left font-semibold" style={{ color: '#374151' }}>Email</th>
+                          <th className="px-4 py-3 text-left font-semibold" style={{ color: '#374151' }}>Created</th>
+                          <th className="px-4 py-3 text-left font-semibold" style={{ color: '#374151' }}>Expires</th>
+                          <th className="px-4 py-3 text-left font-semibold" style={{ color: '#374151' }}>Status</th>
+                          <th className="px-4 py-3 text-left font-semibold" style={{ color: '#374151' }}>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {inviteHistory.map((row) => (
+                          <tr key={`${row.type}-${row.id}`} style={{ borderTop: '1px solid #E5E7EB' }}>
+                            <td className="px-4 py-3 font-mono" style={{ color: '#232E40' }}>{row.code}</td>
+                            <td className="px-4 py-3" style={{ color: '#374151' }}>{joinCodeRoleLabel(row.role)}</td>
+                            <td className="px-4 py-3" style={{ color: '#374151' }}>{row.email || '—'}</td>
+                            <td className="px-4 py-3" style={{ color: '#374151' }}>{new Date(row.created_at).toLocaleString()}</td>
+                            <td className="px-4 py-3" style={{ color: '#374151' }}>{new Date(row.expires_at).toLocaleString()}</td>
+                            <td className="px-4 py-3">
+                              <span
+                                style={{
+                                  color: row.status === 'active' ? '#059669' : row.status === 'used' ? '#6B7280' : '#D97706',
+                                }}
+                                className="font-medium"
+                              >
+                                {row.status === 'active' ? 'Active' : row.status === 'used' ? 'Used' : 'Expired'}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(row.code);
+                                    toast.success('Copied');
+                                  }}
+                                  className="cursor-pointer text-xs font-semibold hover:underline"
+                                  style={{ color: '#4D6DBE' }}
+                                >
+                                  Copy
+                                </button>
+                                {row.status === 'active' && (
+                                  row.type === 'manager_invite' ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleResendManagerInvite(row.id)}
+                                      disabled={sendingId === row.id}
+                                      className="cursor-pointer text-xs font-semibold hover:underline disabled:opacity-60"
+                                      style={{ color: '#4D6DBE' }}
+                                    >
+                                      {sendingId === row.id ? 'Sending…' : 'Resend'}
+                                    </button>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => setSendJoinCodeModal({ id: row.id, type: 'join_code', code: row.code })}
+                                      disabled={sendingId === row.id}
+                                      className="cursor-pointer text-xs font-semibold hover:underline disabled:opacity-60"
+                                      style={{ color: '#4D6DBE' }}
+                                    >
+                                      Send
+                                    </button>
+                                  )
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
@@ -1273,10 +1508,7 @@ export default function UserManagementPage() {
                     </div>
                     <p className="text-xs mb-4" style={{ color: '#6B7280' }}>Dealership: {createdJoinCode.dealership_name}</p>
                     <button
-                      onClick={() => {
-                        setShowCreateJoinCodeModal(false);
-                        setCreatedJoinCode(null);
-                      }}
+                      onClick={() => setShowCreateJoinCodeModal(false)}
                       className="cursor-pointer w-full px-4 py-2 rounded-lg font-semibold text-sm"
                       style={{ backgroundColor: '#0B2E65', color: '#FFFFFF' }}
                     >
@@ -1284,6 +1516,45 @@ export default function UserManagementPage() {
                     </button>
                   </>
                 )}
+              </div>
+            </div>
+          )}
+
+          {/* Send join code modal */}
+          {sendJoinCodeModal && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+              <div className="rounded-xl p-6 max-w-md w-full mx-4" style={{ backgroundColor: '#FFFFFF' }}>
+                <h3 className="text-lg font-bold mb-2" style={{ color: '#232E40' }}>Send join code</h3>
+                <p className="text-sm mb-4" style={{ color: '#6B7280' }}>
+                  Enter the email address to send the code <strong>{sendJoinCodeModal.code}</strong> to.
+                </p>
+                <input
+                  type="email"
+                  placeholder="email@example.com"
+                  value={sendEmail}
+                  onChange={(e) => setSendEmail(e.target.value)}
+                  className="w-full px-4 py-2.5 rounded-lg border mb-4"
+                  style={{ borderColor: '#E5E7EB', color: '#232E40' }}
+                />
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => { setSendJoinCodeModal(null); setSendEmail(''); }}
+                    className="cursor-pointer flex-1 px-4 py-2.5 rounded-lg font-semibold text-sm"
+                    style={{ backgroundColor: '#F3F4F6', color: '#6B7280' }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSendJoinCode}
+                    disabled={!sendEmail.trim() || sendingId !== null}
+                    className="cursor-pointer flex-1 px-4 py-2.5 rounded-lg font-semibold text-sm text-white disabled:opacity-60"
+                    style={{ backgroundColor: '#0B2E65' }}
+                  >
+                    {sendingId !== null ? 'Sending…' : 'Send'}
+                  </button>
+                </div>
               </div>
             </div>
           )}

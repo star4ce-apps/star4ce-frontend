@@ -19,7 +19,6 @@ export default function AppShell({ children }: { children: ReactNode }) {
                           pathname?.startsWith('/support') ||
                           pathname?.startsWith('/surveys') ||
                           pathname?.startsWith('/access-codes') ||
-                          pathname?.startsWith('/invite') ||
                           pathname?.startsWith('/settings') ||
                           (pathname?.startsWith('/admin') && !pathname?.startsWith('/admin-register'));
 
