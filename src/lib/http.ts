@@ -139,6 +139,49 @@ export async function putJsonAuth<T = any>(
   return data as T;
 }
 
+export async function patchJsonAuth<T = any>(
+  path: string,
+  body: unknown,
+  init: RequestInit = {}
+): Promise<T> {
+  const token = getToken();
+
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: 'PATCH',
+    ...init,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(init.headers || {}),
+      ...maybeDealershipHeader(),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(body),
+  });
+
+  const contentType = res.headers.get('content-type');
+  let data: any = {};
+  if (contentType && contentType.includes('application/json')) {
+    try {
+      data = await res.json();
+    } catch {
+      data = {};
+    }
+  } else {
+    try {
+      data = await res.json();
+    } catch {
+      data = {};
+    }
+  }
+
+  if (!res.ok) {
+    const msg = data?.error || `Request failed (${res.status})`;
+    throw new Error(msg);
+  }
+
+  return data as T;
+}
+
 export async function getJsonAuth<T = any>(
   path: string,
   init: RequestInit = {}
