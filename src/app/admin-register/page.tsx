@@ -267,7 +267,10 @@ function AdminRegisterPageContent() {
           return;
         }
       } else {
-        // New registration - create the user account
+        // Resolve city: use "Other" text when user selected Other
+        const resolvedCity = (dealershipCity === '__other__' ? dealershipCityOther : dealershipCity).trim() || null;
+
+        // New registration - create the user account (include dealership info so backend can save for checkout)
         const registerRes = await fetch(`${API_BASE}/auth/register`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -277,6 +280,11 @@ function AdminRegisterPageContent() {
             first_name: firstName.trim(),
             last_name: lastName.trim(),
             is_admin_registration: true,  // Flag for admin registration
+            dealership_name: dealershipName.trim() || null,
+            dealership_address: dealershipAddress.trim() || null,
+            dealership_city: resolvedCity,
+            dealership_state: dealershipState.trim() || null,
+            dealership_zip_code: dealershipZipCode.trim() || null,
           }),
         });
 
@@ -307,12 +315,12 @@ function AdminRegisterPageContent() {
         
         user_id = registerData.user_id;
 
-        // Store dealership information in localStorage for later use during checkout
-        if (dealershipName || dealershipAddress || dealershipCity || dealershipState || dealershipZipCode) {
+        // Store dealership information in localStorage for later use during checkout (use resolved city for "Other")
+        if (dealershipName || dealershipAddress || resolvedCity || dealershipState || dealershipZipCode) {
           const dealershipInfo = {
             name: dealershipName.trim(),
             address: dealershipAddress.trim() || null,
-            city: dealershipCity.trim() || null,
+            city: resolvedCity,
             state: dealershipState.trim() || null,
             zip_code: dealershipZipCode.trim() || null,
             email: email.trim().toLowerCase(),
