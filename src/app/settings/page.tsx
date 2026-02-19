@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import HubSidebar from '@/components/sidebar/HubSidebar';
 import RequireAuth from '@/components/layout/RequireAuth';
 import { getToken, API_BASE, clearSession } from '@/lib/auth';
-import { deleteJsonAuth } from '@/lib/http';
+import { deleteJsonAuth, patchJsonAuth, putJsonAuth } from '@/lib/http';
 import toast from 'react-hot-toast';
 
 export default function SettingsPage() {
@@ -19,7 +19,10 @@ export default function SettingsPage() {
     email: '',
     phone: '',
     dealershipName: '',
-    streetAddress: '',
+    address: '',
+    city: '',
+    state: '',
+    zipCode: '',
   });
   const [originalProfile, setOriginalProfile] = useState({
     firstName: '',
@@ -27,7 +30,10 @@ export default function SettingsPage() {
     email: '',
     phone: '',
     dealershipName: '',
-    streetAddress: '',
+    address: '',
+    city: '',
+    state: '',
+    zipCode: '',
   });
   const [dealershipId, setDealershipId] = useState<number | null>(null);
   const [showDangerZone, setShowDangerZone] = useState(false);
@@ -58,11 +64,14 @@ export default function SettingsPage() {
           email: (userData.email ?? '').toString().trim(),
           phone: (userData.phone ?? userData.phone_number ?? (userData as any).phone ?? '').toString().trim(),
           dealershipName: (userData.dealership_name ?? userData.dealershipName ?? (userData as any).dealership?.name ?? '').toString().trim(),
-          streetAddress: (userData.dealership_address ?? userData.dealershipAddress ?? userData.street_address ?? userData.streetAddress ?? (userData as any).dealership?.address ?? '').toString().trim(),
+          address: (userData.dealership_street ?? (userData as any).dealership?.address ?? '').toString().trim(),
+          city: (userData.dealership_city ?? (userData as any).dealership?.city ?? '').toString().trim(),
+          state: (userData.dealership_state ?? (userData as any).dealership?.state ?? '').toString().trim(),
+          zipCode: (userData.dealership_zip_code ?? (userData as any).dealership?.zip_code ?? '').toString().trim(),
         };
 
-        // Fallback: if /auth/me didn't include dealership name/address, fetch from dealership endpoint
-        if (userDealershipId && !profileData.dealershipName) {
+        // Always sync address from DB when user has a dealership (single source of truth)
+        if (userDealershipId) {
           try {
             const dealershipRes = await fetch(`${API_BASE}/corporate/dealerships/${userDealershipId}`, {
               headers: { Authorization: `Bearer ${token}` },
@@ -70,8 +79,11 @@ export default function SettingsPage() {
             if (dealershipRes.ok) {
               const dealershipData = await dealershipRes.json();
               const dealership = dealershipData.dealership || dealershipData;
-              profileData.dealershipName = dealership.name || '';
-              profileData.streetAddress = dealership.address || dealership.street_address || '';
+              profileData.dealershipName = (dealership.name ?? profileData.dealershipName ?? '').toString().trim();
+              profileData.address = (dealership.address ?? profileData.address ?? '').toString().trim();
+              profileData.city = (dealership.city ?? profileData.city ?? '').toString().trim();
+              profileData.state = (dealership.state ?? profileData.state ?? '').toString().trim();
+              profileData.zipCode = (dealership.zip_code ?? profileData.zipCode ?? '').toString().trim();
             }
           } catch (err) {
             console.error('Failed to load dealership info:', err);
@@ -110,13 +122,32 @@ export default function SettingsPage() {
         return;
       }
 
-      // TODO: Update profile via API
-      // For now, just update the original profile to reflect saved state
+      // Update user profile (first name, last name) in DB
+      await patchJsonAuth('/auth/me', {
+        first_name: profile.firstName || null,
+        last_name: profile.lastName || null,
+      });
+
+      // If user is admin and has a dealership, update dealership name and address fields in DB
+      const role = (user as any)?.role;
+      if (role === 'admin' && dealershipId) {
+        await putJsonAuth('/admin/dealership', {
+          name: profile.dealershipName,
+          address: profile.address || '',
+          city: profile.city || '',
+          state: profile.state || '',
+          zip_code: profile.zipCode || '',
+        });
+      }
+
       setOriginalProfile(profile);
       setIsEditing(false);
       toast.success('Profile updated successfully');
+      // Refetch from DB so UI shows persisted address (and role/dealership from server)
+      await loadUserProfile();
     } catch (err) {
-      toast.error('Failed to update profile');
+      const msg = err instanceof Error ? err.message : 'Failed to update profile';
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -212,17 +243,56 @@ export default function SettingsPage() {
                       style={{ borderColor: '#D1D5DB', color: '#111827' }}
                     />
                   </div>
-                  <div className="mb-6">
+                  <div className="mb-4">
                     <label className="block text-sm font-medium mb-2" style={{ color: '#374151' }}>
-                      Street Address
+                      Address
                     </label>
                     <input
                       type="text"
-                      value={profile.streetAddress}
-                      onChange={(e) => setProfile({ ...profile, streetAddress: e.target.value })}
+                      value={profile.address}
+                      onChange={(e) => setProfile({ ...profile, address: e.target.value })}
+                      placeholder="Street address"
                       className="w-full px-3 py-2 rounded-lg border bg-white"
                       style={{ borderColor: '#D1D5DB', color: '#111827' }}
                     />
+                  </div>
+                  <div className="grid grid-cols-3 gap-4 mb-6">
+                    <div>
+                      <label className="block text-sm font-medium mb-2" style={{ color: '#374151' }}>
+                        City
+                      </label>
+                      <input
+                        type="text"
+                        value={profile.city}
+                        onChange={(e) => setProfile({ ...profile, city: e.target.value })}
+                        className="w-full px-3 py-2 rounded-lg border bg-white"
+                        style={{ borderColor: '#D1D5DB', color: '#111827' }}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-2" style={{ color: '#374151' }}>
+                        State
+                      </label>
+                      <input
+                        type="text"
+                        value={profile.state}
+                        onChange={(e) => setProfile({ ...profile, state: e.target.value })}
+                        className="w-full px-3 py-2 rounded-lg border bg-white"
+                        style={{ borderColor: '#D1D5DB', color: '#111827' }}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-2" style={{ color: '#374151' }}>
+                        Zip Code
+                      </label>
+                      <input
+                        type="text"
+                        value={profile.zipCode}
+                        onChange={(e) => setProfile({ ...profile, zipCode: e.target.value })}
+                        className="w-full px-3 py-2 rounded-lg border bg-white"
+                        style={{ borderColor: '#D1D5DB', color: '#111827' }}
+                      />
+                    </div>
                   </div>
                   <div className="flex items-center gap-3">
                     <button
@@ -288,12 +358,38 @@ export default function SettingsPage() {
                       {profile.dealershipName || '—'}
                     </div>
                   </div>
-                  <div className="mb-6">
+                  <div className="mb-4">
                     <label className="block text-sm font-medium mb-2" style={{ color: '#374151' }}>
-                      Street Address
+                      Address
                     </label>
                     <div className="px-3 py-2 rounded-lg" style={{ backgroundColor: '#F9FAFB', color: '#374151' }}>
-                      {profile.streetAddress || '—'}
+                      {profile.address || '—'}
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-4 mb-6">
+                    <div>
+                      <label className="block text-sm font-medium mb-2" style={{ color: '#374151' }}>
+                        City
+                      </label>
+                      <div className="px-3 py-2 rounded-lg" style={{ backgroundColor: '#F9FAFB', color: '#374151' }}>
+                        {profile.city || '—'}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-2" style={{ color: '#374151' }}>
+                        State
+                      </label>
+                      <div className="px-3 py-2 rounded-lg" style={{ backgroundColor: '#F9FAFB', color: '#374151' }}>
+                        {profile.state || '—'}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-2" style={{ color: '#374151' }}>
+                        Zip Code
+                      </label>
+                      <div className="px-3 py-2 rounded-lg" style={{ backgroundColor: '#F9FAFB', color: '#374151' }}>
+                        {profile.zipCode || '—'}
+                      </div>
                     </div>
                   </div>
                 </div>
