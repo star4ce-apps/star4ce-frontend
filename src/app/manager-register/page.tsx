@@ -7,14 +7,6 @@ import { API_BASE } from '@/lib/auth';
 import toast from 'react-hot-toast';
 import Logo from '@/components/Logo';
 
-type Dealership = {
-  id: number;
-  name: string;
-  city: string | null;
-  state: string | null;
-  address: string | null;
-};
-
 type InviteInfo = {
   email: string;
   dealership_name: string | null;
@@ -32,17 +24,14 @@ function ManagerRegisterContent() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
-  const [dealershipId, setDealershipId] = useState<number | null>(null);
-  const [dealerships, setDealerships] = useState<Dealership[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
-  const [loadingDealerships, setLoadingDealerships] = useState(true);
   const [loadingInvite, setLoadingInvite] = useState(false);
   const [error, setError] = useState('');
   const [inviteInfo, setInviteInfo] = useState<InviteInfo | null>(null);
   const [isInviteMode, setIsInviteMode] = useState(false);
   const [inviteCode, setInviteCode] = useState('');
   const [validatingCode, setValidatingCode] = useState(false);
+  const [currentStep, setCurrentStep] = useState(1);
 
   // Prevent body scrolling when manager registration page is mounted
   useEffect(() => {
@@ -58,8 +47,9 @@ function ManagerRegisterContent() {
   useEffect(() => {
     if (inviteToken) {
       validateInviteToken();
+      setCurrentStep(1); // Start at step 1 even with token
     } else {
-      loadDealerships();
+      setCurrentStep(1);
     }
   }, [inviteToken]);
 
@@ -109,6 +99,7 @@ function ManagerRegisterContent() {
         setIsInviteMode(true);
         setInviteInfo(data.invite);
         setEmail(data.invite.email);
+        setCurrentStep(1); // Start at step 1
       } else {
         setError(data.error || 'Invalid or expired invitation link');
         toast.error(data.error || 'Invalid or expired invitation link');
@@ -122,35 +113,12 @@ function ManagerRegisterContent() {
     }
   }
 
-  async function loadDealerships() {
-    setLoadingDealerships(true);
-    try {
-      const res = await fetch(`${API_BASE}/public/dealerships`);
-      const data = await res.json();
-      if (res.ok) {
-        setDealerships(data.dealerships || []);
-      } else {
-        setError(data.error || 'Failed to load dealerships');
-      }
-    } catch (err) {
-      setError('Failed to load dealerships');
-      console.error(err);
-    } finally {
-      setLoadingDealerships(false);
-    }
-  }
 
-  const filteredDealerships = dealerships.filter(d =>
-    d.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (d.city && d.city.toLowerCase().includes(searchQuery.toLowerCase())) ||
-    (d.state && d.state.toLowerCase().includes(searchQuery.toLowerCase()))
-  );
-
-  async function handleSubmit(e: React.FormEvent) {
+  function handleNextStep(e: React.FormEvent) {
     e.preventDefault();
     setError('');
 
-    // Validation
+    // Validation for step 1
     if (!firstName.trim()) {
       setError('First name is required');
       return;
@@ -176,60 +144,70 @@ function ManagerRegisterContent() {
       return;
     }
 
+    if (password.length < 8 || !/[a-zA-Z]/.test(password) || !/[0-9]/.test(password)) {
+      setError('Password must be at least 8 characters and include both letters and numbers');
+      return;
+    }
+
+    // If there's an invite token, go directly to submit (skip step 2)
+    if (inviteToken && isInviteMode) {
+      // Create a synthetic event for handleSubmit
+      const syntheticEvent = {
+        preventDefault: () => {},
+      } as React.FormEvent;
+      handleSubmit(syntheticEvent);
+      return;
+    }
+
+    setCurrentStep(2);
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError('');
+
+    // Validate dealership code for step 2 (only if no invite token)
+    if (!inviteToken && currentStep === 2) {
+      const code = inviteCode.trim().toUpperCase();
+      if (!code) {
+        setError('Dealership code is required');
+        return;
+      }
+
+      if (!isInviteMode) {
+        setError('Please validate your dealership code first');
+        return;
+      }
+    }
+
     setLoading(true);
     try {
-      if (isInviteMode && (inviteToken || inviteCode.trim())) {
-        // Register via invite token or code
-        const body: Record<string, string> = {
-          password,
-          first_name: firstName.trim(),
-          last_name: lastName.trim(),
-          email: email.trim().toLowerCase(),
-        };
-        if (inviteToken) body.token = inviteToken;
-        else body.code = inviteCode.trim().toUpperCase();
-        const res = await fetch(`${API_BASE}/auth/register-manager-invite`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
-        });
-
-        const data = await res.json();
-        if (res.ok) {
-          toast.success('Account created successfully! You can now sign in.');
-          router.push('/login');
-        } else {
-          setError(data.error || 'Registration failed');
-          toast.error(data.error || 'Registration failed');
-        }
+      // Register via invite token or code
+      const body: Record<string, string> = {
+        password,
+        first_name: firstName.trim(),
+        last_name: lastName.trim(),
+        email: email.trim().toLowerCase(),
+      };
+      if (inviteToken) {
+        body.token = inviteToken;
       } else {
-        // Regular registration (requires dealership selection)
-        if (!dealershipId) {
-          setError('Please select a dealership');
-          setLoading(false);
-          return;
-        }
+        const code = inviteCode.trim().toUpperCase();
+        body.code = code;
+      }
+      const res = await fetch(`${API_BASE}/auth/register-manager-invite`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
 
-        const res = await fetch(`${API_BASE}/auth/register`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            email: email.trim().toLowerCase(),
-            password,
-            dealership_id: dealershipId,
-            first_name: firstName.trim(),
-            last_name: lastName.trim(),
-          }),
-        });
-
-        const data = await res.json();
-        if (res.ok) {
-          toast.success('Registration successful! Please check your email for verification code.');
-          router.push(`/verify?email=${encodeURIComponent(email)}`);
-        } else {
-          setError(data.error || 'Registration failed');
-          toast.error(data.error || 'Registration failed');
-        }
+      const data = await res.json();
+      if (res.ok) {
+        toast.success('Account created successfully! You can now sign in.');
+        router.push('/login');
+      } else {
+        setError(data.error || 'Registration failed');
+        toast.error(data.error || 'Registration failed');
       }
     } catch (err) {
       setError('Failed to register. Please try again.');
@@ -311,240 +289,215 @@ function ManagerRegisterContent() {
               </div>
             )}
 
+            {/* Progress Dots */}
+            <div className="flex justify-center items-center gap-3 mb-6">
+              {[1, 2].map((step) => (
+                <div
+                  key={step}
+                  className={`w-3 h-3 rounded-full transition-all ${
+                    step === currentStep
+                      ? 'bg-[#0B2E65]'
+                      : step < currentStep
+                      ? 'bg-[#0B2E65]'
+                      : 'bg-gray-300'
+                  }`}
+                />
+              ))}
+            </div>
+
+            {/* Loading Invite */}
+            {loadingInvite && (
+              <div className="text-center py-4">
+                <p className="text-gray-600">Validating invitation...</p>
+              </div>
+            )}
+
             {/* Registration Form */}
-            <form onSubmit={handleSubmit} className="space-y-4 flex-1 min-h-0">
-              {/* Invite code entry (when no token in URL) */}
-              {!inviteToken && !isInviteMode && (
-                <div className="mb-4 p-3 rounded-lg border border-gray-200 bg-gray-50">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Have an invite code?</label>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      placeholder="Enter code (e.g. ABC12XYZ)"
-                      className="flex-1 px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#0B2E65] focus:border-transparent uppercase"
-                      value={inviteCode}
-                      onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
-                      maxLength={12}
-                    />
-                    <button
-                      type="button"
-                      onClick={validateInviteCode}
-                      disabled={!inviteCode.trim() || validatingCode}
-                      className="cursor-pointer px-4 py-2.5 rounded-lg font-medium bg-[#0B2E65] text-white hover:bg-[#2c5aa0] disabled:opacity-60 disabled:cursor-not-allowed"
-                    >
-                      {validatingCode ? 'Checking...' : 'Apply'}
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Loading Invite */}
-              {loadingInvite && (
-                <div className="text-center py-4">
-                  <p className="text-gray-600">Validating invitation...</p>
-                </div>
-              )}
-
-              {/* Account Information - like admin register */}
-              <div className="mb-4">
-                <h3 className="font-semibold text-gray-700 mb-3">Account Information</h3>
-                <div className="grid grid-cols-2 gap-4 mb-3">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">First Name *</label>
-                    <input
-                      type="text"
-                      placeholder="First Name"
-                      autoComplete="given-name"
-                      className="w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#0B2E65] focus:border-transparent"
-                      value={firstName}
-                      onChange={(e) => setFirstName(e.target.value)}
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Last Name *</label>
-                    <input
-                      type="text"
-                      placeholder="Last Name"
-                      autoComplete="family-name"
-                      className="w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#0B2E65] focus:border-transparent"
-                      value={lastName}
-                      onChange={(e) => setLastName(e.target.value)}
-                      required
-                    />
-                  </div>
-                </div>
-                <div className="mb-3">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Email *</label>
-                  <input
-                    type="email"
-                    placeholder="Email"
-                    autoComplete="email"
-                    className="w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#0B2E65] focus:border-transparent"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  disabled={isInviteMode && !!inviteToken}
-                />
-                </div>
-                <div className="mb-3">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Password *</label>
-                  <input
-                    type="password"
-                    placeholder="Password (min 8 chars, letters & numbers)"
-                    autoComplete="new-password"
-                    className="w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#0B2E65] focus:border-transparent"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  minLength={8}
-                />
-                </div>
-
-              {/* Confirm Password Field */}
-              <div className="mb-3">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Confirm Password *</label>
-                <input
-                  type="password"
-                  placeholder="Confirm Password"
-                  autoComplete="new-password"
-                  className="w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#0B2E65] focus:border-transparent"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  required
-                  minLength={8}
-                />
-              </div>
-
-              </div>
-
-              {/* Dealership Selection (only for non-invite mode) */}
-              {!isInviteMode && (
-              <div>
-                <label className="block font-medium mb-2 text-gray-700">
-                  Select Dealership *
-                </label>
-                {loadingDealerships ? (
-                  <div className="w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-center">
-                    <p className="text-gray-600">Loading dealerships...</p>
-                  </div>
-                ) : (
-                  <>
-                    {/* Search */}
-                    <div className="mb-3">
+            {currentStep === 1 ? (
+              <form onSubmit={handleNextStep} className="space-y-4 flex-1 min-h-0">
+                {/* Account Information - like admin register */}
+                <div className="mb-4">
+                  <h3 className="font-semibold text-gray-700 mb-3">Account Information</h3>
+                  <div className="grid grid-cols-2 gap-4 mb-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">First Name *</label>
                       <input
                         type="text"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        placeholder="Search dealerships by name, city, or state..."
-                        className="w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none"
+                        placeholder="First Name"
+                        autoComplete="given-name"
+                        className="w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#0B2E65] focus:border-transparent"
+                        value={firstName}
+                        onChange={(e) => setFirstName(e.target.value)}
+                        required
                       />
                     </div>
-
-                    {/* Dealership List */}
-                    <div className="max-h-40 overflow-y-auto rounded-lg border border-gray-300 bg-white">
-                      {filteredDealerships.length === 0 ? (
-                        <div className="p-4 text-center">
-                          <p className="text-gray-500">
-                            {searchQuery ? 'No dealerships found matching your search.' : 'No dealerships available.'}
-                          </p>
-                        </div>
-                      ) : (
-                        filteredDealerships.map((dealership) => {
-                          const isSelected = dealershipId === dealership.id;
-                          return (
-                            <button
-                              key={dealership.id}
-                              type="button"
-                              onClick={() => setDealershipId(dealership.id)}
-                              className={`cursor-pointer w-full text-left px-3 py-2.5 border-b transition-colors ${
-                                isSelected
-                                  ? 'bg-[#0B2E65] text-white'
-                                  : 'hover:bg-gray-50 text-gray-900'
-                              }`}
-                              style={{
-                                borderColor: isSelected ? '#0B2E65' : '#E5E7EB',
-                                color: isSelected ? '#FFFFFF' : '#111827',
-                              }}
-                            >
-                              <div className="flex items-center justify-between">
-                                <div>
-                                  <p 
-                                    className="font-semibold"
-                                    style={{ color: isSelected ? '#FFFFFF' : '#111827' }}
-                                  >
-                                    {dealership.name}
-                                  </p>
-                                  {(dealership.city || dealership.state) && (
-                                    <p 
-                                      className="mt-1"
-                                      style={{ color: isSelected ? '#E0E7FF' : '#6B7280' }}
-                                    >
-                                      {[dealership.city, dealership.state].filter(Boolean).join(', ')}
-                                    </p>
-                                  )}
-                                </div>
-                                {isSelected && (
-                                  <svg 
-                                    className="w-5 h-5" 
-                                    fill="currentColor" 
-                                    viewBox="0 0 20 20"
-                                    style={{ color: '#FFFFFF' }}
-                                  >
-                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                  </svg>
-                                )}
-                              </div>
-                            </button>
-                          );
-                        })
-                      )}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Last Name *</label>
+                      <input
+                        type="text"
+                        placeholder="Last Name"
+                        autoComplete="family-name"
+                        className="w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#0B2E65] focus:border-transparent"
+                        value={lastName}
+                        onChange={(e) => setLastName(e.target.value)}
+                        required
+                      />
                     </div>
-                  </>
-                )}
-              </div>
-              )}
+                  </div>
+                  <div className="mb-3">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Email *</label>
+                    <input
+                      type="email"
+                      placeholder="Email"
+                      autoComplete="email"
+                      className="w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#0B2E65] focus:border-transparent"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                    disabled={isInviteMode && !!inviteToken}
+                  />
+                  </div>
+                  <div className="mb-3">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Password *</label>
+                    <input
+                      type="password"
+                      placeholder="Password (min 8 chars, letters & numbers)"
+                      autoComplete="new-password"
+                      className="w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#0B2E65] focus:border-transparent"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    minLength={8}
+                  />
+                  </div>
 
-              {/* Info Box */}
-              {isInviteMode ? (
-                <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 flex-shrink-0">
-                  <h3 className="text-xs font-semibold text-[#0B2E65] mb-1">
-                    {inviteInfo?.role === 'hiring_manager' ? 'Hiring Manager invite' : 'Invited account'}
-                  </h3>
-                  <p className="text-xs text-gray-700">
-                    {inviteInfo?.dealership_name && (
-                      <span className="block mb-1">Dealership: {inviteInfo.dealership_name}</span>
+                {/* Confirm Password Field */}
+                <div className="mb-3">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Confirm Password *</label>
+                  <input
+                    type="password"
+                    placeholder="Confirm Password"
+                    autoComplete="new-password"
+                    className="w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#0B2E65] focus:border-transparent"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    required
+                    minLength={8}
+                  />
+                </div>
+
+                </div>
+
+                {/* Next Button */}
+                <button
+                  type="submit"
+                  className="cursor-pointer w-full bg-[#0B2E65] text-white py-2.5 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-colors"
+                >
+                  Next
+                </button>
+              </form>
+            ) : (
+              <form onSubmit={handleSubmit} className="space-y-4 flex-1 min-h-0">
+                {/* Dealership code entry (required) - only show if no invite token */}
+                {!inviteToken ? (
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-2">
+                      Enter Dealership code
+                      <div className="group relative">
+                        <svg
+                          className="w-4 h-4 text-gray-400 cursor-help"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <div className="absolute left-0 bottom-full mb-2 hidden group-hover:block w-64 p-3 bg-white border border-gray-300 text-gray-700 text-xs rounded-lg shadow-lg z-10">
+                          <p className="mb-1 font-semibold">Where to find your code:</p>
+                          <p>Your dealership code is provided by your admin. Contact your dealership administrator or check your email invitation for the code.</p>
+                        </div>
+                      </div>
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        placeholder="Code"
+                        className="flex-1 px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#0B2E65] focus:border-transparent uppercase"
+                        value={inviteCode}
+                        onChange={(e) => {
+                          setInviteCode(e.target.value.toUpperCase());
+                          setError('');
+                        }}
+                        maxLength={12}
+                        required
+                      />
+                      <button
+                        type="button"
+                        onClick={validateInviteCode}
+                        disabled={!inviteCode.trim() || validatingCode}
+                        className="cursor-pointer px-4 py-2.5 rounded-lg font-medium bg-[#0B2E65] text-white hover:bg-[#2c5aa0] disabled:opacity-60 disabled:cursor-not-allowed"
+                      >
+                        {validatingCode ? 'Checking...' : 'Validate'}
+                      </button>
+                    </div>
+                    {inviteInfo && (
+                      <p className="mt-2 text-xs text-green-700">
+                        {inviteInfo.dealership_name && `You will be assigned to: ${inviteInfo.dealership_name}`}
+                      </p>
                     )}
-                    Your account will be automatically approved and you'll have immediate access once you complete registration.
-                  </p>
-                </div>
-              ) : (
-                <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 flex-shrink-0">
-                  <h3 className="text-xs font-semibold text-[#0B2E65] mb-1">Note:</h3>
-                  <p className="text-xs text-gray-700">
-                    After registration, verify your email. Your account will be pending admin approval. 
-                    Once approved, you can request admin status or subscribe to become an admin.
-                  </p>
-                </div>
-              )}
+                  </div>
+                ) : null}
 
-              {/* Register Button */}
-              <button
-                type="submit"
-                disabled={loading || loadingInvite || (!isInviteMode && !dealershipId) || (isInviteMode && !inviteToken && !inviteCode.trim())}
-                className="cursor-pointer w-full bg-[#0B2E65] text-white py-2.5 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-              >
-                {loading ? 'Registering...' : isInviteMode ? (inviteInfo?.role === 'hiring_manager' ? 'Create account as Hiring Manager' : 'Create Account') : 'Register as Manager'}
-              </button>
+                {/* Info Box */}
+                {isInviteMode ? (
+                  <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 flex-shrink-0">
+                    <h3 className="text-xs font-semibold text-[#0B2E65] mb-1">
+                      {inviteInfo?.role === 'hiring_manager' ? 'Hiring Manager invite' : 'Invited account'}
+                    </h3>
+                    <p className="text-xs text-gray-700">
+                      {inviteInfo?.dealership_name && (
+                        <span className="block mb-1">Dealership: {inviteInfo.dealership_name}</span>
+                      )}
+                      Your account will be automatically approved and you'll have immediate access once you complete registration.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 flex-shrink-0">
+                    <h3 className="text-xs font-semibold text-[#0B2E65] mb-1">Note:</h3>
+                    <p className="text-xs text-gray-700">
+                      Please enter a valid dealership code to register. After registration, verify your email. 
+                      Your account will be automatically approved once you complete registration with a valid code.
+                    </p>
+                  </div>
+                )}
 
-              {/* Login Link */}
-              <div className="text-center text-gray-700">
-                Already have an account?{' '}
-                <Link href="/login" className="text-[#0B2E65] hover:underline font-medium">
-                  Sign in
-                </Link>
-              </div>
-            </form>
+                {/* Navigation Buttons */}
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setCurrentStep(1)}
+                    className="cursor-pointer flex-1 bg-gray-200 text-gray-700 py-2.5 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
+                  >
+                    Back
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={loading || loadingInvite || (!inviteToken && !isInviteMode)}
+                    className="cursor-pointer flex-1 bg-[#0B2E65] text-white py-2.5 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    {loading ? 'Registering...' : isInviteMode ? (inviteInfo?.role === 'hiring_manager' ? 'Create account as Hiring Manager' : 'Create Account') : 'Register as Manager'}
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* Login Link */}
+            <div className="text-center text-gray-700 mt-4">
+              Already have an account?{' '}
+              <Link href="/login" className="text-[#0B2E65] hover:underline font-medium">
+                Sign in
+              </Link>
+            </div>
           </div>
         </div>
       </div>

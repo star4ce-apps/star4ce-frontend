@@ -98,36 +98,26 @@ export default function Footer()
             <h3 className="text-lg font-bold text-white mb-4">Contact</h3>
             <div className="space-y-3 text-white text-sm">
               <p className="flex items-start gap-2">
-                <span className="text-white">📧</span>
-                <a href="mailto:info@starace.com" className="text-white hover:text-white/90 transition-colors">
-                  info@starace.com
+                <svg className="w-5 h-5 text-white flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+                <a href="mailto:support@star4ce.com" className="text-white hover:text-white/90 transition-colors">
+                  support@star4ce.com
                 </a>
               </p>
               <p className="flex items-start gap-2">
-                <span className="text-white">📞</span>
-                <a href="mailto:info@starace.com" className="text-white hover:text-white/90 transition-colors">
-                  Contact us via email
+                <span className="text-white text-lg leading-none" style={{ filter: 'brightness(0) invert(1)' }}>📞</span>
+                <a href="tel:866-528-3014" className="text-white hover:text-white/90 transition-colors">
+                  866-528-3014
                 </a>
               </p>
               <p className="flex items-start gap-2">
-                <span className="text-white">📍</span>
+                <span className="text-white text-lg leading-none" style={{ filter: 'brightness(0) invert(1)' }}>📍</span>
                 <span className="text-white">
-                  United States<br />
-                  Suite 100<br />
-                  Los Angeles, CA 90210
+                  2549 Eastbluff Dr. Ste 824<br />
+                  Newport Beach, CA 92660
                 </span>
               </p>
-            </div>
-            <div className="mt-4 space-y-2">
-              <Link href="/privacy" className="text-white/80 hover:text-white transition-colors text-sm block">
-                Privacy Policy
-              </Link>
-              <Link href="/terms" className="text-white/80 hover:text-white transition-colors text-sm block">
-                Terms of Service
-              </Link>
-              <Link href="/legal" className="text-white/80 hover:text-white transition-colors text-sm block">
-                Legal Notice
-              </Link>
             </div>
           </div>
         </div>

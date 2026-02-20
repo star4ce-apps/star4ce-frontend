@@ -11,7 +11,7 @@ export default function Surveys() {
   ];
 
   return (
-    <section id="surveys" className="bg-[#E6E6E6] py-20 relative">
+    <section id="surveys" className="bg-white py-20 relative">
       <div className="max-w-[1200px] mx-auto px-5 relative z-10">
         <h3 className="text-3xl md:text-4xl font-bold text-[#0B2E65] mb-2 text-center">OUR SURVEYS</h3>
         <p className="text-center text-gray-600 mb-12 text-base">We Reach Out to Every Corner of Your Workforce</p>
@@ -29,9 +29,9 @@ export default function Surveys() {
                   }}
                 />
                 <div 
-                  className="absolute inset-0 bg-[#0B2E65]/40"
+                  className="absolute inset-0 bg-[#0B2E65]/20"
                   style={{
-                    background: 'linear-gradient(135deg, rgba(11, 46, 101, 0.5) 0%, rgba(11, 46, 101, 0.3) 100%)',
+                    background: 'linear-gradient(135deg, rgba(11, 46, 101, 0.2) 0%, rgba(11, 46, 101, 0.1) 100%)',
                   }}
                 ></div>
               </div>

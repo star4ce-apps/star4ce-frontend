@@ -24,12 +24,6 @@ export default function Trusted() {
             style={{
               width: 'calc(200% + 6rem)',
             }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.animationPlayState = 'paused';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.animationPlayState = 'running';
-            }}
           >
             {allLogos.map((logo, index) => (
               <div

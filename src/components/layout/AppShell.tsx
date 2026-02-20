@@ -35,7 +35,8 @@ export default function AppShell({ children }: { children: ReactNode }) {
   if (isSurveyPage) {
     return (
       <div className="min-h-screen flex flex-col bg-white">
-        <main className="flex-1">{children}</main>
+        <TopNav />
+        <main className="flex-1 pt-[110px]">{children}</main>
         <PageScripts />
       </div>
     );

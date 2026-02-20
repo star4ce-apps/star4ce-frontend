@@ -19,6 +19,7 @@ export default function CorporateRegisterPage() {
   const [joinCode, setJoinCode] = useState('');
   const [codeInfo, setCodeInfo] = useState<{ dealership_name: string } | null>(null);
   const [validatingCode, setValidatingCode] = useState(false);
+  const [currentStep, setCurrentStep] = useState(1);
 
   // Prevent body scrolling when corporate registration page is mounted
   useEffect(() => {
@@ -62,11 +63,11 @@ export default function CorporateRegisterPage() {
     }
   }
 
-  async function handleSubmit(e: React.FormEvent) {
+  function handleNextStep(e: React.FormEvent) {
     e.preventDefault();
     setError('');
 
-    // Validation
+    // Validation for step 1
     if (!firstName.trim()) {
       setError('First name is required');
       return;
@@ -97,12 +98,26 @@ export default function CorporateRegisterPage() {
       return;
     }
 
+    setCurrentStep(2);
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError('');
+
     const code = joinCode.trim().toUpperCase();
-    const useCode = code.length > 0;
+    if (!code) {
+      setError('Dealership code is required');
+      return;
+    }
+
+    if (!codeInfo) {
+      setError('Please validate your dealership code first');
+      return;
+    }
 
     setLoading(true);
     try {
-      if (useCode) {
         // Register with join code (assigns to dealership)
         const res = await fetch(`${API_BASE}/auth/register-corporate-with-code`, {
           method: 'POST',
@@ -129,55 +144,6 @@ export default function CorporateRegisterPage() {
           toast.success(data.message || 'Registration successful! Please check your email for the verification code.');
           router.push(`/verify?email=${encodeURIComponent(email)}`);
         }
-        return;
-      }
-
-      // Register as corporate user (no code)
-      const res = await fetch(`${API_BASE}/auth/register`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: email.trim().toLowerCase(),
-          password,
-          role: 'corporate',
-          first_name: firstName.trim(),
-          last_name: lastName.trim(),
-        }),
-      }).catch((fetchError) => {
-        // Handle network errors (backend not running, CORS, etc.)
-        console.error('Network error:', fetchError);
-        throw new Error('Unable to connect to server. Please check if the backend is running.');
-      });
-
-      // Check if response is ok before parsing JSON
-      if (!res.ok) {
-        // Try to parse error message
-        let errorMessage = 'Registration failed';
-        try {
-          const errorData = await res.json();
-          errorMessage = errorData.error || `Registration failed (${res.status})`;
-        } catch {
-          // If JSON parsing fails, use status text
-          errorMessage = `Registration failed: ${res.statusText || res.status}`;
-        }
-        setError(errorMessage);
-        toast.error(errorMessage);
-        return;
-      }
-
-      // Parse successful response
-      const data = await res.json().catch((parseError) => {
-        console.error('JSON parse error:', parseError);
-        throw new Error('Invalid response from server');
-      });
-
-      if (data.ok) {
-        toast.success('Registration successful! Please check your email for verification code.');
-        router.push(`/verify?email=${encodeURIComponent(email)}`);
-      } else {
-        setError(data.error || 'Registration failed');
-        toast.error(data.error || 'Registration failed');
-      }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to register. Please try again.';
       setError(errorMessage);
@@ -265,143 +231,186 @@ export default function CorporateRegisterPage() {
               </div>
             )}
 
-            {/* Registration Form - like admin register */}
-            <form onSubmit={handleSubmit} className="space-y-4 flex-1 min-h-0">
-              <div className="mb-4 p-3 rounded-lg border border-gray-200 bg-gray-50">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Have a join code? (optional)</label>
-                <p className="text-xs text-gray-600 mb-2">Enter a code from your admin to join a specific dealership as corporate.</p>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    placeholder="Enter code (e.g. ABC12XYZ)"
-                    className="flex-1 px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#0B2E65] focus:border-transparent uppercase"
-                    value={joinCode}
-                    onChange={(e) => {
-                      setJoinCode(e.target.value.toUpperCase());
-                      setCodeInfo(null);
-                    }}
-                    maxLength={12}
-                  />
-                  <button
-                    type="button"
-                    onClick={validateJoinCode}
-                    disabled={!joinCode.trim() || validatingCode}
-                    className="cursor-pointer px-4 py-2.5 rounded-lg font-medium bg-[#0B2E65] text-white hover:bg-[#2c5aa0] disabled:opacity-60 disabled:cursor-not-allowed"
-                  >
-                    {validatingCode ? 'Checking...' : 'Validate'}
-                  </button>
-                </div>
-                {codeInfo && (
-                  <p className="mt-2 text-xs text-green-700">You will be assigned to: {codeInfo.dealership_name}</p>
-                )}
-              </div>
-
-              <div className="mb-4">
-                <h3 className="font-semibold text-gray-700 mb-3">Account Information</h3>
-                <div className="grid grid-cols-2 gap-4 mb-3">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">First Name *</label>
-                    <input
-                      type="text"
-                      placeholder="First Name"
-                      autoComplete="given-name"
-                      className="w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#0B2E65] focus:border-transparent"
-                      value={firstName}
-                      onChange={(e) => setFirstName(e.target.value)}
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Last Name *</label>
-                    <input
-                      type="text"
-                      placeholder="Last Name"
-                      autoComplete="family-name"
-                      className="w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#0B2E65] focus:border-transparent"
-                      value={lastName}
-                      onChange={(e) => setLastName(e.target.value)}
-                      required
-                    />
-                  </div>
-                </div>
-                <div className="mb-3">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Email *</label>
-                  <input
-                    type="email"
-                    placeholder="Email"
-                    autoComplete="email"
-                    className="w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#0B2E65] focus:border-transparent"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                  />
-                </div>
-                <div className="mb-3">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Password *</label>
-                  <input
-                    type="password"
-                    placeholder="Password (min 8 chars, letters & numbers)"
-                    autoComplete="new-password"
-                    className="w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#0B2E65] focus:border-transparent"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  minLength={8}
+            {/* Progress Dots */}
+            <div className="flex justify-center items-center gap-3 mb-6">
+              {[1, 2].map((step) => (
+                <div
+                  key={step}
+                  className={`w-3 h-3 rounded-full transition-all ${
+                    step === currentStep
+                      ? 'bg-[#0B2E65]'
+                      : step < currentStep
+                      ? 'bg-[#0B2E65]'
+                      : 'bg-gray-300'
+                  }`}
                 />
-                </div>
-                <div className="mb-3">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Confirm Password *</label>
-                  <input
-                    type="password"
-                    placeholder="Confirm Password"
-                    autoComplete="new-password"
-                    className="w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#0B2E65] focus:border-transparent"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
+              ))}
+            </div>
+
+            {/* Registration Form - like admin register */}
+            {currentStep === 1 ? (
+              <form onSubmit={handleNextStep} className="space-y-4 flex-1 min-h-0">
+                <div className="mb-4">
+                  <h3 className="font-semibold text-gray-700 mb-3">Account Information</h3>
+                  <div className="grid grid-cols-2 gap-4 mb-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">First Name *</label>
+                      <input
+                        type="text"
+                        placeholder="First Name"
+                        autoComplete="given-name"
+                        className="w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#0B2E65] focus:border-transparent"
+                        value={firstName}
+                        onChange={(e) => setFirstName(e.target.value)}
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Last Name *</label>
+                      <input
+                        type="text"
+                        placeholder="Last Name"
+                        autoComplete="family-name"
+                        className="w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#0B2E65] focus:border-transparent"
+                        value={lastName}
+                        onChange={(e) => setLastName(e.target.value)}
+                        required
+                      />
+                    </div>
+                  </div>
+                  <div className="mb-3">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Email *</label>
+                    <input
+                      type="email"
+                      placeholder="Email"
+                      autoComplete="email"
+                      className="w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#0B2E65] focus:border-transparent"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="mb-3">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Password *</label>
+                    <input
+                      type="password"
+                      placeholder="Password (min 8 chars, letters & numbers)"
+                      autoComplete="new-password"
+                      className="w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#0B2E65] focus:border-transparent"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
                     required
                     minLength={8}
                   />
+                  </div>
+                  <div className="mb-3">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Confirm Password *</label>
+                    <input
+                      type="password"
+                      placeholder="Confirm Password"
+                      autoComplete="new-password"
+                      className="w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#0B2E65] focus:border-transparent"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      required
+                      minLength={8}
+                    />
+                  </div>
                 </div>
-              </div>
 
-              {/* Info Box */}
-              <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 flex-shrink-0">
-                <h3 className="text-xs font-semibold text-[#0B2E65] mb-1">Note:</h3>
-                <p className="text-xs text-gray-700">
-                  Corporate accounts can view multiple dealerships assigned by admins. 
-                  After registration, verify your email. An admin will need to assign dealerships to your account.
-                </p>
-              </div>
+                {/* Next Button */}
+                <button
+                  type="submit"
+                  className="cursor-pointer w-full bg-[#0B2E65] text-white py-2.5 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-colors"
+                >
+                  Next
+                </button>
+              </form>
+            ) : (
+              <form onSubmit={handleSubmit} className="space-y-4 flex-1 min-h-0">
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-2">
+                    Enter Dealership code
+                    <div className="group relative">
+                      <svg
+                        className="w-4 h-4 text-gray-400 cursor-help"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <div className="absolute left-0 bottom-full mb-2 hidden group-hover:block w-64 p-3 bg-white border border-gray-300 text-gray-700 text-xs rounded-lg shadow-lg z-10">
+                        <p className="mb-1 font-semibold">Where to find your code:</p>
+                        <p>Your dealership code is provided by your admin. Contact your dealership administrator or check your email invitation for the code.</p>
+                      </div>
+                    </div>
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="Code"
+                      className="flex-1 px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#0B2E65] focus:border-transparent uppercase"
+                      value={joinCode}
+                      onChange={(e) => {
+                        setJoinCode(e.target.value.toUpperCase());
+                        setCodeInfo(null);
+                      }}
+                      maxLength={12}
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={validateJoinCode}
+                      disabled={!joinCode.trim() || validatingCode}
+                      className="cursor-pointer px-4 py-2.5 rounded-lg font-medium bg-[#0B2E65] text-white hover:bg-[#2c5aa0] disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                      {validatingCode ? 'Checking...' : 'Validate'}
+                    </button>
+                  </div>
+                  {codeInfo && (
+                    <p className="mt-2 text-xs text-green-700">You will be assigned to: {codeInfo.dealership_name}</p>
+                  )}
+                </div>
 
-              {/* Register Button */}
-              <button
-                type="submit"
-                disabled={loading}
-                className="cursor-pointer w-full bg-[#0B2E65] text-white py-2.5 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-              >
-                {loading ? 'Registering...' : 'Register as Corporate'}
-              </button>
+                {/* Info Box */}
+                <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 flex-shrink-0">
+                  <h3 className="text-xs font-semibold text-[#0B2E65] mb-1">Note:</h3>
+                  <p className="text-xs text-gray-700">
+                    Please enter a valid dealership code to register. Corporate accounts can view multiple dealerships assigned by admins. 
+                    After registration, verify your email. Your account will be automatically assigned to the dealership associated with your code.
+                  </p>
+                </div>
 
-              {/* Links */}
-              <div className="text-center space-y-2">
-                <p className="text-gray-700">
-                  Already have an account?{' '}
-                  <Link href="/login" className="text-[#0B2E65] hover:underline font-medium">
-                    Sign in
-                  </Link>
-                </p>
-                <p className="text-gray-700">
-                  Want to register as manager or admin?{' '}
-                  <Link href="/manager-register" className="text-[#0B2E65] hover:underline font-medium">
-                    Manager
-                  </Link>
-                  {' or '}
-                  <Link href="/admin-register" className="text-[#0B2E65] hover:underline font-medium">
-                    Admin
-                  </Link>
-                </p>
-              </div>
-            </form>
+                {/* Navigation Buttons */}
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setCurrentStep(1)}
+                    className="cursor-pointer flex-1 bg-gray-200 text-gray-700 py-2.5 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
+                  >
+                    Back
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={loading || !codeInfo}
+                    className="cursor-pointer flex-1 bg-[#0B2E65] text-white py-2.5 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    {loading ? 'Registering...' : 'Register as Corporate'}
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* Links */}
+            <div className="text-center space-y-2 mt-4">
+              <p className="text-gray-700">
+                Already have an account?{' '}
+                <Link href="/login" className="text-[#0B2E65] hover:underline font-medium">
+                  Sign in
+                </Link>
+              </p>
+            </div>
           </div>
         </div>
       </div>

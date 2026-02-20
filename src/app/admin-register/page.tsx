@@ -532,12 +532,6 @@ function AdminRegisterPageContent() {
                         Sign in
                       </Link>
                     </p>
-                    <p className="text-gray-700">
-                      Want to register as manager instead?{' '}
-                      <Link href="/manager-register" className="text-[#0B2E65] hover:underline font-medium">
-                        Register as Manager
-                      </Link>
-                    </p>
                   </div>
                 </>
               )}
