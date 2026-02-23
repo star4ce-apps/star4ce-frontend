@@ -203,8 +203,13 @@ function ManagerRegisterContent() {
 
       const data = await res.json();
       if (res.ok) {
-        toast.success('Account created successfully! You can now sign in.');
-        router.push('/login');
+        if (data.require_verify && data.email) {
+          toast.success(data.message || 'Check your email for the verification code.');
+          router.push(`/verify?email=${encodeURIComponent(data.email)}`);
+        } else {
+          toast.success('Account created successfully! You can now sign in.');
+          router.push('/login');
+        }
       } else {
         setError(data.error || 'Registration failed');
         toast.error(data.error || 'Registration failed');

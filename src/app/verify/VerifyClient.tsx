@@ -183,8 +183,8 @@ export default function VerifyPage() {
       }
       setMessage(
         showCode
-          ? 'A new verification code is ready below.'
-          : 'A new verification code has been sent to your email.'
+          ? 'A new verification code is ready below. It expires in 10 minutes.'
+          : 'A new verification code has been sent to your email. It expires in 10 minutes.'
       );
     } catch (err: unknown) {
       setError(
@@ -296,7 +296,7 @@ export default function VerifyPage() {
                   inputMode="numeric"
                 />
                 <p className="mt-1 text-xs text-gray-600">
-                  Enter the 6-digit code we sent to your email.
+                  Enter the 6-digit code we sent to your email. The code expires in 10 minutes.
                 </p>
               </div>
 
@@ -309,15 +309,18 @@ export default function VerifyPage() {
               </button>
             </form>
 
-            {/* Resend Link + Back to Login */}
-            <div className="mt-4 flex flex-col gap-2 text-sm text-center text-gray-700">
+            {/* Resend + Back to Login */}
+            <div className="mt-4 flex flex-col gap-3 text-sm text-center text-gray-700">
+              <p className="text-xs text-gray-500">
+                Code expired or didn&apos;t receive it?
+              </p>
               <button
                 type="button"
                 onClick={handleResend}
                 disabled={resendLoading || !email}
-                className="cursor-pointer text-[#0B2E65] hover:underline disabled:opacity-60 disabled:cursor-not-allowed"
+                className="cursor-pointer px-4 py-2 rounded-lg border-2 border-[#0B2E65] text-[#0B2E65] font-medium hover:bg-[#0B2E65] hover:text-white transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                {resendLoading ? 'Resending…' : 'Resend verification code'}
+                {resendLoading ? 'Sending new code…' : 'Resend verification code'}
               </button>
               <div>
                 Already verified?{' '}
