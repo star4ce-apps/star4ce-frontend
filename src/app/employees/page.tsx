@@ -177,9 +177,8 @@ export default function EmployeesPage() {
       }
 
       const data = await getJsonAuth<{ ok: boolean; items: any[] }>('/employees');
-      // Filter out inactive employees (soft-deleted employees have is_active = False)
-      const activeEmployees = (data.items || []).filter((emp: Employee) => emp.is_active !== false);
-      setEmployees(activeEmployees);
+      // Include all employees (active and inactive/terminated/resigned); use status filter to narrow
+      setEmployees(data.items || []);
     } catch (err: unknown) {
       setEmployees([]);
       setError(err instanceof Error ? err.message : 'Failed to load employees');
