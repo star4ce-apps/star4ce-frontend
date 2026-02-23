@@ -134,10 +134,10 @@ export default function VerifyPage() {
 
       // Check if this is an admin registration that needs to subscribe
       if (data.redirect_to_subscription || search.get('admin') === 'true') {
-        setMessage('Your email has been verified! Redirecting to subscription selection...');
-        // Redirect directly to subscription selection page
+        setMessage('Your email has been verified! Redirecting to sign in and choose a plan...');
+        // admin-subscribe requires login; send them to login then back to subscribe
         setTimeout(() => {
-          router.push('/admin-subscribe?email=' + encodeURIComponent(email));
+          router.push('/login?redirect=' + encodeURIComponent('/admin-subscribe'));
         }, 1500);
       } else if (data.is_manager_pending) {
         // Manager with pending request - show waiting message

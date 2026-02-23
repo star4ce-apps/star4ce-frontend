@@ -47,8 +47,13 @@ export default function LoginForm() {
         router.push('/subscription');
         return;
       }
+      // If redirect is a path (e.g. /admin-subscribe), go there after login (security: only allow same-origin paths)
+      const decodedRedirect = redirect ? decodeURIComponent(redirect) : '';
+      if (decodedRedirect.startsWith('/') && !decodedRedirect.startsWith('//')) {
+        router.push(decodedRedirect);
+        return;
+      }
       // For normal login: call /auth/me once to see if user must complete subscription (pending admin registration).
-      // If so, redirect to admin-subscribe without ever loading dashboard — avoids a flood of 403s from dashboard/analytics.
       const token = getToken();
       if (token) {
         try {
@@ -57,15 +62,13 @@ export default function LoginForm() {
           });
           const meData = await meRes.json().catch(() => ({}));
           if (meRes.ok && meData.subscription_required) {
-            const redirectEmail = (meData.email || email || '').trim();
-            router.push(redirectEmail ? `/admin-subscribe?email=${encodeURIComponent(redirectEmail)}` : '/admin-subscribe');
+            router.push('/admin-subscribe');
             return;
           }
         } catch {
           // On error, continue to dashboard as usual
         }
       }
-      // If coming from subscription success, show success message on dashboard
       if (subscriptionSuccess) {
         router.push('/dashboard?subscription=success');
       } else {

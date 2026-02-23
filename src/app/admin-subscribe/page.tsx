@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { API_BASE, getToken } from '@/lib/auth';
@@ -15,58 +15,51 @@ function AdminSubscribePageContent() {
   const [error, setError] = useState('');
   const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'annual'>('monthly');
   const [isNavigatingToCheckout, setIsNavigatingToCheckout] = useState(false);
+  const canceledToastShown = useRef(false);
 
   useEffect(() => {
     const subscriptionParam = searchParams?.get('subscription');
-    if (subscriptionParam === 'canceled') {
+    if (subscriptionParam === 'canceled' && !canceledToastShown.current) {
+      canceledToastShown.current = true;
       toast.error('Subscription canceled. You can try again whenever you\'re ready.');
     }
   }, [searchParams]);
 
-  // Security: when logged in, use only the authenticated user's email (ignore URL param)
+  // Security: require login. Never trust email/user_id from URL — use only authenticated user.
   useEffect(() => {
     const token = getToken();
-    const emailParam = searchParams?.get('email');
-    if (token) {
-      fetch(`${API_BASE}/auth/me`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-        .then((res) => res.json().catch(() => ({})))
-        .then((data) => {
-          if (data.subscription_required && data.email) {
-            setEmail((data.email || '').trim());
-            setAuthCheckDone(true);
-            return;
-          }
-          if (data.subscription_active !== false && (data.user?.role === 'admin' || data.role === 'admin')) {
-            router.replace('/dashboard');
-            return;
-          }
-          if (data.user?.email) {
-            setEmail((data.user.email || '').trim());
-          } else if (data.email) {
-            setEmail((data.email || '').trim());
-          } else if (emailParam) {
-            setEmail(emailParam);
-          } else {
-            router.replace('/admin-register');
-            return;
-          }
-          setAuthCheckDone(true);
-        })
-        .catch(() => {
-          if (emailParam) setEmail(emailParam);
-          setAuthCheckDone(true);
-        });
-    } else {
-      if (emailParam) {
-        setEmail(emailParam);
-      } else {
-        router.replace('/admin-register');
-        return;
-      }
-      setAuthCheckDone(true);
+    if (!token) {
+      const redirect = '/admin-subscribe' + (searchParams?.toString() ? `?${searchParams.toString()}` : '');
+      router.replace(`/login?redirect=${encodeURIComponent(redirect)}`);
+      return;
     }
+    fetch(`${API_BASE}/auth/me`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => res.json().catch(() => ({})))
+      .then((data) => {
+        if (data.subscription_required && data.email) {
+          setEmail((data.email || '').trim());
+          setAuthCheckDone(true);
+          return;
+        }
+        if (data.subscription_active !== false && (data.user?.role === 'admin' || data.role === 'admin')) {
+          router.replace('/dashboard');
+          return;
+        }
+        if (data.user?.email) {
+          setEmail((data.user.email || '').trim());
+        } else if (data.email) {
+          setEmail((data.email || '').trim());
+        } else {
+          router.replace('/admin-register');
+          return;
+        }
+        setAuthCheckDone(true);
+      })
+      .catch(() => {
+        router.replace('/login?redirect=' + encodeURIComponent('/admin-subscribe'));
+      });
   }, [searchParams, router]);
 
   async function handleSubscribe(plan: 'monthly' | 'annual') {
