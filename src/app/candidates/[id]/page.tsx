@@ -395,7 +395,7 @@ export default function CandidateProfilePage() {
     }
 
     // Confirm action
-    if (!confirm('Are you sure you want to deny this application?\n\nThis will:\n- Permanently reject the candidate\n- Update their status to "Denied"\n- You will no longer be able to retrieve their information\n\nThis action cannot be undone. Do you want to proceed?')) {
+    if (!confirm('Are you sure you want to deny this application?\n\nThis will:\n- Reject the candidate and update their status to "Denied"\n- Their resume will be kept for one year, then removed\n\nDo you want to proceed?')) {
       return;
     }
 
@@ -421,7 +421,7 @@ export default function CandidateProfilePage() {
     }
 
     // Confirm action
-    if (!confirm('Are you sure you want to accept this candidate?\n\nThis will:\n- Move them to the employee list\n- Permanently delete their resume\n- Remove them from the candidate list\n\nThis action cannot be undone. Do you want to proceed?')) {
+    if (!confirm('Are you sure you want to accept this candidate?\n\nThis will:\n- Move them to the employee list with their info\n- Their resume will be removed after 7 days\n- They will be removed from the candidate list\n\nDo you want to proceed?')) {
       return;
     }
 
@@ -444,7 +444,10 @@ export default function CandidateProfilePage() {
       const day = String(now.getDate()).padStart(2, '0');
       const today = `${year}-${month}-${day}`;
 
-      // Create employee data from candidate data
+      // Create employee data from candidate (move candidate info into employee list)
+      const hasAddress = candidate.address && candidate.address !== 'Not Provided';
+      const hasGender = candidate.gender && candidate.gender !== 'Not Provided';
+      const hasDob = candidate.dateOfBirthRaw && candidate.dateOfBirthRaw.trim() !== '';
       const employeeData: Record<string, unknown> = {
         name: candidate.name,
         email: candidate.email,
@@ -454,12 +457,12 @@ export default function CandidateProfilePage() {
         employee_id: `EMP-${candidate.id}`,
         hired_date: today,
         status: 'Active',
-        street: null,
+        street: hasAddress ? candidate.address : null,
         city: null,
         state: null,
         zip_code: null,
-        date_of_birth: null,
-        gender: null,
+        date_of_birth: hasDob ? candidate.dateOfBirthRaw : null,
+        gender: hasGender ? candidate.gender : null,
       };
 
       // Create employee (admin/hiring_manager use their dealership)
@@ -1613,7 +1616,7 @@ export default function CandidateProfilePage() {
                         </button>
                         {/* Accept Warning */}
                         <p className="text-xs leading-relaxed" style={{ color: '#16A34A' }}>
-                          Accepting this candidate will move them to the employee list and permanently delete their resume. 
+                          Accepting this candidate will move their info to the employee list. Their resume will be removed after 7 days. 
                           This action cannot be undone.
                         </p>
                       </div>
@@ -1654,7 +1657,7 @@ export default function CandidateProfilePage() {
                         </button>
                         {/* Deny Warning */}
                         <p className="text-xs leading-relaxed" style={{ color: '#DC2626' }}>
-                          Denying this application will permanently reject the candidate. Once denied, you will no longer be able to retrieve their information. 
+                          Denying this application will reject the candidate. Their resume will be kept for one year, then removed. 
                           This action cannot be undone.
                         </p>
                       </div>
