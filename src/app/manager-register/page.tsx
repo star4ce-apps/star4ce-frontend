@@ -283,7 +283,7 @@ function ManagerRegisterContent() {
                 Manager Registration
               </p>
               <p className="text-gray-600 text-sm">
-                Create your account and request access to a dealership
+                Use your invite code or link from User Management. After creating your account, you must verify your email with the code we send you.
               </p>
             </div>
 
