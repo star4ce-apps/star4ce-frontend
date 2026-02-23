@@ -33,6 +33,7 @@ type HistoryEntry = {
   changedBy: string;
   timestamp: string;
   department?: string;
+  employee_id?: number | null; // For "Employee Created" revert - exact id to delete
   reason?: string; // For terminations
   termination_date?: string; // For terminations
   reverted?: boolean; // Whether this entry has been reverted
@@ -267,16 +268,46 @@ export default function EmployeeRoleHistoryPage() {
         return;
       }
       try {
-        const data = await postJsonAuth<{ ok?: boolean; error?: string; message?: string }>('/role-history/revert', {
+        // Resolve employee id BEFORE revert (so we can delete them even if backend delete doesn't persist)
+        let empIdToDelete: number | null = null;
+        if (entry.employee_id != null) {
+          const n = Number(entry.employee_id);
+          if (!isNaN(n)) empIdToDelete = n;
+        }
+        if (empIdToDelete == null) {
+          const list = await getJsonAuth<{ ok: boolean; items: Array<{ id: number; name: string }> }>('/employees');
+          const match = (list.items || []).find((e: any) => String(e.name).trim() === String(entry.name).trim());
+          if (match) empIdToDelete = match.id;
+        }
+        const body: Record<string, unknown> = {
           id: entry.id,
           type: entry.type,
           name: entry.name,
           action: entry.action,
           previousValue: entry.previousValue,
           newValue: entry.newValue,
-        });
-        toast.success(data.message || 'Revert successful');
+        };
+        if (empIdToDelete != null) body.employee_id = empIdToDelete;
+        await postJsonAuth<{ ok?: boolean; error?: string; message?: string }>('/role-history/revert', body);
+        let deleteOk = true;
+        if (empIdToDelete != null) {
+          try {
+            await deleteJsonAuth(`/employees/${empIdToDelete}`);
+          } catch (e: unknown) {
+            const msg = e instanceof Error ? e.message : String(e);
+            if (!msg.includes('404') && !msg.toLowerCase().includes('not found')) {
+              toast.error(`Revert saved but could not remove from employee list: ${msg}`);
+              deleteOk = false;
+            }
+          }
+        } else {
+          toast.error('Could not find employee to remove. They may already be removed.');
+          deleteOk = false;
+        }
+        if (deleteOk) toast.success('Revert successful – candidate restored, employee removed.');
         await loadRoleHistory();
+        window.location.href = '/employees';
+        return;
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : 'Failed to revert';
         toast.error(msg);
@@ -598,7 +629,7 @@ export default function EmployeeRoleHistoryPage() {
                             <div className="relative inline-block">
                               <button
                                 onClick={() => handleRevert(entry)}
-                                disabled={entry.action === 'Employee Created' || entry.action === 'Candidate Created' || entry.action === 'Terminated' || !entry.previousValue || entry.previousValue === '—' || entry.previousValue === 'N/A' || entry.reverted}
+                                disabled={entry.action === 'Candidate Created' || entry.action === 'Terminated' || (entry.action !== 'Employee Created' && (!entry.previousValue || entry.previousValue === '—' || entry.previousValue === 'N/A')) || entry.reverted}
                                 className="p-1.5 rounded-md hover:bg-gray-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                                 style={{ color: '#6B7280' }}
                                 title="Revert this change"

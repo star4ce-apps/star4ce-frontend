@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import RequireAuth from '@/components/layout/RequireAuth';
 import HubSidebar from '@/components/sidebar/HubSidebar';
 import { API_BASE, getToken } from '@/lib/auth';
@@ -86,6 +86,7 @@ type Employee = {
 
 export default function EmployeesPage() {
   const router = useRouter();
+  const pathname = usePathname();
   const [role, setRole] = useState<string | null>(null);
   const [isApproved, setIsApproved] = useState<boolean | null>(null);
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -163,10 +164,32 @@ export default function EmployeesPage() {
       
       checkUserStatus();
       loadEmployees();
+      // If we landed here after reverting "Employee Created" on Change History, refetch to drop removed employee
+      if (sessionStorage.getItem('employees-list-refresh')) {
+        sessionStorage.removeItem('employees-list-refresh');
+        loadEmployees(true);
+      }
     }
   }, []);
 
-  async function loadEmployees() {
+  // Refetch when user returns to this tab (focus) or when route is employees (e.g. navigated from Change History)
+  useEffect(() => {
+    const onFocus = () => loadEmployees();
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, []);
+  useEffect(() => {
+    if (pathname === '/employees') {
+      if (typeof window !== 'undefined' && sessionStorage.getItem('employees-list-refresh')) {
+        sessionStorage.removeItem('employees-list-refresh');
+        loadEmployees(true);
+      } else {
+        loadEmployees();
+      }
+    }
+  }, [pathname]);
+
+  async function loadEmployees(cacheBust = false) {
     setLoading(true);
     setError(null);
     try {
@@ -176,7 +199,8 @@ export default function EmployeesPage() {
         return;
       }
 
-      const data = await getJsonAuth<{ ok: boolean; items: any[] }>('/employees');
+      const url = cacheBust ? `/employees?_=${Date.now()}` : '/employees';
+      const data = await getJsonAuth<{ ok: boolean; items: any[] }>(url);
       // Include all employees (active and inactive/terminated/resigned); use status filter to narrow
       setEmployees(data.items || []);
     } catch (err: unknown) {
