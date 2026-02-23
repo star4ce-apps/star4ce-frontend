@@ -364,9 +364,8 @@ export default function CandidateProfilePage() {
         throw new Error('Not logged in');
       }
 
-      // Use postJsonAuth to include X-Dealership-Id header for corporate users
-      // postJsonAuth throws on error, so if we get here, it succeeded
-      await postJsonAuth(`/candidates/${candidateId}`, data, { method: 'PUT' });
+      // Use putJsonAuth for PUT to include X-Dealership-Id header for corporate users
+      await putJsonAuth(`/candidates/${candidateId}`, data);
 
       // Reload candidate data
       await loadCandidate();
@@ -401,7 +400,8 @@ export default function CandidateProfilePage() {
 
     setSaving(true);
     try {
-      await updateCandidate({ status: 'Denied' });
+      await putJsonAuth(`/candidates/${candidate.id}`, { status: 'Denied' });
+      await loadCandidate();
       toast.success('Application denied successfully');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to deny application';
@@ -698,6 +698,10 @@ export default function CandidateProfilePage() {
   // Calculate status based on last interview recommendation
   const calculateStatus = (): string => {
     if (!candidate) return 'Awaiting';
+    // Show API status first for terminal states (deny/hire/withdraw)
+    const s = (candidate.stage || '').trim();
+    if (s === 'Rejected' || s === 'Denied') return 'Denied';
+    if (s === 'Hired' || s === 'Withdrawn') return s;
     
     const notes = candidate.notes || '';
     if (!notes || !notes.trim()) {

@@ -75,8 +75,11 @@ type Candidate = {
   notes?: string;
 };
 
-// Helper function to calculate status from notes
+// Helper function to calculate status from notes (use API status for terminal states)
 function calculateStatusFromNotes(notes: string | null | undefined, defaultStatus: string): string {
+  const s = (defaultStatus || '').trim();
+  if (s === 'Rejected' || s === 'Denied') return 'Denied';
+  if (s === 'Hired' || s === 'Withdrawn') return s;
   if (!notes || !notes.trim()) {
     return 'Awaiting First Interview';
   }
@@ -296,6 +299,13 @@ export default function CandidatesPage() {
     
     checkUserStatus();
     loadCandidates();
+  }, []);
+
+  // Refetch when user returns to this tab so list reflects updates (e.g. after denying on detail page)
+  useEffect(() => {
+    const onFocus = () => loadCandidates();
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
   }, []);
 
   async function loadCandidates() {
