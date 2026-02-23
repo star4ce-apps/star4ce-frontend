@@ -27,7 +27,10 @@ const COLORS = {
 type Dealership = {
   standing: number;
   dealership: string;
+  address: string;
   city: string;
+  state: string;
+  zip_code: string;
   retentionRate: number;
   turnoverRate: number;
   retentionChange: number;
@@ -97,15 +100,18 @@ export default function StandingsPage() {
           const dealershipId = storedDealershipId ? parseInt(storedDealershipId, 10) : null;
           setSelectedDealershipId(dealershipId);
           
-          // Transform API data to match frontend format
+          // Transform API data (all from dealership row) to frontend format
           const transformedStandings: Dealership[] = data.standings.map((s: any) => ({
             standing: s.standing,
-            dealership: s.dealership,
+            dealership: s.dealership || '',
+            address: s.address || '',
             city: s.city || '',
+            state: s.state || '',
+            zip_code: s.zip_code || '',
             retentionRate: s.retentionRate,
             turnoverRate: s.turnoverRate,
-            retentionChange: 0, // Not calculated in backend yet
-            turnoverChange: 0, // Not calculated in backend yet
+            retentionChange: 0,
+            turnoverChange: 0,
             isCurrent: s.dealership_id === dealershipId,
           }));
           
@@ -137,10 +143,16 @@ export default function StandingsPage() {
     }
   };
 
-  const filteredDealerships = dealerships.filter(d => 
-    d.dealership.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    d.city.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredDealerships = dealerships.filter(d => {
+    const q = searchQuery.toLowerCase();
+    return (
+      d.dealership.toLowerCase().includes(q) ||
+      (d.address || '').toLowerCase().includes(q) ||
+      d.city.toLowerCase().includes(q) ||
+      (d.state || '').toLowerCase().includes(q) ||
+      (d.zip_code || '').toLowerCase().includes(q)
+    );
+  });
 
   const sortedDealerships = [...filteredDealerships].sort((a, b) => {
     let aVal: number | string = a[sortColumn as keyof Dealership] as number | string;
