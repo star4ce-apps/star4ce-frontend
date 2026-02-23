@@ -16,6 +16,7 @@ export default function VerifyPage() {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [resendLoading, setResendLoading] = useState(false);
+  const [resendCooldownSeconds, setResendCooldownSeconds] = useState(0);
   const [devCode, setDevCode] = useState('');
   const [devCodeRequested, setDevCodeRequested] = useState(false);
 
@@ -159,6 +160,15 @@ export default function VerifyPage() {
     }
   }
 
+  // Count down resend cooldown every second
+  useEffect(() => {
+    if (resendCooldownSeconds <= 0) return;
+    const t = setInterval(() => {
+      setResendCooldownSeconds((s) => (s <= 1 ? 0 : s - 1));
+    }, 1000);
+    return () => clearInterval(t);
+  }, [resendCooldownSeconds]);
+
   async function handleResend() {
     setError('');
     setMessage('');
@@ -174,6 +184,10 @@ export default function VerifyPage() {
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
+        const cooldown = data.cooldown_seconds;
+        if (res.status === 429 && typeof cooldown === 'number' && cooldown > 0) {
+          setResendCooldownSeconds(cooldown);
+        }
         throw new Error(data.error || 'Could not resend code');
       }
 
@@ -186,6 +200,7 @@ export default function VerifyPage() {
           ? 'A new verification code is ready below. It expires in 10 minutes.'
           : 'A new verification code has been sent to your email. It expires in 10 minutes.'
       );
+      setResendCooldownSeconds(30);
     } catch (err: unknown) {
       setError(
         err instanceof Error ? err.message : 'Could not resend code. Please try again.'
@@ -317,10 +332,14 @@ export default function VerifyPage() {
               <button
                 type="button"
                 onClick={handleResend}
-                disabled={resendLoading || !email}
+                disabled={resendLoading || !email || resendCooldownSeconds > 0}
                 className="cursor-pointer px-4 py-2 rounded-lg border-2 border-[#0B2E65] text-[#0B2E65] font-medium hover:bg-[#0B2E65] hover:text-white transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                {resendLoading ? 'Sending new code…' : 'Resend verification code'}
+                {resendLoading
+                  ? 'Sending new code…'
+                  : resendCooldownSeconds > 0
+                    ? `Resend available in ${resendCooldownSeconds}s`
+                    : 'Resend verification code'}
               </button>
               <div>
                 Already verified?{' '}
