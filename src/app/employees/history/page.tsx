@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import HubSidebar from '@/components/sidebar/HubSidebar';
 import RequireAuth from '@/components/layout/RequireAuth';
-import { API_BASE, getToken } from '@/lib/auth';
+import { API_BASE, getToken, getSelectedDealershipId } from '@/lib/auth';
 import { getJsonAuth, deleteJsonAuth, postJsonAuth } from '@/lib/http';
 import toast from 'react-hot-toast';
 
@@ -255,56 +255,36 @@ export default function EmployeeRoleHistoryPage() {
 
   async function handleRevert(entry: HistoryEntry) {
     
-    // Cannot revert creation or termination
-    if (entry.action === 'Employee Created' || entry.action === 'Candidate Created' || entry.action === 'Terminated') {
+    // Cannot revert candidate creation or termination
+    if (entry.action === 'Candidate Created' || entry.action === 'Terminated') {
       toast.error(`Cannot revert ${entry.action}`);
       return;
     }
     
-    // Special handling for "Hired" action (boarding candidate to employee)
-    if (entry.action === 'Hired' && entry.previousValue === 'Candidate') {
-      if (!window.confirm(`Are you sure you want to revert the boarding of "${entry.name}"?\n\nThis will:\n- Remove them from the employee list\n- Restore them to the candidate list\n- Update their candidate status`)) {
+    // Employee Created (including hired-from-candidate): confirm and call backend revert
+    if (entry.action === 'Employee Created') {
+      if (!window.confirm(`Are you sure you want to revert adding "${entry.name}" as an employee?\n\nThis will remove them from the employee list. If they were hired from a candidate, they will be restored to the candidate list.`)) {
         return;
       }
-      
       try {
-        const token = getToken();
-        if (!token) {
-          toast.error('Not logged in');
-          return;
-        }
-        
-        // Find the employee by name to get their ID
-        const employeesRes = await getJsonAuth<{ ok: boolean; items: any[] }>('/employees');
-        const employee = employeesRes.items?.find((emp: any) => emp.name === entry.name && emp.is_active !== false);
-        
-        if (employee) {
-          // Delete/soft-delete the employee
-          await deleteJsonAuth(`/employees/${employee.id}`);
-        }
-        
-        // Find the candidate by name and update their status from "Hired" back to a previous status
-        const candidatesRes = await getJsonAuth<{ ok: boolean; items: any[] }>('/candidates');
-        const candidate = candidatesRes.items?.find((cand: any) => cand.name === entry.name);
-        
-        if (candidate) {
-          // Update candidate status from "Hired" back to "Awaiting" or previous status
-          await postJsonAuth(`/candidates/${candidate.id}`, { status: 'Awaiting' }, { method: 'PUT' });
-        }
-        
-        toast.success('Successfully reverted boarding - candidate restored to candidate list');
-        
-        // Reload history to show updated data
+        const data = await postJsonAuth<{ ok?: boolean; error?: string; message?: string }>('/role-history/revert', {
+          id: entry.id,
+          type: entry.type,
+          name: entry.name,
+          action: entry.action,
+          previousValue: entry.previousValue,
+          newValue: entry.newValue,
+        });
+        toast.success(data.message || 'Revert successful');
         await loadRoleHistory();
       } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : 'Failed to revert boarding';
+        const msg = err instanceof Error ? err.message : 'Failed to revert';
         toast.error(msg);
-        console.error('Revert boarding error:', err);
       }
       return;
     }
     
-    // Need previous value to revert
+    // Need previous value to revert (for other actions)
     if (!entry.previousValue || entry.previousValue === '—' || entry.previousValue === 'N/A') {
       toast.error('Cannot revert - previous value not available');
       return;
@@ -320,13 +300,16 @@ export default function EmployeeRoleHistoryPage() {
         toast.error('Not logged in');
         return;
       }
+      const headers: Record<string, string> = {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      };
+      const dealershipId = getSelectedDealershipId();
+      if (dealershipId) headers['X-Dealership-Id'] = String(dealershipId);
       
       const res = await fetch(`${API_BASE}/role-history/revert`, {
         method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: JSON.stringify({
           id: entry.id,
           type: entry.type,
