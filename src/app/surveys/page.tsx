@@ -992,7 +992,7 @@ export default function SurveysPage() {
                   <span className="text-sm font-medium" style={{ color: COLORS.gray[800] }}>{showFeedbackDetailModal.department}</span>
                   <span className="text-xs" style={{ color: COLORS.gray[400] }}>{showFeedbackDetailModal.date}</span>
                 </div>
-                <span className="text-xs font-medium px-2 py-1 rounded mb-3 inline-block flex-shrink-0" style={{ ...getSentimentStyle(showFeedbackDetailModal.sentiment) }}>{showFeedbackDetailModal.sentiment}</span>
+                <span className="text-xs font-medium px-2 py-1 rounded mb-3 inline-block flex-shrink-0" style={{ backgroundColor: getSentimentStyle(showFeedbackDetailModal.sentiment).bg, color: getSentimentStyle(showFeedbackDetailModal.sentiment).text }}>{showFeedbackDetailModal.sentiment}</span>
                 <p className="text-sm overflow-y-auto flex-1 pr-2" style={{ color: COLORS.gray[600], whiteSpace: 'pre-wrap' }}>{showFeedbackDetailModal.comment}</p>
               </div>
             </div>
