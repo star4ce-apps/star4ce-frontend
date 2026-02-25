@@ -205,12 +205,11 @@ export default function HelpSupportPage() {
                 placeholder="Search for help..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full px-4 py-3 pl-10 text-sm rounded-lg border transition-all focus:outline-none focus:ring-2"
+                className="w-full px-4 py-3 pl-10 text-sm rounded-lg border transition-all focus:outline-none focus:ring-2 focus:ring-[#4D6DBE]"
                 style={{ 
                   borderColor: '#D1D5DB', 
                   color: '#374151', 
-                  backgroundColor: '#FFFFFF',
-                  focusRingColor: '#4D6DBE'
+                  backgroundColor: '#FFFFFF'
                 }}
               />
               <svg 
