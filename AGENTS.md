@@ -4,9 +4,12 @@
 
 ### Overview
 
-Star4ce is a **frontend-only** Next.js 16 (App Router) application — a people analytics platform for automotive dealerships. It communicates with a **separate backend API** (not in this repo) at `http://127.0.0.1:5000` by default, configurable via `NEXT_PUBLIC_STAR4CE_API_BASE`.
+Star4ce is a people analytics platform for automotive dealerships ("Better Hires, Fewer Exits"). The system has two repos:
 
-### Quick reference
+- **Frontend** (`/workspace`): Next.js 16 (App Router), port 3000
+- **Backend** (`/workspace/star4ce-backend`): Python Flask API, port 5000, uses SQLite locally
+
+### Quick reference — Frontend
 
 | Task | Command |
 |------|---------|
@@ -14,12 +17,26 @@ Star4ce is a **frontend-only** Next.js 16 (App Router) application — a people 
 | Dev server | `npm run dev` (port 3000, Turbopack) |
 | Lint | `npm run lint` (ESLint 9) |
 | Build | `npm run build` |
-| Production server | `npm run start` |
+
+### Quick reference — Backend
+
+| Task | Command |
+|------|---------|
+| Install deps | `pip install -r requirements.txt` (in `star4ce-backend/`) |
+| Dev server | `python3 app.py` (port 5000, auto-creates SQLite DB) |
+| Reset DB | `python3 reset_db.py --yes` |
+
+### Running both services
+
+1. **Backend first:** `cd /workspace/star4ce-backend && python3 app.py` (port 5000)
+2. **Frontend:** `cd /workspace && npm run dev` (port 3000)
+3. The frontend defaults to `http://127.0.0.1:5000` for API calls. Override with `NEXT_PUBLIC_STAR4CE_API_BASE`.
 
 ### Important notes
 
-- **No backend in this repo.** All authenticated features (dashboard, analytics, employees, candidates, surveys, settings) require the backend API. Public/marketing pages (home, about, pricing, case studies, login/register forms) render without it.
-- **Pre-existing lint errors.** `npm run lint` reports ~200 errors and ~121 warnings that are pre-existing in the codebase (mostly `@typescript-eslint/no-explicit-any`, unused vars, and `@next/next/no-img-element`). These are not regressions.
-- **Pre-existing build type error.** `npm run build` fails with a TypeScript error in `src/app/employees/[id]/page.tsx:458` (`Property 'name' does not exist on type 'Promise<any>'`). The dev server (`npm run dev`) is unaffected since Turbopack doesn't enforce strict type checking.
-- **Backend API config.** Set `NEXT_PUBLIC_STAR4CE_API_BASE` env var to point to the backend. Default is `http://127.0.0.1:5000`. The frontend normalizes this value (strips trailing slashes, paths, etc.).
-- **Node.js version.** Tested with Node.js v22. No `.nvmrc` or `.node-version` file exists in the repo.
+- **Backend .env required.** The backend needs a `.env` file in `star4ce-backend/` with `JWT_SECRET`, `STRIPE_SECRET_KEY`, `STRIPE_PRICE_ID`, `STRIPE_PRICE_ID_ANNUAL`, and other vars. Without `DATABASE_URL`, it uses SQLite (auto-created at `instance/star4ce.db`).
+- **`SHOW_EMAIL_CODES=1`** in the backend `.env` prints email verification codes to the console, useful for local dev without a real email service.
+- **Pre-existing lint errors.** `npm run lint` reports ~200 errors and ~121 warnings pre-existing in the codebase (mostly `@typescript-eslint/no-explicit-any`, unused vars, `@next/next/no-img-element`). Not regressions.
+- **Pre-existing build type error.** `npm run build` fails on `src/app/employees/[id]/page.tsx:458`. The dev server (`npm run dev`) is unaffected.
+- **Node.js version.** Tested with Node.js v22. No `.nvmrc` file in the repo.
+- **Backend auto-migrates.** The Flask app runs column-level migrations on startup, so there's no separate migration step.
