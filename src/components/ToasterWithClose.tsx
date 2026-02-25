@@ -68,7 +68,7 @@ export default function ToasterWithClose() {
         return (
           <ToastBar toast={t}>
             {({ icon, message }) => (
-              <span className="relative flex w-full min-w-0 items-start gap-3 pr-6">
+              <span className="relative flex w-full min-w-0 items-start gap-3 pr-10">
                 {t.type !== "loading" && (
                   <button
                     type="button"
