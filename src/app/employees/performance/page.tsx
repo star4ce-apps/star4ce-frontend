@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import HubSidebar from '@/components/sidebar/HubSidebar';
 import RequireAuth from '@/components/layout/RequireAuth';
@@ -75,7 +75,7 @@ type ReviewLogItem = {
   created_at?: string | null;
 };
 
-export default function PerformanceReviewsPage() {
+function PerformanceReviewsPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [employees, setEmployees] = useState<(Employee & { lastReview?: string; reviewStatus: 'overdue' | 'due' | 'completed'; avg_performance_score?: number | null })[]>([]);
@@ -1160,5 +1160,23 @@ ${managerNotes.trim()}` : ''}`;
         )}
       </div>
     </RequireAuth>
+  );
+}
+
+export default function PerformanceReviewsPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex min-h-screen" style={{ backgroundColor: COLORS.gray[50] }}>
+        <HubSidebar />
+        <main className="ml-64 p-8 flex-1 flex items-center justify-center">
+          <div className="flex items-center gap-3">
+            <div className="w-5 h-5 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: COLORS.primary, borderTopColor: 'transparent' }} />
+            <p style={{ color: COLORS.gray[500] }}>Loading...</p>
+          </div>
+        </main>
+      </div>
+    }>
+      <PerformanceReviewsPageContent />
+    </Suspense>
   );
 }
