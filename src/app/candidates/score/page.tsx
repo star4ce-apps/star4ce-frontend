@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { Suspense, useState, useEffect, useRef } from 'react';
 import React from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import HubSidebar from '@/components/sidebar/HubSidebar';
@@ -2547,7 +2547,7 @@ function managerDisplayName(m: Manager): string {
   return 'Unknown';
 }
 
-export default function ScoreCandidatePage() {
+function ScoreCandidatePageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [selectedRole, setSelectedRole] = useState('c-level-manager');
@@ -3966,6 +3966,24 @@ ${additionalNotes}` : ''}`;
         </div>
       )}
     </RequireAuth>
+  );
+}
+
+export default function ScoreCandidatePage() {
+  return (
+    <Suspense fallback={
+      <div className="flex min-h-screen" style={{ backgroundColor: COLORS.gray[50] }}>
+        <HubSidebar />
+        <main className="ml-64 p-8 flex-1 flex items-center justify-center">
+          <div className="flex items-center gap-3">
+            <div className="w-5 h-5 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: COLORS.primary, borderTopColor: 'transparent' }} />
+            <p style={{ color: COLORS.gray[500] }}>Loading...</p>
+          </div>
+        </main>
+      </div>
+    }>
+      <ScoreCandidatePageContent />
+    </Suspense>
   );
 }
 
