@@ -194,8 +194,11 @@ export default function SurveyPage() {
     { num: 12, text: 'Factors like commute, schedule, and work-life balance were supportive of my well-being.' },
   ];
 
+  // Question type: category is optional (only engagement survey has categories)
+  type SurveyQuestion = { num: number; text: string; category?: string };
+
   // Get current survey questions based on employee status
-  const getCurrentQuestions = () => {
+  const getCurrentQuestions = (): SurveyQuestion[] => {
     if (employeeStatus === 'none') return engagementQuestions;
     if (employeeStatus === 'newly-hired') return onboardingQuestions;
     if (employeeStatus === 'termination') return terminationQuestions;
