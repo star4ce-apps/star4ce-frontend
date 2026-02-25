@@ -279,7 +279,7 @@ export default function SurveysPage() {
     try {
       const data = await postJsonAuth<AccessCodeCreateResponse>(
         '/survey/access-codes',
-        { expires_in_hours: 168 }
+        {}
       );
 
       setResult(data);

@@ -853,7 +853,6 @@ ${managerNotes.trim()}` : ''}`;
             });
 
             if (!historyRes.ok) {
-              console.warn('Failed to create role history entry, but employee was updated');
             }
           }
         } catch (err) {

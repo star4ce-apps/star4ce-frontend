@@ -174,21 +174,15 @@ function DashboardContent() {
             setIsApproved(data.user?.is_approved !== false && data.is_approved !== false);
           } else {
             // Handle manager_not_approved error
-            console.log('Auth check failed:', res.status, data);
-            
             // If we get a 403, check if it's manager_not_approved
             if (res.status === 403) {
               if (data.error === 'manager_not_approved') {
-                // Explicitly manager not approved
                 setUserRole('manager');
                 setIsApproved(false);
                 localStorage.setItem('role', 'manager');
-                console.log('Manager not approved - showing waiting message');
               } else if (storedRole === 'manager') {
-                // 403 error and we know we're a manager - assume not approved
                 setUserRole('manager');
                 setIsApproved(false);
-                console.log('Manager with 403 error - showing waiting message');
               }
             } else if (storedRole === 'manager') {
               // Other error but we're a manager - assume not approved
@@ -407,9 +401,7 @@ function DashboardContent() {
           } else if (candidatesResponse?.candidates && Array.isArray(candidatesResponse.candidates)) {
             items = candidatesResponse.candidates;
           }
-          
-          console.log('Dashboard candidates response:', { candidatesResponse, itemsLength: items.length });
-          
+
           if (items.length > 0) {
             const candidates = items
               .filter((c: any) => {
@@ -513,11 +505,9 @@ function DashboardContent() {
                 return dateA - dateB; // Ascending order (oldest first)
               })
               .slice(0, 5); // Top 5 candidates (least updated)
-            
-            console.log('Dashboard processed candidates:', candidates.length, candidates);
+
             setCandidatesData(candidates);
           } else {
-            console.log('Dashboard: No candidates after processing. Items length:', items.length);
             setCandidatesData([]);
           }
         } catch (err) {
@@ -585,12 +575,7 @@ function DashboardContent() {
   const isManager = userRole === 'manager' || storedRole === 'manager';
   // Show message if: explicitly not approved, OR we're a manager and approval status is null/unknown
   const isNotApproved = isApproved === false || (isApproved === null && isManager);
-  
-  // Debug logging
-  if (isManager) {
-    console.log('Manager check:', { userRole, storedRole, isApproved, isNotApproved, willShow: isManager && isNotApproved });
-  }
-  
+
   if (isManager && isNotApproved) {
     return (
       <RequireAuth>

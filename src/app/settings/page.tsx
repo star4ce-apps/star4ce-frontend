@@ -396,30 +396,6 @@ export default function SettingsPage() {
               )}
             </div>
 
-            {/* Appearance Settings */}
-            <div className="rounded-xl p-6 mb-6" style={{ backgroundColor: '#FFFFFF', border: '1px solid #E5E7EB' }}>
-              <h2 className="text-xl font-semibold mb-4" style={{ color: '#232E40' }}>Appearance</h2>
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-sm font-semibold mb-1" style={{ color: '#232E40' }}>Dark Mode</h3>
-                  <p className="text-xs" style={{ color: '#6B7280' }}>Switch between light and dark theme</p>
-                </div>
-                <button
-                  disabled
-                  className="cursor-not-allowed relative inline-flex h-6 w-11 items-center rounded-full transition-colors opacity-50"
-                  style={{ backgroundColor: '#D1D5DB' }}
-                  role="switch"
-                  aria-checked={false}
-                  aria-label="Toggle dark mode (coming soon)"
-                  title="Dark mode coming soon"
-                >
-                  <span
-                    className="inline-block h-4 w-4 transform rounded-full bg-white transition-transform translate-x-1"
-                  />
-                </button>
-              </div>
-            </div>
-
             {/* Account Settings */}
             <div className="rounded-xl p-6" style={{ backgroundColor: '#FFFFFF', border: '1px solid #E5E7EB' }}>
               <h2 className="text-xl font-semibold mb-4" style={{ color: '#232E40' }}>Account</h2>

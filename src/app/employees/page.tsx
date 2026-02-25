@@ -374,9 +374,7 @@ export default function EmployeesPage() {
     setEmployees(prev => prev.filter(e => e.id !== employeeIdToDelete));
     
     try {
-      console.log('Deleting employee:', employeeIdToDelete);
-      const response = await deleteJsonAuth(`/employees/${employeeIdToDelete}`);
-      console.log('Delete response:', response);
+      await deleteJsonAuth(`/employees/${employeeIdToDelete}`);
       
       toast.success('Employee removed');
     } catch (err: unknown) {
