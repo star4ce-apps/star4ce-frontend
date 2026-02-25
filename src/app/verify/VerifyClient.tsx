@@ -17,21 +17,10 @@ export default function VerifyPage() {
   const [error, setError] = useState('');
   const [resendLoading, setResendLoading] = useState(false);
   const [resendCooldownSeconds, setResendCooldownSeconds] = useState(0);
-  const [devCode, setDevCode] = useState('');
-  const [devCodeRequested, setDevCodeRequested] = useState(false);
 
   // Pre-fill email from ?email=...
   const [emailFromUrl, setEmailFromUrl] = useState(false);
-  const roleParam = (search.get('role') || '').toLowerCase();
-  const showCode =
-    search.get('show_code') === 'true' ||
-    search.get('admin') === 'true' ||
-    search.get('manager') === 'true' ||
-    search.get('corporate') === 'true' ||
-    roleParam === 'admin' ||
-    roleParam === 'manager' ||
-    roleParam === 'corporate';
-  
+
   useEffect(() => {
     const qEmail = search.get('email');
     const subscriptionParam = search.get('subscription');
@@ -52,67 +41,10 @@ export default function VerifyPage() {
       setEmailFromUrl(true);
     }
     
-    // Check if coming from subscription success
     if (subscriptionParam === 'success') {
       setMessage('🎉 Subscription successful! Your admin account has been created. Please check your email for the verification code to complete setup.');
-      
-      // If email is pre-filled, automatically try to resend verification code
-      // (in case webhook hasn't fired yet or email failed)
-      const emailToUse = qEmail || email;
-      if (emailToUse) {
-        // Wait a moment then check if we need to resend
-        setTimeout(async () => {
-          try {
-            const endpoint = showCode ? '/auth/dev-verification-code' : '/auth/resend-verify';
-            const res = await fetch(`${API_BASE}${endpoint}`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ email: emailToUse }),
-            });
-            const data = await res.json().catch(() => ({}));
-            if (res.ok) {
-              if (data.code) {
-                setDevCode(data.code);
-                setCode(data.code);
-              }
-              setMessage('🎉 Subscription successful! Verification code is ready. Please check the code below.');
-            }
-          } catch (err) {
-            // Silently fail - user can manually resend
-            console.error('Auto-resend failed:', err);
-          }
-        }, 2000); // Wait 2 seconds for webhook to potentially fire first
-      }
     }
-  }, [search, router, email, showCode]);
-
-  useEffect(() => {
-    if (!email || devCodeRequested) return;
-    // Always fetch dev code when email is present (works for admin, manager, corporate)
-    setDevCodeRequested(true);
-    const fetchDevCode = async () => {
-      try {
-        const res = await fetch(`${API_BASE}/auth/dev-verification-code`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email }),
-        });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) {
-          // Silently fail - don't show error to user
-          return;
-        }
-        if (data.code) {
-          setDevCode(data.code);
-          setCode(data.code);
-        }
-      } catch (err) {
-        // Silently fail - don't show error to user
-        console.error('Dev code fetch failed:', err);
-      }
-    };
-    fetchDevCode();
-  }, [email, devCodeRequested]);
+  }, [search, router, email]);
 
   async function handleVerify(e: React.FormEvent) {
     e.preventDefault();
@@ -190,7 +122,7 @@ export default function VerifyPage() {
     setMessage('');
     setResendLoading(true);
     try {
-      const endpoint = showCode ? '/auth/dev-verification-code' : '/auth/resend-verify';
+      const endpoint = '/auth/resend-verify';
       const res = await fetch(`${API_BASE}${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -207,15 +139,7 @@ export default function VerifyPage() {
         throw new Error(data.error || 'Could not resend code');
       }
 
-      if (data.code) {
-        setDevCode(data.code);
-        setCode(data.code);
-      }
-      setMessage(
-        showCode
-          ? 'A new verification code is ready below. It expires in 10 minutes.'
-          : 'A new verification code has been sent to your email. It expires in 10 minutes.'
-      );
+      setMessage('A new verification code has been sent to your email. It expires in 10 minutes.');
       setResendCooldownSeconds(30);
     } catch (err: unknown) {
       setError(
@@ -278,12 +202,6 @@ export default function VerifyPage() {
                 {message}
               </div>
             )}
-            {devCode && (
-              <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-blue-800 text-sm">
-                Verification code: <span className="font-semibold tracking-wider">{devCode}</span>
-              </div>
-            )}
-
             {/* Verify Form */}
             <form onSubmit={handleVerify} className="space-y-5">
               <div>

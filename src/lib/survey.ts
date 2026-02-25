@@ -11,9 +11,7 @@ export type AccessCodeResponse = {
   is_active: boolean;
 };
 
-export async function createSurveyAccessCode(
-  expiresInHours: number = 24 * 7 // default: 1 week
-): Promise<AccessCodeResponse> {
+export async function createSurveyAccessCode(): Promise<AccessCodeResponse> {
   const token = getToken();
   if (!token) {
     throw new Error('Not signed in');
@@ -25,9 +23,7 @@ export async function createSurveyAccessCode(
       'Content-Type': 'application/json',
       Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify({
-      expires_in_hours: expiresInHours,
-    }),
+    body: '{}',
   });
 
   const data = await res.json().catch(() => ({}));

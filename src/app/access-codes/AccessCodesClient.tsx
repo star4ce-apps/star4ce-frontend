@@ -140,10 +140,9 @@ export default function AccessCodesClient() {
     setLoadingCreate(true);
 
     try {
-      // 7 days = 168 hours
       const data = await postJsonAuth<AccessCodeCreateResponse>(
         '/survey/access-codes',
-        { expires_in_hours: 168 }
+        {}
       );
 
       setResult(data);
