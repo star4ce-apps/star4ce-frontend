@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { Suspense, useEffect, useState, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import HubSidebar from '@/components/sidebar/HubSidebar';
 import RequireAuth from '@/components/layout/RequireAuth';
@@ -39,7 +39,7 @@ type InviteCodeRow = {
   status: 'active' | 'used' | 'expired';
 };
 
-export default function UserManagementPage() {
+function UserManagementPageContent() {
   const [managers, setManagers] = useState<Manager[]>([]);
   const [pendingManagers, setPendingManagers] = useState<Manager[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1771,5 +1771,23 @@ export default function UserManagementPage() {
         </main>
       </div>
     </RequireAuth>
+  );
+}
+
+export default function UserManagementPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex min-h-screen bg-gray-50">
+        <HubSidebar />
+        <main className="ml-64 p-8 flex-1 flex items-center justify-center">
+          <div className="flex items-center gap-3">
+            <div className="w-5 h-5 border-2 border-t-transparent rounded-full animate-spin border-blue-600 border-t-transparent" />
+            <p className="text-gray-500">Loading...</p>
+          </div>
+        </main>
+      </div>
+    }>
+      <UserManagementPageContent />
+    </Suspense>
   );
 }
