@@ -114,6 +114,9 @@ export default function SurveysPage() {
   const [startDate, setStartDate] = useState<string>(currentMonth.start);
   const [endDate, setEndDate] = useState<string>(currentMonth.end);
   const [dateRangePreset, setDateRangePreset] = useState<string>('This month');
+  const [showSatisfactionModal, setShowSatisfactionModal] = useState(false);
+  const [showFeedbackDetailModal, setShowFeedbackDetailModal] = useState<FeedbackItem | null>(null);
+  const [showAllFeedbackModal, setShowAllFeedbackModal] = useState(false);
 
   const handleDatePresetChange = (preset: string) => {
     setDateRangePreset(preset);
@@ -468,7 +471,7 @@ export default function SurveysPage() {
             <div className="rounded-xl p-6" style={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}` }}>
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-sm font-medium" style={{ color: COLORS.gray[900] }}>Overall Satisfaction</h2>
-                <a href="#" className="text-xs hover:underline" style={{ color: COLORS.primary }}>View more →</a>
+                <button type="button" onClick={() => setShowSatisfactionModal(true)} className="text-xs hover:underline cursor-pointer bg-transparent border-none p-0" style={{ color: COLORS.primary }}>View more →</button>
               </div>
               <div className="flex items-center justify-center">
                 {overallSatisfaction.length > 0 ? (
@@ -697,7 +700,7 @@ export default function SurveysPage() {
                         </span>
                       </div>
                       <p className="text-sm mb-3 line-clamp-3" style={{ color: COLORS.gray[600] }}>{item.comment}</p>
-                      <a href="#" className="text-xs font-medium hover:underline" style={{ color: COLORS.primary }}>View more →</a>
+                      <button type="button" onClick={() => setShowFeedbackDetailModal(item)} className="text-xs font-medium hover:underline cursor-pointer bg-transparent border-none p-0" style={{ color: COLORS.primary }}>View more →</button>
                     </div>
                   );
                 })}
@@ -709,7 +712,7 @@ export default function SurveysPage() {
             )}
             {feedback.length > 0 && (
               <div className="text-right">
-                <a href="#" className="text-xs font-medium hover:underline" style={{ color: COLORS.primary }}>View All →</a>
+                <button type="button" onClick={() => setShowAllFeedbackModal(true)} className="text-xs font-medium hover:underline cursor-pointer bg-transparent border-none p-0" style={{ color: COLORS.primary }}>View All →</button>
               </div>
             )}
           </div>
@@ -930,6 +933,118 @@ export default function SurveysPage() {
                   </div>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Overall Satisfaction View more modal */}
+          {showSatisfactionModal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }} onClick={() => setShowSatisfactionModal(false)}>
+              <div className="rounded-xl p-6 max-w-lg w-full shadow-xl" style={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}` }} onClick={e => e.stopPropagation()}>
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-semibold" style={{ color: COLORS.gray[900] }}>Overall Satisfaction</h2>
+                  <button type="button" onClick={() => setShowSatisfactionModal(false)} className="cursor-pointer p-1 rounded hover:bg-gray-100" aria-label="Close">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                  </button>
+                </div>
+                {overallSatisfaction.length > 0 ? (
+                  <>
+                    <ResponsiveContainer width="100%" height={260}>
+                      <PieChart>
+                        <Pie data={overallSatisfaction} cx="50%" cy="50%" innerRadius={70} outerRadius={110} dataKey="value" paddingAngle={2} stroke="none">
+                          {overallSatisfaction.map((_, index) => (
+                            <Cell key={index} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip contentStyle={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}`, borderRadius: '8px' }} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                    <div className="flex justify-center gap-8 mt-4">
+                      {overallSatisfaction.map((item, idx) => (
+                        <div key={idx} className="text-center">
+                          <div className="flex items-center gap-2 mb-1">
+                            <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: CHART_COLORS[idx] }} />
+                            <span className="text-sm font-medium" style={{ color: COLORS.gray[600] }}>{item.name}</span>
+                          </div>
+                          <div className="text-xl font-semibold" style={{ color: '#394B67' }}>{item.value}</div>
+                          <div className="text-sm" style={{ color: COLORS.gray[400] }}>{item.percentage}%</div>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-sm py-6 text-center" style={{ color: COLORS.gray[500] }}>No survey data available for the selected date range.</p>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Single feedback View more modal */}
+          {showFeedbackDetailModal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }} onClick={() => setShowFeedbackDetailModal(null)}>
+              <div className="rounded-xl p-6 max-w-lg w-full max-h-[85vh] overflow-hidden flex flex-col shadow-xl" style={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}` }} onClick={e => e.stopPropagation()}>
+                <div className="flex items-center justify-between mb-4 flex-shrink-0">
+                  <h2 className="text-lg font-semibold" style={{ color: COLORS.gray[900] }}>Written Feedback</h2>
+                  <button type="button" onClick={() => setShowFeedbackDetailModal(null)} className="cursor-pointer p-1 rounded hover:bg-gray-100" aria-label="Close">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                  </button>
+                </div>
+                <div className="flex items-center justify-between mb-3 flex-shrink-0">
+                  <span className="text-sm font-medium" style={{ color: COLORS.gray[800] }}>{showFeedbackDetailModal.department}</span>
+                  <span className="text-xs" style={{ color: COLORS.gray[400] }}>{showFeedbackDetailModal.date}</span>
+                </div>
+                <span className="text-xs font-medium px-2 py-1 rounded mb-3 inline-block flex-shrink-0" style={{ ...getSentimentStyle(showFeedbackDetailModal.sentiment) }}>{showFeedbackDetailModal.sentiment}</span>
+                <p className="text-sm overflow-y-auto flex-1 pr-2" style={{ color: COLORS.gray[600], whiteSpace: 'pre-wrap' }}>{showFeedbackDetailModal.comment}</p>
+              </div>
+            </div>
+          )}
+
+          {/* View All feedback modal */}
+          {showAllFeedbackModal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }} onClick={() => setShowAllFeedbackModal(false)}>
+              <div className="rounded-xl p-6 w-full max-w-2xl max-h-[85vh] overflow-hidden flex flex-col shadow-xl" style={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}` }} onClick={e => e.stopPropagation()}>
+                <div className="flex items-center justify-between mb-4 flex-shrink-0">
+                  <h2 className="text-lg font-semibold" style={{ color: COLORS.gray[900] }}>All Written Feedback</h2>
+                  <button type="button" onClick={() => setShowAllFeedbackModal(false)} className="cursor-pointer p-1 rounded hover:bg-gray-100" aria-label="Close">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                  </button>
+                </div>
+                <div className="overflow-y-auto flex-1 space-y-4 pr-2">
+                  {(() => {
+                    const filtered = feedback.filter(item => {
+                      if (selectedDepartment !== 'All Departments' && item.department !== selectedDepartment) return false;
+                      if (searchQuery && !item.comment.toLowerCase().includes(searchQuery.toLowerCase()) && !item.department.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+                      return true;
+                    });
+                    const sorted = [...filtered].sort((a, b) => {
+                      if (sortBy === 'Recent') return b.id - a.id;
+                      if (sortBy === 'Oldest') return a.id - b.id;
+                      if (sortBy === 'Most Positive') {
+                        const o: Record<string, number> = { 'Highly Positive': 5, 'Positive': 4, 'Neutral': 3, 'Negative': 2, 'Highly Negative': 1 };
+                        return (o[b.sentiment] || 0) - (o[a.sentiment] || 0);
+                      }
+                      if (sortBy === 'Most Negative') {
+                        const o: Record<string, number> = { 'Highly Positive': 1, 'Positive': 2, 'Neutral': 3, 'Negative': 4, 'Highly Negative': 5 };
+                        return (o[b.sentiment] || 0) - (o[a.sentiment] || 0);
+                      }
+                      return 0;
+                    });
+                    if (sorted.length === 0) return <p className="text-sm text-center py-6" style={{ color: COLORS.gray[500] }}>No feedback available for the selected filters.</p>;
+                    return sorted.map((item) => {
+                      const style = getSentimentStyle(item.sentiment);
+                      return (
+                        <div key={item.id} className="rounded-lg p-4" style={{ backgroundColor: COLORS.gray[50], border: `1px solid ${COLORS.gray[100]}` }}>
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-sm font-medium" style={{ color: COLORS.gray[800] }}>{item.department}</span>
+                            <span className="text-xs" style={{ color: COLORS.gray[400] }}>{item.date}</span>
+                          </div>
+                          <span className="text-xs font-medium px-2 py-1 rounded inline-block mb-2" style={{ color: style.text, backgroundColor: style.bg }}>{item.sentiment}</span>
+                          <p className="text-sm" style={{ color: COLORS.gray[600], whiteSpace: 'pre-wrap' }}>{item.comment}</p>
+                        </div>
+                      );
+                    });
+                  })()}
+                </div>
+              </div>
             </div>
           )}
         </main>
