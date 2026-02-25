@@ -214,6 +214,15 @@ function AdminRegisterPageContent() {
       setError('Dealership name is required');
       return;
     }
+    if (!dealershipState.trim()) {
+      setError('State is required');
+      return;
+    }
+    const resolvedCity = (dealershipCity === '__other__' ? dealershipCityOther : dealershipCity).trim() || null;
+    if (!resolvedCity) {
+      setError('City is required');
+      return;
+    }
 
     setLoading(true);
     try {
@@ -267,9 +276,6 @@ function AdminRegisterPageContent() {
           return;
         }
       } else {
-        // Resolve city: use "Other" text when user selected Other
-        const resolvedCity = (dealershipCity === '__other__' ? dealershipCityOther : dealershipCity).trim() || null;
-
         // New registration - create the user account (include dealership info so backend can save for checkout)
         const registerRes = await fetch(`${API_BASE}/auth/register`, {
           method: 'POST',
@@ -574,8 +580,10 @@ function AdminRegisterPageContent() {
                             setDealershipCity(''); // Reset city when state changes
                             setDealershipCityOther(''); // Reset other city input
                           }}
+                          required
+                          aria-required="true"
                         >
-                          <option value="">Select State</option>
+                          <option value="">Select State *</option>
                           {usStates.map((stateOption) => (
                             <option key={stateOption.code} value={stateOption.code}>
                               {stateOption.code} - {stateOption.name}
@@ -597,8 +605,10 @@ function AdminRegisterPageContent() {
                             }
                           }}
                           disabled={!dealershipState}
+                          required
+                          aria-required="true"
                         >
-                          <option value="">{dealershipState ? 'Select City' : 'Select State First'}</option>
+                          <option value="">{dealershipState ? 'Select City *' : 'Select State First'}</option>
                           {dealershipState && getCitiesForState(dealershipState).length > 0 && getCitiesForState(dealershipState).map((cityName) => (
                             <option key={cityName} value={cityName}>
                               {cityName}
