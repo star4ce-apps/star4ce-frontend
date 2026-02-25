@@ -81,6 +81,9 @@ export default function SurveysPage() {
   const [overallSatisfaction, setOverallSatisfaction] = useState<SatisfactionData[]>([]);
   const [departments, setDepartments] = useState<DepartmentData[]>([]);
   const [feedback, setFeedback] = useState<FeedbackItem[]>([]);
+  const [surveysCreated, setSurveysCreated] = useState<number>(0);
+  const [surveysTaken, setSurveysTaken] = useState<number>(0);
+  const [surveysNeverTook, setSurveysNeverTook] = useState<number>(0);
   const [loading, setLoading] = useState(true);
   const [selectedDepartment, setSelectedDepartment] = useState<string>('All Departments');
   const [sortBy, setSortBy] = useState<string>('Recent');
@@ -164,11 +167,17 @@ export default function SurveysPage() {
         overall_satisfaction: SatisfactionData[];
         departments: DepartmentData[];
         feedback: FeedbackItem[];
+        surveys_created?: number;
+        surveys_taken?: number;
+        surveys_never_took?: number;
       }>(url);
 
       if (data.ok) {
         setOverallSatisfaction(data.overall_satisfaction || []);
         setDepartments(data.departments || []);
+        setSurveysCreated(data.surveys_created ?? 0);
+        setSurveysTaken(data.surveys_taken ?? 0);
+        setSurveysNeverTook(data.surveys_never_took ?? 0);
         
         // Map feedback sentiment to match the expected format
         const mappedFeedback = (data.feedback || []).map(item => {
@@ -192,16 +201,21 @@ export default function SurveysPage() {
       const errorMsg = error?.message || '';
       if (errorMsg.includes('403') || errorMsg.includes('forbidden') || errorMsg.includes('insufficient role')) {
         // User doesn't have permission - silently set empty data
-        // This is expected for managers who don't have access to survey analytics
         setOverallSatisfaction([]);
         setDepartments([]);
         setFeedback([]);
+        setSurveysCreated(0);
+        setSurveysTaken(0);
+        setSurveysNeverTook(0);
       } else {
         // Other errors - log but still set empty data
         console.error('Failed to fetch survey data:', error);
         setOverallSatisfaction([]);
         setDepartments([]);
         setFeedback([]);
+        setSurveysCreated(0);
+        setSurveysTaken(0);
+        setSurveysNeverTook(0);
       }
     } finally {
       setLoading(false);
@@ -426,6 +440,25 @@ export default function SurveysPage() {
                   </div>
                 </div>
               </div>
+            </div>
+          </div>
+
+          {/* Survey summary: created, taken, never took */}
+          <div className="grid grid-cols-3 gap-4 mb-8">
+            <div className="rounded-xl p-5" style={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}` }}>
+              <p className="text-xs font-medium uppercase tracking-wide mb-2" style={{ color: COLORS.gray[400] }}>Surveys created</p>
+              <p className="text-2xl font-semibold" style={{ color: '#394B67' }}>{surveysCreated}</p>
+              <p className="text-xs mt-1" style={{ color: COLORS.gray[400] }}>Access codes in date range</p>
+            </div>
+            <div className="rounded-xl p-5" style={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}` }}>
+              <p className="text-xs font-medium uppercase tracking-wide mb-2" style={{ color: COLORS.gray[400] }}>Surveys taken</p>
+              <p className="text-2xl font-semibold" style={{ color: COLORS.primary }}>{surveysTaken}</p>
+              <p className="text-xs mt-1" style={{ color: COLORS.gray[400] }}>Submitted in date range</p>
+            </div>
+            <div className="rounded-xl p-5" style={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}` }}>
+              <p className="text-xs font-medium uppercase tracking-wide mb-2" style={{ color: COLORS.gray[400] }}>Never took</p>
+              <p className="text-2xl font-semibold" style={{ color: COLORS.negative }}>{surveysNeverTook}</p>
+              <p className="text-xs mt-1" style={{ color: COLORS.gray[400] }}>Codes with no response</p>
             </div>
           </div>
 
