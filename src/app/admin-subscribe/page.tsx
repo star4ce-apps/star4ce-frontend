@@ -203,7 +203,6 @@ function AdminSubscribePageContent() {
         backgroundSize: 'cover',
         backgroundPosition: 'center',
         backgroundAttachment: 'fixed',
-        paddingTop: '140px',
       }}
     >
       {/* Blurred background overlay */}

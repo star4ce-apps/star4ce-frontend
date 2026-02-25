@@ -20,7 +20,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
                           pathname?.startsWith('/surveys') ||
                           pathname?.startsWith('/access-codes') ||
                           pathname?.startsWith('/settings') ||
-                          (pathname?.startsWith('/admin') && !pathname?.startsWith('/admin-register'));
+                          (pathname?.startsWith('/admin') && !pathname?.startsWith('/admin-register') && !pathname?.startsWith('/admin-subscribe'));
 
   // Survey page: no footer, no padding
   const isSurveyPage = pathname === '/survey';
