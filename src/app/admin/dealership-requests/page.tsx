@@ -184,8 +184,8 @@ export default function DealershipRequestsPage() {
         <main className="ml-64 p-8 pl-10 flex-1" style={{ overflowX: 'hidden', minWidth: 0 }}>
           <div className="mb-8">
             <div className="mb-6">
-              <h1 className="text-4xl font-bold mb-2" style={{ color: '#232E40', letterSpacing: '-0.02em' }}>Dealership Access Requests</h1>
-              <p className="text-base" style={{ color: '#6B7280' }}>Approve or reject corporate user requests to view dealership stats</p>
+              <h1 className="text-2xl font-semibold mb-1" style={{ color: '#232E40' }}>Dealership Access Requests</h1>
+              <p className="text-sm" style={{ color: '#6B7280' }}>Approve or reject corporate user requests to view dealership stats</p>
             </div>
           </div>
 

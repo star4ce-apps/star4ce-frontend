@@ -1,10 +1,12 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import HubSidebar from '@/components/sidebar/HubSidebar';
 import RequireAuth from '@/components/layout/RequireAuth';
-import { API_BASE, getToken } from '@/lib/auth';
-import { getJsonAuth } from '@/lib/http';
+import { API_BASE, getToken, getCurrentUser } from '@/lib/auth';
+import { deleteJsonAuth, getJsonAuth, postJsonAuth, putJsonAuth } from '@/lib/http';
+import toast from 'react-hot-toast';
 
 // Modern color palette - matching surveys page
 const COLORS = {
@@ -58,35 +60,48 @@ type PerformanceReview = {
   reviewer_name?: string;
 };
 
-// Mock data for demonstration
-const mockEmployeesWithReviews: (Employee & { lastReview?: string; reviewStatus: 'overdue' | 'due' | 'completed' })[] = [
-  { id: 1, name: 'Alice Johnson', email: 'alice@example.com', phone: null, department: 'Marketing', position: 'Marketing Manager', hired_date: '2021-05-15', status: 'Full-Time', dealership_id: 1, is_active: true, created_at: '2021-05-15', updated_at: '2024-01-01', lastReview: 'March 2023', reviewStatus: 'overdue' },
-  { id: 2, name: 'Bob Smith', email: 'bob@example.com', phone: null, department: 'Sales', position: 'Sales Representative', hired_date: '2020-03-20', status: 'Full-Time', dealership_id: 1, is_active: true, created_at: '2020-03-20', updated_at: '2024-01-01', lastReview: 'January 2023', reviewStatus: 'overdue' },
-  { id: 3, name: 'Catherine Lee', email: 'catherine@example.com', phone: null, department: 'Development', position: 'Software Developer', hired_date: '2022-01-10', status: 'Full-Time', dealership_id: 1, is_active: true, created_at: '2022-01-10', updated_at: '2024-01-01', lastReview: 'February 2023', reviewStatus: 'due' },
-  { id: 4, name: 'David Brown', email: 'david@example.com', phone: null, department: 'HR', position: 'HR Specialist', hired_date: '2019-08-01', status: 'Full-Time', dealership_id: 1, is_active: true, created_at: '2019-08-01', updated_at: '2024-01-01', lastReview: 'April 2023', reviewStatus: 'completed' },
-  { id: 5, name: 'Frank White', email: 'frank@example.com', phone: null, department: 'IT', position: 'IT Support', hired_date: '2018-11-15', status: 'Full-Time', dealership_id: 1, is_active: true, created_at: '2018-11-15', updated_at: '2024-01-01', lastReview: 'November 2022', reviewStatus: 'completed' },
-  { id: 6, name: 'Eva Green', email: 'eva@example.com', phone: null, department: 'Finance', position: 'Accountant', hired_date: '2020-06-01', status: 'Full-Time', dealership_id: 1, is_active: true, created_at: '2020-06-01', updated_at: '2024-01-01', lastReview: 'December 2022', reviewStatus: 'completed' },
-  { id: 7, name: 'Grace Black', email: 'grace@example.com', phone: null, department: 'Customer Support', position: 'Support Lead', hired_date: '2021-09-01', status: 'Full-Time', dealership_id: 1, is_active: true, created_at: '2021-09-01', updated_at: '2024-01-01', lastReview: 'September 2023', reviewStatus: 'completed' },
-  { id: 8, name: 'Isabella Clark', email: 'isabella@example.com', phone: null, department: 'Research', position: 'Research Analyst', hired_date: '2022-04-15', status: 'Full-Time', dealership_id: 1, is_active: true, created_at: '2022-04-15', updated_at: '2024-01-01', lastReview: 'May 2023', reviewStatus: 'completed' },
-  { id: 9, name: 'Henry Adams', email: 'henry@example.com', phone: null, department: 'Logistics', position: 'Logistics Coordinator', hired_date: '2019-02-20', status: 'Full-Time', dealership_id: 1, is_active: true, created_at: '2019-02-20', updated_at: '2024-01-01', lastReview: 'October 2022', reviewStatus: 'completed' },
-];
-
-const mockUpcomingReviews = [
-  { name: 'David Brown', date: '04/29' },
-  { name: 'Frank White', date: '05/28' },
-  { name: 'Grace Black', date: '06/21' },
-];
+type ReviewLogItem = {
+  id: number;
+  review_date: string;
+  overall_rating: number;
+  job_knowledge: number;
+  work_quality: number;
+  service_performance: number;
+  teamwork: number;
+  attendance: number;
+  strengths?: string[];
+  improvements?: string[];
+  notes?: string | null;
+  created_at?: string | null;
+};
 
 export default function PerformanceReviewsPage() {
-  const [employees, setEmployees] = useState<(Employee & { lastReview?: string; reviewStatus: 'overdue' | 'due' | 'completed' })[]>(mockEmployeesWithReviews);
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [employees, setEmployees] = useState<(Employee & { lastReview?: string; reviewStatus: 'overdue' | 'due' | 'completed'; avg_performance_score?: number | null })[]>([]);
   const [loading, setLoading] = useState(false);
+  const [submittingReview, setSubmittingReview] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDepartment, setSelectedDepartment] = useState('All Departments');
   const [currentPage, setCurrentPage] = useState(1);
   const [showReviewModal, setShowReviewModal] = useState(false);
-  const [selectedEmployee, setSelectedEmployee] = useState<(Employee & { lastReview?: string; reviewStatus: 'overdue' | 'due' | 'completed' }) | null>(null);
-  
+  const [selectedEmployee, setSelectedEmployee] = useState<(Employee & { lastReview?: string; reviewStatus: 'overdue' | 'due' | 'completed'; avg_performance_score?: number | null }) | null>(null);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [historyEmployee, setHistoryEmployee] = useState<(Employee & { lastReview?: string }) | null>(null);
+  const [reviewLogs, setReviewLogs] = useState<ReviewLogItem[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [editingReview, setEditingReview] = useState<ReviewLogItem | null>(null);
+  const [editRatings, setEditRatings] = useState({ jobKnowledge: 0, workQuality: 0, servicePerformance: 0, teamwork: 0, attendance: 0 });
+  const [editStrengths, setEditStrengths] = useState<string[]>([]);
+  const [editImprovements, setEditImprovements] = useState<string[]>([]);
+  const [editNotes, setEditNotes] = useState('');
+  const [editReviewDate, setEditReviewDate] = useState('');
+  const [submittingEdit, setSubmittingEdit] = useState(false);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [editStrengthInput, setEditStrengthInput] = useState('');
+  const [editImprovementInput, setEditImprovementInput] = useState('');
+
   // Review form state
   const [ratings, setRatings] = useState({
     jobKnowledge: 0,
@@ -101,11 +116,33 @@ export default function PerformanceReviewsPage() {
   const [improvementInput, setImprovementInput] = useState('');
   const [managerNotes, setManagerNotes] = useState('');
   
-  const itemsPerPage = 9;
+  const itemsPerPage = 10;
 
   useEffect(() => {
     loadEmployees();
   }, []);
+
+  // Auto-open review modal if employeeId is in URL
+  useEffect(() => {
+    const employeeIdParam = searchParams.get('employeeId');
+    if (employeeIdParam && employees.length > 0 && !showReviewModal) {
+      const employeeId = parseInt(employeeIdParam);
+      const employee = employees.find(emp => emp.id === employeeId);
+      if (employee) {
+        setSelectedEmployee(employee);
+        setRatings({ jobKnowledge: 0, workQuality: 0, servicePerformance: 0, teamwork: 0, attendance: 0 });
+        setStrengths([]);
+        setImprovements([]);
+        setStrengthInput('');
+        setImprovementInput('');
+        setManagerNotes('');
+        setShowReviewModal(true);
+        // Remove the query parameter from URL
+        router.replace('/employees/performance');
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, employees]);
 
   async function loadEmployees() {
     setLoading(true);
@@ -113,29 +150,34 @@ export default function PerformanceReviewsPage() {
     try {
       const token = getToken();
       if (!token) {
-        // Use mock data if not logged in
-        setEmployees(mockEmployeesWithReviews);
+        setError('Not logged in');
+        setEmployees([]);
         setLoading(false);
         return;
       }
 
-      // Use getJsonAuth to include X-Dealership-Id header for corporate users
-      const data = await getJsonAuth<{ ok: boolean; items: any[] }>('/employees');
-      if (data.items && data.items.length > 0) {
-        // Map real employees with mock review data
-        const employeesWithReviews = data.items.map((emp: Employee, idx: number) => ({
-          ...emp,
-          lastReview: mockEmployeesWithReviews[idx % mockEmployeesWithReviews.length]?.lastReview || 'Never',
-          reviewStatus: mockEmployeesWithReviews[idx % mockEmployeesWithReviews.length]?.reviewStatus || 'due',
-        }));
-        setEmployees(employeesWithReviews);
-      } else {
-        // Use mock data if no employees from API
-        setEmployees(mockEmployeesWithReviews);
-      }
+      const data = await getJsonAuth<{ ok?: boolean; items?: any[]; employees?: any[] }>('/employees');
+      const list = data?.items ?? data?.employees ?? [];
+      // Filter out inactive employees (soft-deleted employees have is_active = False)
+      const activeEmployees = Array.isArray(list) ? list.filter((emp: any) => emp.is_active !== false) : [];
+      const employeesWithReviews = Array.isArray(activeEmployees)
+        ? activeEmployees.map((emp: any) => {
+            const lastDate = emp.last_review_date;
+            return {
+              ...emp,
+              name: emp.name ?? ([emp.first_name, emp.last_name].filter(Boolean).join(' ') || 'Unknown'),
+              department: emp.department ?? '—',
+              lastReview: lastDate ? new Date(lastDate).toLocaleDateString() : 'Never',
+              reviewStatus: (emp.reviewStatus || 'due') as 'overdue' | 'due' | 'completed',
+              avg_performance_score: emp.avg_performance_score ?? null,
+            };
+          })
+        : [];
+      setEmployees(employeesWithReviews);
     } catch (err) {
-      // Use mock data on error
-      setEmployees(mockEmployeesWithReviews);
+      const message = err instanceof Error ? err.message : 'Failed to load employees';
+      setError(message.includes('403') ? 'You don’t have permission to view employees.' : 'Failed to load employees. Try again.');
+      setEmployees([]);
     } finally {
       setLoading(false);
     }
@@ -151,21 +193,23 @@ export default function PerformanceReviewsPage() {
 
   const totalPages = Math.ceil(filteredEmployees.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
-  const paginatedEmployees = filteredEmployees.slice(startIndex, startIndex + itemsPerPage);
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedEmployees = filteredEmployees.slice(startIndex, endIndex);
 
   const departments = ['All Departments', ...Array.from(new Set(employees.map(emp => emp.department)))];
 
   const overdueCount = employees.filter(emp => emp.reviewStatus === 'overdue').length;
-  const upcomingCount = 18; // Mock upcoming reviews count
-  const averageScore = 3.6; // Mock average score
+  const upcomingCount = employees.filter(emp => emp.reviewStatus === 'due').length;
+  const scoresWithValue = employees.filter(emp => typeof emp.avg_performance_score === 'number');
+  const averageScore = scoresWithValue.length > 0
+    ? scoresWithValue.reduce((sum, emp) => sum + (emp.avg_performance_score ?? 0), 0) / scoresWithValue.length
+    : 0;
 
-  const overdueEmployees = employees.filter(emp => emp.reviewStatus === 'overdue');
-
-  function openReviewModal(employee?: (Employee & { lastReview?: string; reviewStatus: 'overdue' | 'due' | 'completed' })) {
+  function openReviewModal(employee?: (Employee & { lastReview?: string; reviewStatus: 'overdue' | 'due' | 'completed'; avg_performance_score?: number | null })) {
     setSelectedEmployee(employee || null);
     setRatings({ jobKnowledge: 0, workQuality: 0, servicePerformance: 0, teamwork: 0, attendance: 0 });
-    setStrengths(['Communication', 'Knowledgeable', 'Assisting other coworkers', 'Always arriving on time']);
-    setImprovements(['Training new hires', 'Friendliness', 'Attitude']);
+    setStrengths([]);
+    setImprovements([]);
     setStrengthInput('');
     setImprovementInput('');
     setManagerNotes('');
@@ -175,6 +219,96 @@ export default function PerformanceReviewsPage() {
   function closeReviewModal() {
     setShowReviewModal(false);
     setSelectedEmployee(null);
+  }
+
+  async function openHistoryModal(emp: Employee & { lastReview?: string }) {
+    setHistoryEmployee(emp);
+    setShowHistoryModal(true);
+    setReviewLogs([]);
+    setLoadingHistory(true);
+    try {
+      const data = await getJsonAuth<{ ok?: boolean; items?: ReviewLogItem[] }>(`/employees/${emp.id}/performance-reviews`);
+      setReviewLogs(Array.isArray(data?.items) ? data.items : []);
+    } catch {
+      setReviewLogs([]);
+    } finally {
+      setLoadingHistory(false);
+    }
+  }
+
+  function closeHistoryModal() {
+    setShowHistoryModal(false);
+    setHistoryEmployee(null);
+    setReviewLogs([]);
+    setEditingReview(null);
+  }
+
+  function openEditModal(log: ReviewLogItem) {
+    setEditingReview(log);
+    setEditRatings({
+      jobKnowledge: log.job_knowledge ?? 0,
+      workQuality: log.work_quality ?? 0,
+      servicePerformance: log.service_performance ?? 0,
+      teamwork: log.teamwork ?? 0,
+      attendance: log.attendance ?? 0,
+    });
+    setEditStrengths(Array.isArray(log.strengths) ? [...log.strengths] : (log.strengths ? [String(log.strengths)] : []));
+    setEditImprovements(Array.isArray(log.improvements) ? [...log.improvements] : (log.improvements ? [String(log.improvements)] : []));
+    setEditNotes(log.notes ?? '');
+    setEditReviewDate(log.review_date ? new Date(log.review_date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]);
+  }
+
+  function closeEditModal() {
+    setEditingReview(null);
+  }
+
+  async function handleSaveEdit() {
+    if (!editingReview || !historyEmployee) return;
+    setSubmittingEdit(true);
+    try {
+      await postJsonAuth(
+        `/employees/${historyEmployee.id}/performance-reviews/${editingReview.id}`,
+        {
+          review_date: editReviewDate,
+          job_knowledge: editRatings.jobKnowledge || 0,
+          work_quality: editRatings.workQuality || 0,
+          service_performance: editRatings.servicePerformance || 0,
+          teamwork: editRatings.teamwork || 0,
+          attendance: editRatings.attendance || 0,
+          strengths: editStrengths.length ? editStrengths : undefined,
+          improvements: editImprovements.length ? editImprovements : undefined,
+          notes: editNotes.trim() || undefined,
+        },
+        { method: 'PUT' }
+      );
+      toast.success('Review updated.');
+      closeEditModal();
+      const data = await getJsonAuth<{ ok?: boolean; items?: ReviewLogItem[] }>(`/employees/${historyEmployee.id}/performance-reviews`);
+      setReviewLogs(Array.isArray(data?.items) ? data.items : []);
+      await loadEmployees();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to update review';
+      toast.error(message);
+    } finally {
+      setSubmittingEdit(false);
+    }
+  }
+
+  async function handleDeleteReview(log: ReviewLogItem) {
+    if (!historyEmployee) return;
+    if (!confirm('Delete this review? This cannot be undone.')) return;
+    setDeletingId(log.id);
+    try {
+      await deleteJsonAuth(`/employees/${historyEmployee.id}/performance-reviews/${log.id}`);
+      toast.success('Review deleted.');
+      setReviewLogs(prev => prev.filter(r => r.id !== log.id));
+      await loadEmployees();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to delete review';
+      toast.error(message);
+    } finally {
+      setDeletingId(null);
+    }
   }
 
   function handleAddStrength(e: React.KeyboardEvent<HTMLInputElement>) {
@@ -205,40 +339,114 @@ export default function PerformanceReviewsPage() {
     setImprovements(improvements.filter(i => i !== improvement));
   }
 
-  function handleSubmitReview() {
-    // TODO: Submit review to API
-    console.log('Submitting review:', {
-      employee: selectedEmployee,
-      ratings,
-      strengths,
-      improvements,
-      managerNotes,
-    });
-    closeReviewModal();
-  }
+  async function handleSubmitReview() {
+    if (!selectedEmployee) return;
+    setSubmittingReview(true);
+    try {
+      const token = getToken();
+      if (!token) {
+        toast.error('Not logged in');
+        return;
+      }
 
-  const getStatusBadge = (status: 'overdue' | 'due' | 'completed') => {
-    const styles = {
-      overdue: { bg: '#FEE2E2', color: '#DC2626', border: '#FECACA' },
-      due: { bg: '#FEF3C7', color: '#D97706', border: '#FDE68A' },
-      completed: { bg: '#D1FAE5', color: '#059669', border: '#A7F3D0' },
-    };
-    const labels = { overdue: 'Overdue', due: 'Due', completed: 'Completed' };
-    const style = styles[status];
-    
-    return (
-      <span 
-        className="text-xs font-semibold px-3 py-1 rounded-full inline-block"
-        style={{ 
-          backgroundColor: style.bg, 
-          color: style.color,
-          border: `1px solid ${style.border}`
-        }}
-      >
-        {labels[status]}
-      </span>
-    );
-  };
+      // Get current user info
+      const userData = await getCurrentUser();
+      const currentUserFullName = (userData?.user?.full_name && userData.user.full_name.trim()) ||
+        (userData?.user?.first_name && userData?.user?.last_name ? `${userData.user.first_name} ${userData.user.last_name}`.trim() : null) ||
+        (userData?.user?.first_name || userData?.user?.last_name) ||
+        (userData?.full_name && userData.full_name.trim()) ||
+        (userData?.first_name && userData?.last_name ? `${userData.first_name} ${userData.last_name}`.trim() : null) ||
+        (userData?.first_name || userData?.last_name) ||
+        (userData?.user?.email && userData.user.email.includes('@') ? userData.user.email.split('@')[0].replace(/[._]/g, ' ') : null) ||
+        (userData?.email && userData.email.includes('@') ? userData.email.split('@')[0].replace(/[._]/g, ' ') : null) ||
+        'Unknown Reviewer';
+
+      // Get current employee to access notes
+      const employeeData = await getJsonAuth<{ ok?: boolean; employee?: { notes?: string } }>(
+        `/employees/${selectedEmployee.id}`
+      );
+      const existingNotes = employeeData?.employee?.notes ?? '';
+
+      // Count existing performance reviews
+      let reviewNumber = 1;
+      if (existingNotes && existingNotes.trim()) {
+        const reviewMatches = [...existingNotes.matchAll(/Performance Review Stage:/g)];
+        reviewNumber = reviewMatches.length + 1;
+      }
+
+      // Calculate average score (0-10 scale)
+      const categoryScores = [
+        ratings.jobKnowledge || 0,
+        ratings.workQuality || 0,
+        ratings.servicePerformance || 0,
+        ratings.teamwork || 0,
+        ratings.attendance || 0,
+      ].filter(score => score > 0);
+      const averageScore = categoryScores.length > 0
+        ? categoryScores.reduce((sum, score) => sum + score, 0) / categoryScores.length
+        : 0;
+      const scoreOutOf100 = Math.round(averageScore * 10);
+
+      // Format category scores
+      const categoryNotes = [
+        { name: 'Job Knowledge & Skills', score: ratings.jobKnowledge || 0 },
+        { name: 'Work Quality', score: ratings.workQuality || 0 },
+        { name: 'Service Performance', score: ratings.servicePerformance || 0 },
+        { name: 'Teamwork & Collaboration', score: ratings.teamwork || 0 },
+        { name: 'Attendance & Punctuality', score: ratings.attendance || 0 },
+      ]
+        .filter(cat => cat.score > 0)
+        .map(cat => `${cat.name}: ${cat.score}/10`)
+        .join('\n');
+
+      // Format strengths and improvements
+      const allStrengths = strengths.length ? strengths : (strengthInput.trim() ? [strengthInput.trim()] : []);
+      const allImprovements = improvements.length ? improvements : (improvementInput.trim() ? [improvementInput.trim()] : []);
+
+      // Create structured performance review notes
+      const newReviewNotes = `Performance Review Stage: ${reviewNumber}
+Reviewer: ${currentUserFullName}
+Role: ${selectedEmployee.position || 'N/A'}
+
+Scores:
+${categoryNotes}
+
+Total Weighted Score: ${averageScore.toFixed(2)}/10 (${scoreOutOf100}/100)${allStrengths.length > 0 ? `
+
+Strengths:
+${allStrengths.map(s => `- ${s}`).join('\n')}` : ''}${allImprovements.length > 0 ? `
+
+Areas for Improvement:
+${allImprovements.map(i => `- ${i}`).join('\n')}` : ''}${managerNotes.trim() ? `
+
+Additional Notes:
+${managerNotes.trim()}` : ''}`;
+
+      // Append new review notes to existing notes
+      let updatedNotes: string;
+      if (existingNotes && existingNotes.trim()) {
+        const trimmedExisting = existingNotes.trim();
+        updatedNotes = `${trimmedExisting}\n\n--- PERFORMANCE REVIEW ---\n\n${newReviewNotes}`;
+      } else {
+        updatedNotes = newReviewNotes;
+      }
+
+      // Update employee with notes
+      await putJsonAuth<{ ok?: boolean; employee?: { notes?: string }; error?: string }>(
+        `/employees/${selectedEmployee.id}`,
+        { notes: updatedNotes }
+      );
+
+      toast.success('Performance review saved.');
+      closeReviewModal();
+      await loadEmployees();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to save review';
+      toast.error(message);
+    } finally {
+      setSubmittingReview(false);
+    }
+  }
 
   return (
     <RequireAuth>
@@ -258,6 +466,12 @@ export default function PerformanceReviewsPage() {
             </div>
           </div>
 
+          {error && (
+            <div className="mb-6 rounded-lg p-4" style={{ backgroundColor: '#FEF2F2', border: '1px solid #FECACA' }}>
+              <p className="text-sm" style={{ color: '#991B1B' }}>{error}</p>
+            </div>
+          )}
+
           {/* Stats Cards */}
           <div className="grid grid-cols-3 gap-4 mb-6">
             <div className="rounded-xl p-5" style={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}` }}>
@@ -275,63 +489,62 @@ export default function PerformanceReviewsPage() {
           </div>
 
           {/* Main Content */}
-          <div className="flex gap-6">
-            {/* Employee Table */}
-            <div className="flex-1 rounded-xl p-6" style={{ backgroundColor: '#FFFFFF', border: '1px solid #E5E7EB' }}>
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold" style={{ color: '#232E40' }}>Employees</h2>
-                <div className="flex items-center gap-3">
-                  <div className="relative">
-                    <input
-                      type="text"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      placeholder="Search..."
-                      className="text-sm rounded-lg px-3 py-2 pl-3 w-40 transition-all focus:outline-none focus:ring-2"
-                      style={{ border: '1px solid #E5E7EB', color: '#374151', backgroundColor: '#FFFFFF' }}
-                    />
-                  </div>
-                  <div className="relative inline-block">
-                    <select
-                      value={selectedDepartment}
-                      onChange={(e) => setSelectedDepartment(e.target.value)}
-                      className="text-sm py-2 pr-8 pl-3 appearance-none cursor-pointer transition-all rounded-lg"
-                      style={{ border: '1px solid #E5E7EB', color: '#374151', backgroundColor: '#FFFFFF' }}
-                    >
-                      {departments.map(dept => (
-                        <option key={dept} value={dept}>{dept}</option>
-                      ))}
-                    </select>
-                    <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: '#6B7280' }}>
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                      </svg>
-                    </div>
-                  </div>
+          <div>
+            {/* Search and Filter Controls */}
+            <div className="flex items-center gap-3 mb-4">
+              <div className="relative">
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search..."
+                  className="text-sm rounded-lg px-3 py-2 pl-3 w-40 transition-all focus:outline-none focus:ring-2"
+                  style={{ border: '1px solid #E5E7EB', color: '#374151', backgroundColor: '#FFFFFF' }}
+                />
+              </div>
+              <div className="relative inline-block">
+                <select
+                  value={selectedDepartment}
+                  onChange={(e) => setSelectedDepartment(e.target.value)}
+                  className="text-sm py-2 pr-8 pl-3 appearance-none cursor-pointer transition-all rounded-lg"
+                  style={{ border: '1px solid #E5E7EB', color: '#374151', backgroundColor: '#FFFFFF' }}
+                >
+                  {departments.map(dept => (
+                    <option key={dept} value={dept}>{dept}</option>
+                  ))}
+                </select>
+                <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: '#6B7280' }}>
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
                 </div>
               </div>
+            </div>
 
+            {/* Employee Table */}
+            <div className="rounded-xl p-6" style={{ backgroundColor: '#FFFFFF', border: '1px solid #E5E7EB' }}>
               {/* Table */}
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr style={{ borderBottom: '1px solid #E5E7EB' }}>
-                      <th className="text-left py-3 px-2 text-xs font-semibold" style={{ color: '#6B7280' }}>Name</th>
-                      <th className="text-left py-3 px-2 text-xs font-semibold" style={{ color: '#6B7280' }}>Department</th>
-                      <th className="text-left py-3 px-2 text-xs font-semibold" style={{ color: '#6B7280' }}>Last Review</th>
-                      <th className="text-left py-3 px-2 text-xs font-semibold" style={{ color: '#6B7280' }}>Status</th>
+                    <tr style={{ backgroundColor: '#4D6DBE' }}>
+                      <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider text-white">Name</th>
+                      <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider text-white">Department</th>
+                      <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider text-white">Role</th>
+                      <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider text-white">Last Review</th>
+                      <th className="text-right py-3 px-4 text-[11px] font-semibold uppercase tracking-wider text-white">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {loading ? (
                       <tr>
-                        <td colSpan={4} className="py-8 text-center text-sm" style={{ color: '#6B7280' }}>
+                        <td colSpan={5} className="py-8 text-center text-sm" style={{ color: '#6B7280' }}>
                           Loading employees...
                         </td>
                       </tr>
                     ) : paginatedEmployees.length === 0 ? (
                       <tr>
-                        <td colSpan={4} className="py-8 text-center text-sm" style={{ color: '#6B7280' }}>
+                        <td colSpan={5} className="py-8 text-center text-sm" style={{ color: '#6B7280' }}>
                           No employees found.
                         </td>
                       </tr>
@@ -339,21 +552,37 @@ export default function PerformanceReviewsPage() {
                       paginatedEmployees.map((emp) => (
                         <tr 
                           key={emp.id} 
-                          className="hover:bg-gray-50 cursor-pointer transition-colors"
+                          className="hover:bg-gray-50 transition-colors"
                           style={{ borderBottom: '1px solid #F3F4F6' }}
-                          onClick={() => openReviewModal(emp)}
                         >
                           <td className="py-3 px-2">
-                            <span className="text-sm font-medium" style={{ color: '#232E40' }}>{emp.name}</span>
+                            <button
+                              onClick={() => router.push(`/employees/${emp.id}`)}
+                              className="text-sm font-medium hover:underline cursor-pointer text-left"
+                              style={{ color: '#232E40' }}
+                            >
+                              {emp.name}
+                            </button>
                           </td>
                           <td className="py-3 px-2">
                             <span className="text-sm" style={{ color: '#6B7280' }}>{emp.department}</span>
                           </td>
                           <td className="py-3 px-2">
+                            <span className="text-sm" style={{ color: '#6B7280' }}>{emp.position || '—'}</span>
+                          </td>
+                          <td className="py-3 px-2">
                             <span className="text-sm" style={{ color: '#6B7280' }}>{emp.lastReview}</span>
                           </td>
                           <td className="py-3 px-2">
-                            {getStatusBadge(emp.reviewStatus)}
+                            <div className="flex gap-2 justify-end items-center">
+                              <button
+                                onClick={() => openReviewModal(emp)}
+                                className="px-3 py-1.5 text-xs font-semibold rounded-lg transition-all hover:opacity-90 cursor-pointer text-white"
+                                style={{ backgroundColor: '#4D6DBE' }}
+                              >
+                                Review
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))
@@ -363,87 +592,69 @@ export default function PerformanceReviewsPage() {
               </div>
 
               {/* Pagination */}
-              {totalPages > 1 && (
-                <div className="flex items-center justify-center gap-2 mt-4 pt-4" style={{ borderTop: '1px solid #E5E7EB' }}>
+              <div className="flex items-center justify-between mt-4 pt-4" style={{ borderTop: '1px solid #E5E7EB' }}>
+                <div className="text-xs" style={{ color: '#6B7280' }}>
+                  Showing {startIndex + 1} to {Math.min(endIndex, filteredEmployees.length)} of {filteredEmployees.length} entries
+                </div>
+                <div className="flex items-center gap-1.5">
                   <button
                     onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                     disabled={currentPage === 1}
-                    className="px-2.5 py-1.5 rounded-md transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100"
-                    style={{ border: '1px solid #E5E7EB', color: '#374151', backgroundColor: '#FFFFFF' }}
+                    className="cursor-pointer px-2.5 py-1.5 rounded-md transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50"
+                    style={{ 
+                      border: '1px solid #E5E7EB',
+                      color: currentPage === 1 ? '#9CA3AF' : '#374151',
+                      backgroundColor: '#FFFFFF'
+                    }}
                   >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                     </svg>
                   </button>
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
-                    <button
-                      key={page}
-                      onClick={() => setCurrentPage(page)}
-                      className="px-3 py-1.5 rounded-md text-sm font-medium transition-all hover:bg-gray-100"
-                      style={{ 
-                        border: '1px solid #E5E7EB',
-                        color: currentPage === page ? '#FFFFFF' : '#374151',
-                        backgroundColor: currentPage === page ? '#4D6DBE' : '#FFFFFF'
-                      }}
-                    >
-                      {page}
-                    </button>
-                  ))}
+                  <div className="flex items-center gap-1">
+                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                      let pageNum: number;
+                      if (totalPages <= 5) {
+                        pageNum = i + 1;
+                      } else if (currentPage <= 3) {
+                        pageNum = i + 1;
+                      } else if (currentPage >= totalPages - 2) {
+                        pageNum = totalPages - 4 + i;
+                      } else {
+                        pageNum = currentPage - 2 + i;
+                      }
+                      return (
+                        <button
+                          key={pageNum}
+                          onClick={() => setCurrentPage(pageNum)}
+                          className="cursor-pointer px-2.5 py-1.5 rounded-md text-xs font-medium transition-all hover:bg-gray-50"
+                          style={{ 
+                            border: '1px solid #E5E7EB',
+                            color: currentPage === pageNum ? '#FFFFFF' : '#374151',
+                            backgroundColor: currentPage === pageNum ? '#4D6DBE' : '#FFFFFF'
+                          }}
+                        >
+                          {pageNum}
+                        </button>
+                      );
+                    })}
+                  </div>
                   <button
                     onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                     disabled={currentPage === totalPages}
-                    className="px-2.5 py-1.5 rounded-md transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100"
-                    style={{ border: '1px solid #E5E7EB', color: '#374151', backgroundColor: '#FFFFFF' }}
+                    className="cursor-pointer px-2.5 py-1.5 rounded-md transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50"
+                    style={{ 
+                      border: '1px solid #E5E7EB',
+                      color: currentPage === totalPages ? '#9CA3AF' : '#374151',
+                      backgroundColor: '#FFFFFF'
+                    }}
                   >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                     </svg>
                   </button>
                 </div>
-              )}
-            </div>
-
-            {/* Reminders Panel */}
-            <div className="w-72 rounded-xl p-5" style={{ backgroundColor: '#FFFFFF', border: '1px solid #E5E7EB' }}>
-              <h2 className="text-lg font-semibold mb-4" style={{ color: '#232E40' }}>Reminders</h2>
-              
-              {/* Overdue Reminders */}
-              <div className="mb-5">
-                <h3 className="text-sm font-medium mb-3" style={{ color: '#6B7280' }}>Overdue Reminders</h3>
-                <div className="space-y-2">
-                  {overdueEmployees.slice(0, 3).map((emp) => (
-                    <div key={emp.id} className="flex items-center gap-2">
-                      <div className="w-2 h-2 rounded-full" style={{ backgroundColor: '#DC2626' }}></div>
-                      <span className="text-sm" style={{ color: '#232E40' }}>{emp.name}</span>
-                    </div>
-                  ))}
-                </div>
               </div>
-
-              {/* Divider */}
-              <div className="border-t mb-5" style={{ borderColor: '#E5E7EB' }}></div>
-
-              {/* Upcoming Reviews */}
-              <div className="mb-5">
-                <h3 className="text-sm font-medium mb-3" style={{ color: '#6B7280' }}>Upcoming Reviews</h3>
-                <div className="space-y-2">
-                  {mockUpcomingReviews.map((review, idx) => (
-                    <div key={idx} className="flex items-center justify-between">
-                      <span className="text-sm" style={{ color: '#232E40' }}>{review.name}</span>
-                      <span className="text-sm" style={{ color: '#9CA3AF' }}>{review.date}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Start Review Button */}
-              <button
-                onClick={() => openReviewModal()}
-                className="w-full py-2.5 rounded-lg text-sm font-semibold text-white transition-all hover:opacity-90"
-                style={{ backgroundColor: '#4D6DBE' }}
-              >
-                Start Review
-              </button>
             </div>
           </div>
         </main>
@@ -458,18 +669,19 @@ export default function PerformanceReviewsPage() {
             }}
           >
             <div 
-              className="bg-white rounded-xl shadow-2xl"
+              className="bg-white rounded-xl shadow-2xl overflow-hidden flex flex-col"
               style={{ 
                 width: '90%', 
                 maxWidth: '700px', 
-                maxHeight: '90vh', 
-                overflowY: 'auto',
+                maxHeight: '90vh',
                 border: '1px solid #E5E7EB'
               }}
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="p-6">
-                <h2 className="text-xl font-bold mb-4" style={{ color: '#232E40' }}>Employee Performance</h2>
+              <div className="flex-shrink-0 px-6 py-4 rounded-t-xl" style={{ backgroundColor: '#4D6DBE' }}>
+                <h2 className="text-xl font-bold text-white">Employee Performance</h2>
+              </div>
+              <div className="flex-1 overflow-y-auto p-6" style={{ minHeight: 0 }}>
                 
                 {/* Employee Selector */}
                 <div className="mb-6">
@@ -662,7 +874,7 @@ export default function PerformanceReviewsPage() {
                   <button
                     type="button"
                     onClick={closeReviewModal}
-                    className="px-6 py-2 text-sm font-semibold rounded-lg transition-all hover:bg-gray-50"
+                    className="cursor-pointer px-6 py-2 text-sm font-semibold rounded-lg transition-all hover:bg-gray-50"
                     style={{ color: '#4D6DBE' }}
                   >
                     Cancel
@@ -670,12 +882,278 @@ export default function PerformanceReviewsPage() {
                   <button
                     type="button"
                     onClick={handleSubmitReview}
-                    className="px-6 py-2 text-sm font-semibold text-white rounded-lg transition-all hover:opacity-90"
+                    disabled={submittingReview}
+                    className="cursor-pointer px-6 py-2 text-sm font-semibold text-white rounded-lg transition-all hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed"
                     style={{ backgroundColor: '#4D6DBE' }}
                   >
-                    Confirm
+                    {submittingReview ? 'Saving...' : 'Confirm'}
                   </button>
                 </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Review History Modal */}
+        {showHistoryModal && historyEmployee && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
+            onClick={(e) => e.target === e.currentTarget && closeHistoryModal()}
+          >
+            <div
+              className="rounded-xl shadow-xl max-h-[85vh] flex flex-col w-full max-w-2xl overflow-hidden"
+              style={{ backgroundColor: '#FFFFFF' }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex-shrink-0 px-6 py-4 flex items-center justify-between" style={{ backgroundColor: '#4D6DBE' }}>
+                <h2 className="text-xl font-semibold text-white">
+                  Review history – {historyEmployee.name}
+                </h2>
+                <button
+                  type="button"
+                  onClick={closeHistoryModal}
+                  className="cursor-pointer p-2 rounded-lg hover:bg-blue-600 transition-colors"
+                  aria-label="Close"
+                >
+                  <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              <div className="p-6 overflow-y-auto flex-1">
+                {loadingHistory ? (
+                  <p className="text-sm text-center py-8" style={{ color: '#6B7280' }}>Loading review history...</p>
+                ) : reviewLogs.length === 0 ? (
+                  <p className="text-sm text-center py-8" style={{ color: '#6B7280' }}>No reviews recorded yet.</p>
+                ) : (
+                  <ul className="space-y-4">
+                    {reviewLogs.map((log) => (
+                      <li
+                        key={log.id}
+                        className="rounded-lg p-4 border"
+                        style={{ borderColor: '#E5E7EB', backgroundColor: '#F9FAFB' }}
+                      >
+                        <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
+                          <span className="text-sm font-medium" style={{ color: '#232E40' }}>
+                            {log.review_date ? new Date(log.review_date).toLocaleDateString() : '—'}
+                          </span>
+                          <span className="text-sm font-semibold" style={{ color: '#4D6DBE' }}>
+                            Score: {typeof log.overall_rating === 'number' ? log.overall_rating.toFixed(1) : '—'}/5
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs mb-2" style={{ color: '#6B7280' }}>
+                          <span>Job knowledge: {log.job_knowledge ?? '—'}</span>
+                          <span>Work quality: {log.work_quality ?? '—'}</span>
+                          <span>Service: {log.service_performance ?? '—'}</span>
+                          <span>Teamwork: {log.teamwork ?? '—'}</span>
+                          <span>Attendance: {log.attendance ?? '—'}</span>
+                        </div>
+                        {(log.strengths && log.strengths.length > 0) && (
+                          <p className="text-xs mt-2"><span className="font-medium" style={{ color: '#232E40' }}>Strengths:</span> {(log.strengths as string[]).join(', ')}</p>
+                        )}
+                        {(log.improvements && (log.improvements as string[]).length > 0) && (
+                          <p className="text-xs mt-1"><span className="font-medium" style={{ color: '#232E40' }}>Improvements:</span> {(log.improvements as string[]).join(', ')}</p>
+                        )}
+                        {log.notes && (
+                          <p className="text-xs mt-1"><span className="font-medium" style={{ color: '#232E40' }}>Notes:</span> {log.notes}</p>
+                        )}
+                        <div className="flex gap-2 mt-3 justify-end">
+                          <button
+                            type="button"
+                            onClick={() => openEditModal(log)}
+                            className="cursor-pointer px-3 py-1.5 text-xs font-semibold rounded-lg transition-all hover:opacity-90 border"
+                            style={{ borderColor: '#4D6DBE', color: '#4D6DBE', backgroundColor: 'transparent' }}
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteReview(log)}
+                            disabled={deletingId === log.id}
+                            className="cursor-pointer px-3 py-1.5 text-xs font-semibold rounded-lg transition-all hover:opacity-90 disabled:opacity-60"
+                            style={{ backgroundColor: '#DC2626', color: '#FFFFFF' }}
+                          >
+                            {deletingId === log.id ? 'Deleting...' : 'Delete'}
+                          </button>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+              <div className="p-4 border-t flex justify-end" style={{ borderColor: '#E5E7EB' }}>
+                <button
+                  type="button"
+                  onClick={closeHistoryModal}
+                  className="cursor-pointer px-4 py-2 text-sm font-semibold rounded-lg transition-all hover:opacity-90"
+                  style={{ backgroundColor: '#4D6DBE', color: '#FFFFFF' }}
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Edit Review Modal */}
+        {editingReview && historyEmployee && (
+          <div
+            className="fixed inset-0 z-[60] flex items-center justify-center p-4"
+            style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
+            onClick={(e) => e.target === e.currentTarget && closeEditModal()}
+          >
+            <div
+              className="rounded-xl shadow-xl max-h-[90vh] flex flex-col w-full max-w-2xl overflow-hidden"
+              style={{ backgroundColor: '#FFFFFF' }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex-shrink-0 px-6 py-4 flex items-center justify-between" style={{ backgroundColor: '#4D6DBE' }}>
+                <h2 className="text-xl font-semibold text-white">
+                  Edit review – {historyEmployee.name}
+                </h2>
+                <button
+                  type="button"
+                  onClick={closeEditModal}
+                  className="cursor-pointer p-2 rounded-lg hover:bg-blue-600 transition-colors"
+                  aria-label="Close"
+                >
+                  <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              <div className="p-6 overflow-y-auto flex-1">
+                <div className="mb-4">
+                  <label className="block text-sm font-medium mb-1" style={{ color: '#374151' }}>Review date</label>
+                  <input
+                    type="date"
+                    value={editReviewDate}
+                    onChange={(e) => setEditReviewDate(e.target.value)}
+                    className="w-full px-3 py-2 text-sm rounded-lg border"
+                    style={{ borderColor: '#D1D5DB', color: '#374151', backgroundColor: '#FFFFFF' }}
+                  />
+                </div>
+                <div className="rounded-lg p-4 mb-4" style={{ border: '1px dashed #D1D5DB' }}>
+                  <h3 className="text-sm font-semibold mb-3" style={{ color: '#232E40' }}>Rating Categories</h3>
+                  {[
+                    { key: 'jobKnowledge', label: 'Job Knowledge & Skills' },
+                    { key: 'workQuality', label: 'Work Quality' },
+                    { key: 'servicePerformance', label: 'Service Performance' },
+                    { key: 'teamwork', label: 'Teamwork & Collaboration' },
+                    { key: 'attendance', label: 'Attendance & Punctuality' },
+                  ].map(({ key, label }) => (
+                    <div key={key} className="flex items-center justify-between mb-3">
+                      <span className="text-sm" style={{ color: '#374151' }}>{label}</span>
+                      <div className="flex items-center gap-1">
+                        {[1, 2, 3, 4, 5].map((num) => (
+                          <button
+                            key={num}
+                            type="button"
+                            onClick={() => setEditRatings({ ...editRatings, [key]: num })}
+                            className="cursor-pointer flex flex-col items-center"
+                          >
+                            <div
+                              className="w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all"
+                              style={{
+                                borderColor: editRatings[key as keyof typeof editRatings] === num ? '#4D6DBE' : '#D1D5DB',
+                                backgroundColor: editRatings[key as keyof typeof editRatings] === num ? '#4D6DBE' : 'transparent',
+                              }}
+                            >
+                              {editRatings[key as keyof typeof editRatings] === num && (
+                                <div className="w-2 h-2 rounded-full bg-white"></div>
+                              )}
+                            </div>
+                            <span className="text-xs mt-0.5" style={{ color: '#6B7280' }}>{num}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="grid grid-cols-2 gap-4 mb-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-1" style={{ color: '#374151' }}>Strengths</label>
+                    <input
+                      type="text"
+                      value={editStrengthInput}
+                      onChange={(e) => setEditStrengthInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          const v = editStrengthInput.trim();
+                          if (v) { setEditStrengths([...editStrengths, v]); setEditStrengthInput(''); }
+                        }
+                      }}
+                      placeholder="Add then press Enter"
+                      className="w-full px-3 py-2 text-sm rounded-lg border"
+                      style={{ borderColor: '#D1D5DB', color: '#374151', backgroundColor: '#FFFFFF' }}
+                    />
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {editStrengths.map((s, i) => (
+                        <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs" style={{ backgroundColor: '#E5E7EB' }}>
+                          {s}
+                          <button type="button" onClick={() => setEditStrengths(editStrengths.filter((_, j) => j !== i))} className="cursor-pointer hover:opacity-70">×</button>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1" style={{ color: '#374151' }}>Improvements</label>
+                    <input
+                      type="text"
+                      value={editImprovementInput}
+                      onChange={(e) => setEditImprovementInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          const v = editImprovementInput.trim();
+                          if (v) { setEditImprovements([...editImprovements, v]); setEditImprovementInput(''); }
+                        }
+                      }}
+                      placeholder="Add then press Enter"
+                      className="w-full px-3 py-2 text-sm rounded-lg border"
+                      style={{ borderColor: '#D1D5DB', color: '#374151', backgroundColor: '#FFFFFF' }}
+                    />
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {editImprovements.map((s, i) => (
+                        <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs" style={{ backgroundColor: '#E5E7EB' }}>
+                          {s}
+                          <button type="button" onClick={() => setEditImprovements(editImprovements.filter((_, j) => j !== i))} className="cursor-pointer hover:opacity-70">×</button>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium mb-1" style={{ color: '#374151' }}>Notes</label>
+                  <textarea
+                    value={editNotes}
+                    onChange={(e) => setEditNotes(e.target.value)}
+                    rows={3}
+                    className="w-full px-3 py-2 text-sm rounded-lg border resize-none"
+                    style={{ borderColor: '#D1D5DB', color: '#374151', backgroundColor: '#FFFFFF' }}
+                  />
+                </div>
+              </div>
+              <div className="p-4 border-t flex justify-end gap-2" style={{ borderColor: '#E5E7EB' }}>
+                <button
+                  type="button"
+                  onClick={closeEditModal}
+                  className="cursor-pointer px-4 py-2 text-sm font-semibold rounded-lg border hover:bg-gray-50"
+                  style={{ borderColor: '#4D6DBE', color: '#4D6DBE' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveEdit}
+                  disabled={submittingEdit}
+                  className="cursor-pointer px-4 py-2 text-sm font-semibold rounded-lg text-white hover:opacity-90 disabled:opacity-60"
+                  style={{ backgroundColor: '#4D6DBE' }}
+                >
+                  {submittingEdit ? 'Saving...' : 'Save'}
+                </button>
               </div>
             </div>
           </div>

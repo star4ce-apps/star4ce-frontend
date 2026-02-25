@@ -3,8 +3,8 @@
 import { useEffect, useState } from 'react';
 import HubSidebar from '@/components/sidebar/HubSidebar';
 import RequireAuth from '@/components/layout/RequireAuth';
-import { API_BASE, getToken } from '@/lib/auth';
-import { getJsonAuth } from '@/lib/http';
+import { API_BASE, getToken, getSelectedDealershipId } from '@/lib/auth';
+import { getJsonAuth, deleteJsonAuth, postJsonAuth } from '@/lib/http';
 import toast from 'react-hot-toast';
 
 // Modern color palette - matching surveys page
@@ -33,6 +33,7 @@ type HistoryEntry = {
   changedBy: string;
   timestamp: string;
   department?: string;
+  employee_id?: number | null; // For "Employee Created" revert - exact id to delete
   reason?: string; // For terminations
   termination_date?: string; // For terminations
   reverted?: boolean; // Whether this entry has been reverted
@@ -45,11 +46,12 @@ export default function EmployeeRoleHistoryPage() {
   const [selectedType, setSelectedType] = useState('All Types');
   const [selectedAction, setSelectedAction] = useState('All Actions');
   const [currentPage, setCurrentPage] = useState(1);
-  const [openMenuId, setOpenMenuId] = useState<number | string | null>(null);
   const [historyEntries, setHistoryEntries] = useState<HistoryEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const itemsPerPage = 20;
+  const [sortColumn, setSortColumn] = useState<string>('timestamp');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+  const itemsPerPage = 10;
 
   // Load role history from API
   useEffect(() => {
@@ -166,172 +168,8 @@ export default function EmployeeRoleHistoryPage() {
     }
   }
 
-  // Mock data for fallback (can be removed once API is fully tested)
-  const mockHistoryEntries: HistoryEntry[] = [
-    {
-      id: 1,
-      type: 'employee',
-      name: 'Alice Johnson',
-      action: 'Role Changed',
-      previousValue: 'Sales Associate',
-      newValue: 'Senior Sales Manager',
-      changedBy: 'John Smith',
-      timestamp: '2025-09-20 14:32:15',
-      department: 'Sales Department',
-    },
-    {
-      id: 2,
-      type: 'candidate',
-      name: 'Michael Chen',
-      action: 'Status Changed',
-      previousValue: 'Interview Scheduled',
-      newValue: 'Hired',
-      changedBy: 'Sarah Williams',
-      timestamp: '2025-09-20 11:15:42',
-    },
-    {
-      id: 3,
-      type: 'employee',
-      name: 'Bob Smith',
-      action: 'Department Changed',
-      previousValue: 'Sales Department',
-      newValue: 'Marketing Department',
-      changedBy: 'John Smith',
-      timestamp: '2025-09-19 16:45:30',
-      department: 'Marketing Department',
-    },
-    {
-      id: 4,
-      type: 'employee',
-      name: 'Catherine Lee',
-      action: 'Role Changed',
-      previousValue: 'Junior Developer',
-      newValue: 'Software Engineer',
-      changedBy: 'David Brown',
-      timestamp: '2025-09-19 10:22:18',
-      department: 'Development',
-    },
-    {
-      id: 5,
-      type: 'candidate',
-      name: 'Emily Rodriguez',
-      action: 'Status Changed',
-      previousValue: 'Application Received',
-      newValue: 'Interview Scheduled',
-      changedBy: 'Sarah Williams',
-      timestamp: '2025-09-18 09:30:55',
-    },
-    {
-      id: 6,
-      type: 'employee',
-      name: 'David Brown',
-      action: 'Department Changed',
-      previousValue: 'IT Department',
-      newValue: 'Development',
-      changedBy: 'John Smith',
-      timestamp: '2025-09-17 15:10:25',
-      department: 'Development',
-    },
-    {
-      id: 7,
-      type: 'employee',
-      name: 'Frank White',
-      action: 'Role Changed',
-      previousValue: 'IT Support Specialist',
-      newValue: 'IT Manager',
-      changedBy: 'John Smith',
-      timestamp: '2025-09-16 13:55:40',
-      department: 'IT Department',
-    },
-    {
-      id: 8,
-      type: 'candidate',
-      name: 'James Wilson',
-      action: 'Status Changed',
-      previousValue: 'Interview Scheduled',
-      newValue: 'Rejected',
-      changedBy: 'Sarah Williams',
-      timestamp: '2025-09-15 11:20:12',
-    },
-    {
-      id: 9,
-      type: 'employee',
-      name: 'Eva Green',
-      action: 'Role Changed',
-      previousValue: 'Accountant',
-      newValue: 'Senior Accountant',
-      changedBy: 'John Smith',
-      timestamp: '2025-09-14 08:45:33',
-      department: 'Finance',
-    },
-    {
-      id: 10,
-      type: 'employee',
-      name: 'Grace Black',
-      action: 'Department Changed',
-      previousValue: 'Customer Support',
-      newValue: 'Sales Department',
-      changedBy: 'John Smith',
-      timestamp: '2025-09-13 14:12:07',
-      department: 'Sales Department',
-    },
-    {
-      id: 11,
-      type: 'candidate',
-      name: 'Robert Taylor',
-      action: 'Status Changed',
-      previousValue: 'Application Received',
-      newValue: 'Interview Scheduled',
-      changedBy: 'Sarah Williams',
-      timestamp: '2025-09-12 10:30:20',
-    },
-    {
-      id: 12,
-      type: 'employee',
-      name: 'Isabella Clark',
-      action: 'Role Changed',
-      previousValue: 'Research Assistant',
-      newValue: 'Research Analyst',
-      changedBy: 'David Brown',
-      timestamp: '2025-09-11 16:25:45',
-      department: 'Research',
-    },
-    {
-      id: 13,
-      type: 'employee',
-      name: 'Henry Adams',
-      action: 'Department Changed',
-      previousValue: 'Logistics',
-      newValue: 'Operations',
-      changedBy: 'John Smith',
-      timestamp: '2025-09-10 09:15:30',
-      department: 'Operations',
-    },
-    {
-      id: 14,
-      type: 'candidate',
-      name: 'Olivia Martinez',
-      action: 'Status Changed',
-      previousValue: 'Interview Scheduled',
-      newValue: 'Hired',
-      changedBy: 'Sarah Williams',
-      timestamp: '2025-09-09 12:40:18',
-    },
-    {
-      id: 15,
-      type: 'employee',
-      name: 'Sophia Taylor',
-      action: 'Role Changed',
-      previousValue: 'Administrative Coordinator',
-      newValue: 'Office Manager',
-      changedBy: 'John Smith',
-      timestamp: '2025-09-08 11:22:55',
-      department: 'Administration',
-    },
-  ];
-
-  // Use API data if available, otherwise use empty array (or mock data for testing)
-  const entriesToFilter = historyEntries.length > 0 ? historyEntries : [];
+  // Use API data
+  const entriesToFilter = historyEntries;
 
   const filteredEntries = entriesToFilter.filter(entry => {
     const matchesSearch = 
@@ -348,8 +186,53 @@ export default function EmployeeRoleHistoryPage() {
     return matchesSearch && matchesType && matchesAction;
   });
 
+  const handleSort = (column: string) => {
+    if (sortColumn === column) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortColumn(column);
+      setSortDirection('asc');
+    }
+  };
+
+  const SortIcon = ({ column }: { column: string }) => {
+    if (sortColumn !== column) {
+      return (
+        <svg className="w-3 h-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: '#9CA3AF' }}>
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      );
+    }
+    return (
+      <svg className="w-3 h-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: '#232E40' }}>
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={sortDirection === 'asc' ? 'M5 15l7-7 7 7' : 'M19 9l-7 7-7-7'} />
+      </svg>
+    );
+  };
+
   const sortedEntries = [...filteredEntries].sort((a, b) => {
-    return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
+    let aVal: number | string;
+    let bVal: number | string;
+
+    if (sortColumn === 'name' || sortColumn === 'action' || sortColumn === 'previousValue' || sortColumn === 'newValue' || sortColumn === 'department' || sortColumn === 'changedBy') {
+      aVal = String(a[sortColumn as keyof HistoryEntry] || '').toLowerCase();
+      bVal = String(b[sortColumn as keyof HistoryEntry] || '').toLowerCase();
+    } else if (sortColumn === 'type') {
+      aVal = a.type.toLowerCase();
+      bVal = b.type.toLowerCase();
+    } else if (sortColumn === 'timestamp') {
+      aVal = new Date(a.timestamp).getTime();
+      bVal = new Date(b.timestamp).getTime();
+    } else {
+      aVal = String(a[sortColumn as keyof HistoryEntry] || '');
+      bVal = String(b[sortColumn as keyof HistoryEntry] || '');
+    }
+
+    if (sortDirection === 'asc') {
+      return aVal > bVal ? 1 : -1;
+    } else {
+      return aVal < bVal ? 1 : -1;
+    }
   });
 
   const totalPages = Math.ceil(sortedEntries.length / itemsPerPage);
@@ -371,34 +254,68 @@ export default function EmployeeRoleHistoryPage() {
 
   const actions = Array.from(new Set(entriesToFilter.map(entry => entry.action)));
 
-  // Close menu when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as HTMLElement;
-      if (openMenuId !== null && !target.closest('.action-menu-container')) {
-        setOpenMenuId(null);
-      }
-    };
-
-    if (openMenuId !== null) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [openMenuId]);
-
   async function handleRevert(entry: HistoryEntry) {
-    setOpenMenuId(null);
     
-    // Cannot revert creation or termination
-    if (entry.action === 'Employee Created' || entry.action === 'Candidate Created' || entry.action === 'Terminated') {
+    // Cannot revert candidate creation or termination
+    if (entry.action === 'Candidate Created' || entry.action === 'Terminated') {
       toast.error(`Cannot revert ${entry.action}`);
       return;
     }
     
-    // Need previous value to revert
+    // Employee Created (including hired-from-candidate): confirm and call backend revert
+    if (entry.action === 'Employee Created') {
+      if (!window.confirm(`Are you sure you want to revert adding "${entry.name}" as an employee?\n\nThis will remove them from the employee list. If they were hired from a candidate, they will be restored to the candidate list.`)) {
+        return;
+      }
+      try {
+        // Resolve employee id BEFORE revert (so we can delete them even if backend delete doesn't persist)
+        let empIdToDelete: number | null = null;
+        if (entry.employee_id != null) {
+          const n = Number(entry.employee_id);
+          if (!isNaN(n)) empIdToDelete = n;
+        }
+        if (empIdToDelete == null) {
+          const list = await getJsonAuth<{ ok: boolean; items: Array<{ id: number; name: string }> }>('/employees');
+          const match = (list.items || []).find((e: any) => String(e.name).trim() === String(entry.name).trim());
+          if (match) empIdToDelete = match.id;
+        }
+        const body: Record<string, unknown> = {
+          id: entry.id,
+          type: entry.type,
+          name: entry.name,
+          action: entry.action,
+          previousValue: entry.previousValue,
+          newValue: entry.newValue,
+        };
+        if (empIdToDelete != null) body.employee_id = empIdToDelete;
+        await postJsonAuth<{ ok?: boolean; error?: string; message?: string }>('/role-history/revert', body);
+        let deleteOk = true;
+        if (empIdToDelete != null) {
+          try {
+            await deleteJsonAuth(`/employees/${empIdToDelete}`);
+          } catch (e: unknown) {
+            const msg = e instanceof Error ? e.message : String(e);
+            if (!msg.includes('404') && !msg.toLowerCase().includes('not found')) {
+              toast.error(`Revert saved but could not remove from employee list: ${msg}`);
+              deleteOk = false;
+            }
+          }
+        } else {
+          toast.error('Could not find employee to remove. They may already be removed.');
+          deleteOk = false;
+        }
+        if (deleteOk) toast.success('Revert successful – candidate restored, employee removed.');
+        await loadRoleHistory();
+        window.location.href = '/employees';
+        return;
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : 'Failed to revert';
+        toast.error(msg);
+      }
+      return;
+    }
+    
+    // Need previous value to revert (for other actions)
     if (!entry.previousValue || entry.previousValue === '—' || entry.previousValue === 'N/A') {
       toast.error('Cannot revert - previous value not available');
       return;
@@ -414,13 +331,16 @@ export default function EmployeeRoleHistoryPage() {
         toast.error('Not logged in');
         return;
       }
+      const headers: Record<string, string> = {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      };
+      const dealershipId = getSelectedDealershipId();
+      if (dealershipId) headers['X-Dealership-Id'] = String(dealershipId);
       
       const res = await fetch(`${API_BASE}/role-history/revert`, {
         method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: JSON.stringify({
           id: entry.id,
           type: entry.type,
@@ -451,7 +371,7 @@ export default function EmployeeRoleHistoryPage() {
     <RequireAuth>
       <div className="flex min-h-screen" style={{ backgroundColor: COLORS.gray[50] }}>
         <HubSidebar />
-        <main className="ml-64 p-8 flex-1" style={{ maxWidth: 'calc(100vw - 256px)' }}>
+        <main className="ml-64 p-8 flex-1" style={{ maxWidth: 'calc(100vw - 256px)', overflow: 'visible' }}>
           {/* Header */}
           <div className="mb-8">
             <div className="flex items-start justify-between">
@@ -548,13 +468,12 @@ export default function EmployeeRoleHistoryPage() {
           )}
 
           {/* History Log Table */}
-          <div className="rounded-lg p-6 transition-all duration-200" style={{ 
+          <div className="rounded-xl p-6 transition-all duration-200" style={{ 
             backgroundColor: '#FFFFFF', 
             border: '1px solid #E5E7EB',
-            boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.03)'
+            boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05)',
+            overflow: 'visible'
           }}>
-            <h2 className="text-xl font-bold mb-4" style={{ color: '#232E40' }}>Change History</h2>
-            
             {loading ? (
               <div className="py-12 text-center">
                 <div className="inline-flex items-center gap-3">
@@ -563,18 +482,82 @@ export default function EmployeeRoleHistoryPage() {
                 </div>
               </div>
             ) : (
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto" style={{ overflowY: 'visible' }}>
                 <table className="w-full text-sm">
                   <thead>
                     <tr style={{ backgroundColor: '#4D6DBE' }}>
-                      <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider cursor-pointer hover:opacity-90 transition-opacity text-white">Type</th>
-                      <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider cursor-pointer hover:opacity-90 transition-opacity text-white">Name</th>
-                      <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider cursor-pointer hover:opacity-90 transition-opacity text-white">Action</th>
-                      <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider cursor-pointer hover:opacity-90 transition-opacity text-white">Previous Value</th>
-                      <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider cursor-pointer hover:opacity-90 transition-opacity text-white">New Value</th>
-                      <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider cursor-pointer hover:opacity-90 transition-opacity text-white">Department</th>
-                      <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider cursor-pointer hover:opacity-90 transition-opacity text-white">Changed By</th>
-                      <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider cursor-pointer hover:opacity-90 transition-opacity text-white">Timestamp</th>
+                      <th 
+                        className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider cursor-pointer hover:opacity-90 transition-opacity text-white"
+                        onClick={() => handleSort('type')}
+                      >
+                        <div className="flex items-center gap-1.5">
+                          Type
+                          <SortIcon column="type" />
+                        </div>
+                      </th>
+                      <th 
+                        className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider cursor-pointer hover:opacity-90 transition-opacity text-white"
+                        onClick={() => handleSort('name')}
+                      >
+                        <div className="flex items-center gap-1.5">
+                          Name
+                          <SortIcon column="name" />
+                        </div>
+                      </th>
+                      <th 
+                        className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider cursor-pointer hover:opacity-90 transition-opacity text-white"
+                        onClick={() => handleSort('action')}
+                      >
+                        <div className="flex items-center gap-1.5">
+                          Action
+                          <SortIcon column="action" />
+                        </div>
+                      </th>
+                      <th 
+                        className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider cursor-pointer hover:opacity-90 transition-opacity text-white"
+                        onClick={() => handleSort('previousValue')}
+                      >
+                        <div className="flex items-center gap-1.5">
+                          Previous Value
+                          <SortIcon column="previousValue" />
+                        </div>
+                      </th>
+                      <th 
+                        className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider cursor-pointer hover:opacity-90 transition-opacity text-white"
+                        onClick={() => handleSort('newValue')}
+                      >
+                        <div className="flex items-center gap-1.5">
+                          New Value
+                          <SortIcon column="newValue" />
+                        </div>
+                      </th>
+                      <th 
+                        className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider cursor-pointer hover:opacity-90 transition-opacity text-white"
+                        onClick={() => handleSort('department')}
+                      >
+                        <div className="flex items-center gap-1.5">
+                          Department
+                          <SortIcon column="department" />
+                        </div>
+                      </th>
+                      <th 
+                        className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider cursor-pointer hover:opacity-90 transition-opacity text-white"
+                        onClick={() => handleSort('changedBy')}
+                      >
+                        <div className="flex items-center gap-1.5">
+                          Changed By
+                          <SortIcon column="changedBy" />
+                        </div>
+                      </th>
+                      <th 
+                        className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider cursor-pointer hover:opacity-90 transition-opacity text-white"
+                        onClick={() => handleSort('timestamp')}
+                      >
+                        <div className="flex items-center gap-1.5">
+                          Timestamp
+                          <SortIcon column="timestamp" />
+                        </div>
+                      </th>
                       <th className="text-right py-3 px-4"></th>
                     </tr>
                   </thead>
@@ -595,7 +578,7 @@ export default function EmployeeRoleHistoryPage() {
                             borderBottom: '1px solid #F3F4F6'
                           }}
                         >
-                          <td className="py-3.5 px-4">
+                          <td className="py-3 px-4">
                             <span 
                               className="text-xs font-semibold px-2.5 py-1 rounded-full inline-block"
                               style={{ 
@@ -606,8 +589,8 @@ export default function EmployeeRoleHistoryPage() {
                               {entry.type === 'employee' ? 'Employee' : 'Candidate'}
                             </span>
                           </td>
-                          <td className="py-3.5 px-4 text-sm font-semibold" style={{ color: '#232E40' }}>{entry.name}</td>
-                          <td className="py-3.5 px-4 text-sm font-medium" style={{ color: '#374151' }}>
+                          <td className="py-3 px-4 text-sm" style={{ color: '#374151' }}>{entry.name}</td>
+                          <td className="py-3 px-4 text-sm" style={{ color: '#374151' }}>
                             <div className="flex items-center gap-2">
                               <span>{entry.action}</span>
                               {entry.reverted && (
@@ -624,56 +607,37 @@ export default function EmployeeRoleHistoryPage() {
                               )}
                             </div>
                           </td>
-                          <td className="py-3.5 px-4 text-sm" style={{ color: '#6B7280' }}>
+                          <td className="py-3 px-4 text-sm" style={{ color: '#374151' }}>
                             {entry.previousValue || '—'}
                           </td>
-                          <td className="py-3.5 px-4 text-sm font-semibold" style={{ color: '#232E40' }}>
-                            <div>
-                              {entry.newValue || '—'}
-                              {entry.reason && entry.action === 'Terminated' && (
-                                <div className="text-xs mt-1" style={{ color: '#6B7280', fontStyle: 'italic' }}>
-                                  Reason: {entry.reason}
-                                </div>
-                              )}
-                            </div>
+                          <td className="py-3 px-4 text-sm" style={{ color: '#374151' }}>
+                            {entry.newValue || '—'}
+                            {entry.reason && entry.action === 'Terminated' && (
+                              <div className="text-xs mt-1" style={{ color: '#6B7280', fontStyle: 'italic' }}>
+                                Reason: {entry.reason}
+                              </div>
+                            )}
                           </td>
-                          <td className="py-3.5 px-4 text-sm" style={{ color: '#6B7280' }}>
+                          <td className="py-3 px-4 text-sm" style={{ color: '#374151' }}>
                             {entry.department || '—'}
                           </td>
-                          <td className="py-3.5 px-4 text-sm font-medium" style={{ color: '#374151' }}>{entry.changedBy}</td>
-                          <td className="py-3.5 px-4 text-sm" style={{ color: '#6B7280' }}>
+                          <td className="py-3 px-4 text-sm" style={{ color: '#374151' }}>{entry.changedBy}</td>
+                          <td className="py-3 px-4 text-sm" style={{ color: '#374151' }}>
                             {formatTimestamp(entry.timestamp)}
                           </td>
-                          <td className="py-3.5 px-4 text-right">
-                            <div className="relative action-menu-container inline-block">
+                          <td className="py-3 px-4 text-right">
+                            <div className="relative inline-block">
                               <button
-                                onClick={() => setOpenMenuId(openMenuId === entry.id ? null : entry.id)}
-                                className="p-1.5 rounded-md hover:bg-gray-100 transition-colors"
+                                onClick={() => handleRevert(entry)}
+                                disabled={entry.action === 'Candidate Created' || entry.action === 'Terminated' || (entry.action !== 'Employee Created' && (!entry.previousValue || entry.previousValue === '—' || entry.previousValue === 'N/A')) || entry.reverted}
+                                className="p-1.5 rounded-md hover:bg-gray-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                                 style={{ color: '#6B7280' }}
+                                title="Revert this change"
                               >
-                                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                                  <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" />
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
                                 </svg>
                               </button>
-                              {openMenuId === entry.id && (
-                                <div className="absolute right-0 mt-1 w-40 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
-                                  <button
-                                    onClick={() => handleRevert(entry)}
-                                    disabled={entry.action === 'Employee Created' || entry.action === 'Candidate Created' || entry.action === 'Terminated' || !entry.previousValue || entry.previousValue === '—' || entry.previousValue === 'N/A'}
-                                    className="w-full text-left px-4 py-2 text-sm font-medium transition-colors hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                                    style={{ color: '#374151' }}
-                                    title={
-                                      entry.action === 'Employee Created' || entry.action === 'Candidate Created' || entry.action === 'Terminated'
-                                        ? 'Cannot revert creation or termination'
-                                        : !entry.previousValue || entry.previousValue === '—' || entry.previousValue === 'N/A'
-                                        ? 'Previous value not available'
-                                        : 'Revert this change'
-                                    }
-                                  >
-                                    Revert
-                                  </button>
-                                </div>
-                              )}
                             </div>
                           </td>
                         </tr>

@@ -26,7 +26,26 @@ export async function postJsonAuth<T = any>(
     body: JSON.stringify(body),
   });
 
-  const data = (await res.json().catch(() => ({}))) as any;
+  // Check content-type before parsing JSON
+  const contentType = res.headers.get('content-type');
+  let data: any = {};
+  
+  if (contentType && contentType.includes('application/json')) {
+    try {
+      data = await res.json();
+    } catch (err) {
+      // If JSON parsing fails, data remains {}
+      data = {};
+    }
+  } else {
+    // If not JSON, try to parse anyway but catch errors
+    try {
+      data = await res.json();
+    } catch (err) {
+      // If parsing fails, return empty object
+      data = {};
+    }
+  }
 
   if (!res.ok) {
     const msg = data?.error || `Request failed (${res.status})`;
@@ -48,7 +67,112 @@ export async function getJson<T = any>(
     ...init,
   });
 
-  const data = (await res.json().catch(() => ({}))) as any;
+  // Check content-type before parsing JSON
+  const contentType = res.headers.get('content-type');
+  let data: any = {};
+  
+  if (contentType && contentType.includes('application/json')) {
+    try {
+      data = await res.json();
+    } catch (err) {
+      // If JSON parsing fails, data remains {}
+      data = {};
+    }
+  } else {
+    // If not JSON, try to parse anyway but catch errors
+    try {
+      data = await res.json();
+    } catch (err) {
+      // If parsing fails, return empty object
+      data = {};
+    }
+  }
+
+  if (!res.ok) {
+    const msg = data?.error || `Request failed (${res.status})`;
+    throw new Error(msg);
+  }
+
+  return data as T;
+}
+
+export async function putJsonAuth<T = any>(
+  path: string,
+  body: unknown,
+  init: RequestInit = {}
+): Promise<T> {
+  const token = getToken();
+
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: 'PUT',
+    ...init,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(init.headers || {}),
+      ...maybeDealershipHeader(),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(body),
+  });
+
+  const contentType = res.headers.get('content-type');
+  let data: any = {};
+  if (contentType && contentType.includes('application/json')) {
+    try {
+      data = await res.json();
+    } catch {
+      data = {};
+    }
+  } else {
+    try {
+      data = await res.json();
+    } catch {
+      data = {};
+    }
+  }
+
+  if (!res.ok) {
+    const msg = data?.error || `Request failed (${res.status})`;
+    throw new Error(msg);
+  }
+
+  return data as T;
+}
+
+export async function patchJsonAuth<T = any>(
+  path: string,
+  body: unknown,
+  init: RequestInit = {}
+): Promise<T> {
+  const token = getToken();
+
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: 'PATCH',
+    ...init,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(init.headers || {}),
+      ...maybeDealershipHeader(),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(body),
+  });
+
+  const contentType = res.headers.get('content-type');
+  let data: any = {};
+  if (contentType && contentType.includes('application/json')) {
+    try {
+      data = await res.json();
+    } catch {
+      data = {};
+    }
+  } else {
+    try {
+      data = await res.json();
+    } catch {
+      data = {};
+    }
+  }
 
   if (!res.ok) {
     const msg = data?.error || `Request failed (${res.status})`;
@@ -75,7 +199,72 @@ export async function getJsonAuth<T = any>(
     },
   });
 
-  const data = (await res.json().catch(() => ({}))) as any;
+  // Check content-type before parsing JSON
+  const contentType = res.headers.get('content-type');
+  let data: any = {};
+  
+  if (contentType && contentType.includes('application/json')) {
+    try {
+      data = await res.json();
+    } catch (err) {
+      // If JSON parsing fails, data remains {}
+      data = {};
+    }
+  } else {
+    // If not JSON, try to parse anyway but catch errors
+    try {
+      data = await res.json();
+    } catch (err) {
+      // If parsing fails, return empty object
+      data = {};
+    }
+  }
+
+  if (!res.ok) {
+    const msg = data?.error || `Request failed (${res.status})`;
+    throw new Error(msg);
+  }
+
+  return data as T;
+}
+
+export async function deleteJsonAuth<T = any>(
+  path: string,
+  init: RequestInit = {}
+): Promise<T> {
+  const token = getToken();
+
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: 'DELETE',
+    ...init,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(init.headers || {}),
+      ...maybeDealershipHeader(),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+
+  // Check content-type before parsing JSON
+  const contentType = res.headers.get('content-type');
+  let data: any = {};
+  
+  if (contentType && contentType.includes('application/json')) {
+    try {
+      data = await res.json();
+    } catch (err) {
+      // If JSON parsing fails, data remains {}
+      data = {};
+    }
+  } else {
+    // If not JSON, try to parse anyway but catch errors
+    try {
+      data = await res.json();
+    } catch (err) {
+      // If parsing fails, return empty object
+      data = {};
+    }
+  }
 
   if (!res.ok) {
     const msg = data?.error || `Request failed (${res.status})`;

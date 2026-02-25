@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { API_BASE } from '@/lib/auth';
+import { API_BASE, getToken, saveSession } from '@/lib/auth';
+import Logo from '@/components/Logo';
 
 export default function VerifyPage() {
   const search = useSearchParams();
@@ -15,91 +16,35 @@ export default function VerifyPage() {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [resendLoading, setResendLoading] = useState(false);
-  const [devCode, setDevCode] = useState('');
-  const [devCodeRequested, setDevCodeRequested] = useState(false);
+  const [resendCooldownSeconds, setResendCooldownSeconds] = useState(0);
 
   // Pre-fill email from ?email=...
   const [emailFromUrl, setEmailFromUrl] = useState(false);
-  const roleParam = (search.get('role') || '').toLowerCase();
-  const showCode =
-    search.get('show_code') === 'true' ||
-    search.get('admin') === 'true' ||
-    search.get('manager') === 'true' ||
-    search.get('corporate') === 'true' ||
-    roleParam === 'admin' ||
-    roleParam === 'manager' ||
-    roleParam === 'corporate';
-  
+
   useEffect(() => {
     const qEmail = search.get('email');
+    const subscriptionParam = search.get('subscription');
+    
+    // If user is already logged in and coming from subscription success, redirect to subscription page
+    if (subscriptionParam === 'success') {
+      const token = getToken();
+      if (token) {
+        // User is already logged in, redirect to subscription page
+        router.replace('/subscription?subscription=success');
+        return;
+      }
+    }
+    
     if (qEmail) {
       // Next.js searchParams automatically decodes URL parameters
       setEmail(qEmail);
       setEmailFromUrl(true);
     }
     
-    // Check if coming from subscription success
-    const subscriptionParam = search.get('subscription');
     if (subscriptionParam === 'success') {
       setMessage('🎉 Subscription successful! Your admin account has been created. Please check your email for the verification code to complete setup.');
-      
-      // If email is pre-filled, automatically try to resend verification code
-      // (in case webhook hasn't fired yet or email failed)
-      const emailToUse = qEmail || email;
-      if (emailToUse) {
-        // Wait a moment then check if we need to resend
-        setTimeout(async () => {
-          try {
-            const endpoint = showCode ? '/auth/dev-verification-code' : '/auth/resend-verify';
-            const res = await fetch(`${API_BASE}${endpoint}`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ email: emailToUse }),
-            });
-            const data = await res.json().catch(() => ({}));
-            if (res.ok) {
-              if (data.code) {
-                setDevCode(data.code);
-                setCode(data.code);
-              }
-              setMessage('🎉 Subscription successful! Verification code is ready. Please check the code below.');
-            }
-          } catch (err) {
-            // Silently fail - user can manually resend
-            console.error('Auto-resend failed:', err);
-          }
-        }, 2000); // Wait 2 seconds for webhook to potentially fire first
-      }
     }
   }, [search, router, email]);
-
-  useEffect(() => {
-    if (!email || devCodeRequested) return;
-    // Always fetch dev code when email is present (works for admin, manager, corporate)
-    setDevCodeRequested(true);
-    const fetchDevCode = async () => {
-      try {
-        const res = await fetch(`${API_BASE}/auth/dev-verification-code`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email }),
-        });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) {
-          // Silently fail - don't show error to user
-          return;
-        }
-        if (data.code) {
-          setDevCode(data.code);
-          setCode(data.code);
-        }
-      } catch (err) {
-        // Silently fail - don't show error to user
-        console.error('Dev code fetch failed:', err);
-      }
-    };
-    fetchDevCode();
-  }, [email, devCodeRequested]);
 
   async function handleVerify(e: React.FormEvent) {
     e.preventDefault();
@@ -122,11 +67,27 @@ export default function VerifyPage() {
 
       // Check if this is an admin registration that needs to subscribe
       if (data.redirect_to_subscription || search.get('admin') === 'true') {
-        setMessage('Your email has been verified! Redirecting to subscription selection...');
-        // Redirect directly to subscription selection page
-        setTimeout(() => {
-          router.push('/admin-subscribe?email=' + encodeURIComponent(email));
-        }, 1500);
+        // If backend returned token (post-verify auto-login), save session and go straight to subscribe
+        if (data.token && data.email && data.role) {
+          saveSession({
+            token: String(data.token || '').trim(),
+            email: String(data.email || '').trim(),
+            role: String(data.role || 'manager').trim(),
+          });
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('auth-session-updated'));
+          }
+          setMessage('Your email has been verified! Redirecting to choose a plan...');
+          // Full page navigation so admin-subscribe loads with the saved token in localStorage
+          setTimeout(() => {
+            window.location.href = '/admin-subscribe';
+          }, 1000);
+        } else {
+          setMessage('Your email has been verified! Redirecting to sign in and choose a plan...');
+          setTimeout(() => {
+            router.push('/login?redirect=' + encodeURIComponent('/admin-subscribe'));
+          }, 1500);
+        }
       } else if (data.is_manager_pending) {
         // Manager with pending request - show waiting message
         setMessage('Your email has been verified! Your request to join the dealership is pending admin approval. Please wait for an admin to approve your request before logging in.');
@@ -147,12 +108,21 @@ export default function VerifyPage() {
     }
   }
 
+  // Count down resend cooldown every second
+  useEffect(() => {
+    if (resendCooldownSeconds <= 0) return;
+    const t = setInterval(() => {
+      setResendCooldownSeconds((s) => (s <= 1 ? 0 : s - 1));
+    }, 1000);
+    return () => clearInterval(t);
+  }, [resendCooldownSeconds]);
+
   async function handleResend() {
     setError('');
     setMessage('');
     setResendLoading(true);
     try {
-      const endpoint = showCode ? '/auth/dev-verification-code' : '/auth/resend-verify';
+      const endpoint = '/auth/resend-verify';
       const res = await fetch(`${API_BASE}${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -162,18 +132,15 @@ export default function VerifyPage() {
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
+        const cooldown = data.cooldown_seconds;
+        if (res.status === 429 && typeof cooldown === 'number' && cooldown > 0) {
+          setResendCooldownSeconds(cooldown);
+        }
         throw new Error(data.error || 'Could not resend code');
       }
 
-      if (data.code) {
-        setDevCode(data.code);
-        setCode(data.code);
-      }
-      setMessage(
-        showCode
-          ? 'A new verification code is ready below.'
-          : 'A new verification code has been sent to your email.'
-      );
+      setMessage('A new verification code has been sent to your email. It expires in 10 minutes.');
+      setResendCooldownSeconds(30);
     } catch (err: unknown) {
       setError(
         err instanceof Error ? err.message : 'Could not resend code. Please try again.'
@@ -217,11 +184,7 @@ export default function VerifyPage() {
             {/* Logo and Title */}
             <div className="text-center mb-6">
               <Link href="/" className="inline-block">
-                <img
-                  src="/images/Logo 4.png"
-                  alt="Star4ce"
-                  className="h-12 md:h-16 mx-auto mb-4"
-                />
+                <Logo size="lg" className="justify-center mb-4" />
               </Link>
               <p className="text-gray-700 text-lg font-medium">
                 Verify your email to activate your account.
@@ -239,12 +202,6 @@ export default function VerifyPage() {
                 {message}
               </div>
             )}
-            {devCode && (
-              <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-blue-800 text-sm">
-                Verification code: <span className="font-semibold tracking-wider">{devCode}</span>
-              </div>
-            )}
-
             {/* Verify Form */}
             <form onSubmit={handleVerify} className="space-y-5">
               <div>
@@ -288,7 +245,7 @@ export default function VerifyPage() {
                   inputMode="numeric"
                 />
                 <p className="mt-1 text-xs text-gray-600">
-                  Enter the 6-digit code we sent to your email.
+                  Enter the 6-digit code we sent to your email. The code expires in 10 minutes.
                 </p>
               </div>
 
@@ -301,15 +258,22 @@ export default function VerifyPage() {
               </button>
             </form>
 
-            {/* Resend Link + Back to Login */}
-            <div className="mt-4 flex flex-col gap-2 text-sm text-center text-gray-700">
+            {/* Resend + Back to Login */}
+            <div className="mt-4 flex flex-col gap-3 text-sm text-center text-gray-700">
+              <p className="text-xs text-gray-500">
+                Code expired or didn&apos;t receive it?
+              </p>
               <button
                 type="button"
                 onClick={handleResend}
-                disabled={resendLoading || !email}
-                className="cursor-pointer text-[#0B2E65] hover:underline disabled:opacity-60 disabled:cursor-not-allowed"
+                disabled={resendLoading || !email || resendCooldownSeconds > 0}
+                className="cursor-pointer px-4 py-2 rounded-lg border-2 border-[#0B2E65] text-[#0B2E65] font-medium hover:bg-[#0B2E65] hover:text-white transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                {resendLoading ? 'Resending…' : 'Resend verification code'}
+                {resendLoading
+                  ? 'Sending new code…'
+                  : resendCooldownSeconds > 0
+                    ? `Resend available in ${resendCooldownSeconds}s`
+                    : 'Resend verification code'}
               </button>
               <div>
                 Already verified?{' '}

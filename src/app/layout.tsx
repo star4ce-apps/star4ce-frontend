@@ -2,7 +2,7 @@ import "./styles/globals.css";
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import AppShell from "@/components/layout/AppShell";
-import { Toaster } from "react-hot-toast";
+import ToasterWithClose from "@/components/ToasterWithClose";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -21,30 +21,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className={inter.variable}>
       <body className="antialiased">
         <AppShell>{children}</AppShell>
-        <Toaster
-          position="top-right"
-          toastOptions={{
-            duration: 4000,
-            style: {
-              background: '#363636',
-              color: '#fff',
-            },
-            success: {
-              duration: 3000,
-              iconTheme: {
-                primary: '#10b981',
-                secondary: '#fff',
-              },
-            },
-            error: {
-              duration: 4000,
-              iconTheme: {
-                primary: '#ef4444',
-                secondary: '#fff',
-              },
-            },
-          }}
-        />
+        <ToasterWithClose />
       </body>
     </html>
   );

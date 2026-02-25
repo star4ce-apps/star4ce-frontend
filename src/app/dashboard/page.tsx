@@ -36,6 +36,8 @@ type AnalyticsSummary = {
     leave: number;
     none: number;
   };
+  turnover_rate?: number | null;
+  retention_rate?: number | null;
 };
 
 // Modern color palette - matching surveys page
@@ -82,7 +84,6 @@ function DashboardContent() {
   const [analytics, setAnalytics] = useState<AnalyticsSummary | null>(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
   const [analyticsError, setAnalyticsError] = useState<string | null>(null);
-  const [currentChart, setCurrentChart] = useState<'quit' | 'terminated'>('quit');
   const [userRole, setUserRole] = useState<string | null>(null);
   const [isApproved, setIsApproved] = useState<boolean | null>(null);
   
@@ -96,6 +97,8 @@ function DashboardContent() {
     return new Date().toISOString().split('T')[0]; // Today
   });
   const [dateRangePreset, setDateRangePreset] = useState<string>('Year');
+  // Corporate "VIEWING" dealership – refetch when changed from sidebar
+  const [selectedDealershipId, setSelectedDealershipId] = useState<number | null>(null);
 
   const handleDatePresetChange = (preset: string) => {
     setDateRangePreset(preset);
@@ -130,7 +133,9 @@ function DashboardContent() {
   const [terminatedQuitData, setTerminatedQuitData] = useState<{ name: string; value: number; percentage: number; color: string }[]>([]);
   const [roleBreakdown, setRoleBreakdown] = useState<{ role: string; terminated: number; quit: number; total: number }[]>([]);
   const [surveyFeedback, setSurveyFeedback] = useState<{ name: string; value: number; color: string }[]>([]);
-  const [turnoverTimeSeries, setTurnoverTimeSeries] = useState<{ month: string; value: number }[]>([]);
+  const [turnoverTimeSeries, setTurnoverTimeSeries] = useState<{ month: string; value: number; retention_rate?: number | null }[]>([]);
+  const [interviewingProcessData, setInterviewingProcessData] = useState<{ name: string; value: number }[]>([]);
+  const [candidatesData, setCandidatesData] = useState<Array<{ id: number; name: string; status: string; highestStage: number; updatedAt: string; position: string }>>([]);
   const [dataLoading, setDataLoading] = useState(false);
 
   // Read email from localStorage and check user role
@@ -169,21 +174,15 @@ function DashboardContent() {
             setIsApproved(data.user?.is_approved !== false && data.is_approved !== false);
           } else {
             // Handle manager_not_approved error
-            console.log('Auth check failed:', res.status, data);
-            
             // If we get a 403, check if it's manager_not_approved
             if (res.status === 403) {
               if (data.error === 'manager_not_approved') {
-                // Explicitly manager not approved
                 setUserRole('manager');
                 setIsApproved(false);
                 localStorage.setItem('role', 'manager');
-                console.log('Manager not approved - showing waiting message');
               } else if (storedRole === 'manager') {
-                // 403 error and we know we're a manager - assume not approved
                 setUserRole('manager');
                 setIsApproved(false);
-                console.log('Manager with 403 error - showing waiting message');
               }
             } else if (storedRole === 'manager') {
               // Other error but we're a manager - assume not approved
@@ -216,6 +215,23 @@ function DashboardContent() {
     }
   }, [searchParams]);
 
+  // Sync selected dealership from localStorage on mount (corporate)
+  useEffect(() => {
+    const id = typeof window !== 'undefined' ? localStorage.getItem('selected_dealership_id') : null;
+    setSelectedDealershipId(id ? parseInt(id, 10) : null);
+  }, []);
+
+  // Refetch when corporate user changes dealership in sidebar
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent<{ dealershipId: number }>).detail;
+      if (detail?.dealershipId != null) setSelectedDealershipId(detail.dealershipId);
+    };
+    window.addEventListener('dealership-changed', handler);
+    return () => window.removeEventListener('dealership-changed', handler);
+  }, []);
+
   // Health check
   useEffect(() => {
     (async () => {
@@ -245,19 +261,71 @@ function DashboardContent() {
           return;
         }
 
-        // Build date range query params
-        const rangeParam = `?start_date=${startDate}&end_date=${endDate}`;
+        // Build date range query params; corporate can pass selected dealership
+        let rangeParam = `?start_date=${startDate}&end_date=${endDate}`;
+        if (selectedDealershipId != null) {
+          rangeParam += `&dealership_id=${selectedDealershipId}`;
+        }
 
-        // Fetch all data in parallel using getJsonAuth (includes X-Dealership-Id header for corporate)
-        const [summaryData, terminatedQuitData, roleBreakdownData, surveyFeedbackData, turnoverData] = await Promise.all([
-          getJsonAuth(`/analytics/summary${rangeParam}`),
-          getJsonAuth(`/analytics/terminated-quit${rangeParam}`),
-          getJsonAuth(`/analytics/role-breakdown${rangeParam}`),
-          getJsonAuth(`/analytics/survey-feedback${rangeParam}`),
-          getJsonAuth(`/analytics/turnover-time-series${rangeParam}`),
+        // Fetch all data in parallel using Promise.allSettled to handle permission errors gracefully
+        // This allows individual endpoints to fail without breaking the entire dashboard
+        const results = await Promise.allSettled([
+          getJsonAuth(`/analytics/summary${rangeParam}`).catch(err => {
+            // Handle permission errors silently
+            const errorMsg = err?.message || '';
+            if (errorMsg.includes('403') || errorMsg.includes('forbidden') || errorMsg.includes('insufficient role')) {
+              return { ok: false };
+            }
+            throw err;
+          }),
+          getJsonAuth(`/analytics/terminated-quit${rangeParam}`).catch(err => {
+            const errorMsg = err?.message || '';
+            if (errorMsg.includes('403') || errorMsg.includes('forbidden') || errorMsg.includes('insufficient role')) {
+              return { ok: false };
+            }
+            throw err;
+          }),
+          getJsonAuth(`/analytics/role-breakdown${rangeParam}`).catch(err => {
+            const errorMsg = err?.message || '';
+            if (errorMsg.includes('403') || errorMsg.includes('forbidden') || errorMsg.includes('insufficient role')) {
+              return { ok: false };
+            }
+            throw err;
+          }),
+          getJsonAuth(`/analytics/survey-feedback${rangeParam}`).catch(err => {
+            const errorMsg = err?.message || '';
+            if (errorMsg.includes('403') || errorMsg.includes('forbidden') || errorMsg.includes('insufficient role')) {
+              return { ok: false };
+            }
+            throw err;
+          }),
+          getJsonAuth(`/analytics/turnover-time-series${rangeParam}`).catch(err => {
+            const errorMsg = err?.message || '';
+            if (errorMsg.includes('403') || errorMsg.includes('forbidden') || errorMsg.includes('insufficient role')) {
+              return { ok: false };
+            }
+            throw err;
+          }),
+          getJsonAuth(`/analytics/interviewing-process${rangeParam}`).catch(err => {
+            const errorMsg = err?.message || '';
+            if (errorMsg.includes('403') || errorMsg.includes('forbidden') || errorMsg.includes('insufficient role')) {
+              return { ok: false };
+            }
+            throw err;
+          }),
         ]);
 
-        setAnalytics(summaryData as AnalyticsSummary);
+        // Extract results, handling both fulfilled and rejected promises
+        const summaryData = results[0].status === 'fulfilled' ? results[0].value : { ok: false };
+        const terminatedQuitData = results[1].status === 'fulfilled' ? results[1].value : { ok: false };
+        const roleBreakdownData = results[2].status === 'fulfilled' ? results[2].value : { ok: false };
+        const surveyFeedbackData = results[3].status === 'fulfilled' ? results[3].value : { ok: false };
+        const turnoverData = results[4].status === 'fulfilled' ? results[4].value : { ok: false };
+        const interviewingData = results[5].status === 'fulfilled' ? results[5].value : { ok: false };
+
+        if (summaryData.ok) {
+          setAnalytics(summaryData as AnalyticsSummary);
+        }
 
         // Process terminated/quit data
         if (terminatedQuitData.ok) {
@@ -277,62 +345,222 @@ function DashboardContent() {
 
         // Process role breakdown
         if (roleBreakdownData.ok && roleBreakdownData.breakdown) {
-          setRoleBreakdown(roleBreakdownData.breakdown);
+          // Ensure breakdown is an array
+          const breakdown = Array.isArray(roleBreakdownData.breakdown) 
+            ? roleBreakdownData.breakdown 
+            : [];
+          setRoleBreakdown(breakdown);
+        } else {
+          // Ensure roleBreakdown is always an array, even on error
+          setRoleBreakdown([]);
         }
 
         // Process survey feedback
         if (surveyFeedbackData.ok && surveyFeedbackData.feedback) {
-          const feedback = surveyFeedbackData.feedback.map((item: { name: string; value: number }) => ({
+          const feedbackArray = Array.isArray(surveyFeedbackData.feedback) 
+            ? surveyFeedbackData.feedback 
+            : [];
+          const feedback = feedbackArray.map((item: { name: string; value: number }) => ({
             name: item.name,
             value: item.value,
             color: feedbackColors[item.name] || '#6b7280',
           }));
           setSurveyFeedback(feedback);
+        } else {
+          setSurveyFeedback([]);
         }
 
         // Process turnover time series
         if (turnoverData.ok && turnoverData.time_series) {
-          setTurnoverTimeSeries(turnoverData.time_series);
+          const timeSeries = Array.isArray(turnoverData.time_series) 
+            ? turnoverData.time_series 
+            : [];
+          setTurnoverTimeSeries(timeSeries);
+        } else {
+          setTurnoverTimeSeries([]);
+        }
+
+        // Process interviewing process (candidates by status)
+        if (interviewingData.ok && interviewingData.stages) {
+          const stages = Array.isArray(interviewingData.stages) ? interviewingData.stages : [];
+          setInterviewingProcessData(stages);
+        } else {
+          setInterviewingProcessData([]);
+        }
+
+        // Fetch and process candidates for the interviewing process table
+        try {
+          const candidatesResponse = await getJsonAuth<any>('/candidates');
+          
+          // Handle different response structures
+          let items: any[] = [];
+          if (Array.isArray(candidatesResponse)) {
+            items = candidatesResponse;
+          } else if (candidatesResponse?.items && Array.isArray(candidatesResponse.items)) {
+            items = candidatesResponse.items;
+          } else if (candidatesResponse?.candidates && Array.isArray(candidatesResponse.candidates)) {
+            items = candidatesResponse.candidates;
+          }
+
+          if (items.length > 0) {
+            const candidates = items
+              .filter((c: any) => {
+                // Filter out denied and hired candidates
+                const status = (c.status || '').trim();
+                return status !== 'Denied' && status !== 'denied' && status !== 'Hired' && status !== 'hired' && status !== 'Offered' && status !== 'offered';
+              })
+              .map((c: any) => {
+                // Parse highest interview stage from notes
+                let highestStage = 0;
+                let calculatedStatus = c.status || 'Awaiting';
+                const notes = c.notes || '';
+                
+                if (notes) {
+                  // Split by interview separator
+                  const interviewBlocks: string[] = [];
+                  
+                  if (notes.includes('--- INTERVIEW ---')) {
+                    const parts = notes.split(/--- INTERVIEW ---/);
+                    parts.forEach((part: string) => {
+                      const trimmed = part.trim();
+                      if (trimmed && trimmed.includes('Interview Stage:')) {
+                        interviewBlocks.push(trimmed);
+                      }
+                    });
+                  } else {
+                    const stageMatches = [...notes.matchAll(/Interview Stage:/g)];
+                    if (stageMatches.length === 0) {
+                      calculatedStatus = 'Awaiting First Interview';
+                    } else if (stageMatches.length === 1) {
+                      interviewBlocks.push(notes);
+                    } else {
+                      for (let i = 0; i < stageMatches.length; i++) {
+                        const startIndex = stageMatches[i].index || 0;
+                        const endIndex = i < stageMatches.length - 1 
+                          ? (stageMatches[i + 1].index || notes.length)
+                          : notes.length;
+                        const block = notes.substring(startIndex, endIndex).trim();
+                        if (block && block.includes('Interview Stage:')) {
+                          interviewBlocks.push(block);
+                        }
+                      }
+                    }
+                  }
+                  
+                  interviewBlocks.forEach((block: string) => {
+                    const trimmed = block.trim();
+                    if (trimmed) {
+                      const stageMatch = trimmed.match(/Interview Stage:\s*(\d+)/);
+                      if (stageMatch) {
+                        const stageNum = parseInt(stageMatch[1], 10);
+                        if (!isNaN(stageNum) && stageNum >= 1 && stageNum <= 5 && stageNum > highestStage) {
+                          highestStage = stageNum;
+                        }
+                      }
+                    }
+                  });
+                  
+                  // Get the last interview's recommendation
+                  if (interviewBlocks.length > 0) {
+                    const lastBlock = interviewBlocks[interviewBlocks.length - 1];
+                    const normalizedBlock = lastBlock.replace(/(Interviewer Recommendation:)([^\n])/g, '$1\n$2');
+                    const lines = normalizedBlock.split('\n').map((l: string) => l.trim()).filter((l: string) => l.length > 0);
+                    
+                    for (let i = 0; i < lines.length; i++) {
+                      const line = lines[i];
+                      if (line.startsWith('Interviewer Recommendation:')) {
+                        const recommendation = line.replace('Interviewer Recommendation:', '').trim() || 
+                                              (i + 1 < lines.length ? lines[i + 1].trim() : '');
+                        
+                        if (recommendation.toLowerCase() === 'next stage' || recommendation.toLowerCase() === 'next-stage') {
+                          calculatedStatus = 'Awaiting Next Interview';
+                        } else if (recommendation.toLowerCase() === 'hire') {
+                          calculatedStatus = 'Hire';
+                        } else if (recommendation.toLowerCase() === 'no hire' || recommendation.toLowerCase() === 'no-hire') {
+                          calculatedStatus = 'No Hire';
+                        }
+                        break;
+                      }
+                    }
+                  } else {
+                    calculatedStatus = 'Awaiting First Interview';
+                  }
+                } else {
+                  calculatedStatus = 'Awaiting First Interview';
+                }
+                
+                return {
+                  id: c.id,
+                  name: c.name || 'Unknown',
+                  status: calculatedStatus,
+                  highestStage,
+                  updatedAt: c.updated_at || c.applied_at || new Date().toISOString(),
+                  position: c.position || 'N/A',
+                };
+              })
+              .sort((a, b) => {
+                // Sort by updated_at (ascending - oldest first) to prioritize least updated
+                const dateA = new Date(a.updatedAt).getTime();
+                const dateB = new Date(b.updatedAt).getTime();
+                return dateA - dateB; // Ascending order (oldest first)
+              })
+              .slice(0, 5); // Top 5 candidates (least updated)
+
+            setCandidatesData(candidates);
+          } else {
+            setCandidatesData([]);
+          }
+        } catch (err) {
+          console.error('Failed to load candidates:', err);
+          setCandidatesData([]);
         }
       } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : 'Failed to load analytics';
-        setAnalyticsError(msg);
+        // Only set error for non-permission related errors
+        const errorMsg = err instanceof Error ? err.message : 'Failed to load analytics';
+        // Don't show error for permission issues - they're handled gracefully above
+        if (!errorMsg.includes('403') && !errorMsg.includes('forbidden') && !errorMsg.includes('insufficient role')) {
+          setAnalyticsError(errorMsg);
+        }
       } finally {
         setAnalyticsLoading(false);
         setDataLoading(false);
       }
     })();
-  }, [startDate, endDate]);
+  }, [startDate, endDate, selectedDealershipId]);
 
-  // Calculate metrics from API data
-  const totalEmployees = analytics?.total_responses || 0;
-  const terminatedQuit = (analytics?.by_status?.termination || 0) + (analytics?.by_status?.leave || 0);
-  const turnoverRate = totalEmployees > 0 
-    ? Math.round(((terminatedQuit / totalEmployees) * 100) * 10) / 10 
-    : 0;
+  // Use real employee data from API (total_responses = ending headcount, by_status = exits in period)
+  const totalEmployees = analytics?.total_responses ?? 0;
+  const turnoverRate: number | null = typeof analytics?.turnover_rate === 'number'
+    ? analytics.turnover_rate
+    : (totalEmployees > 0
+        ? Math.round((( (analytics?.by_status?.termination || 0) + (analytics?.by_status?.leave || 0) ) / totalEmployees) * 100 * 10) / 10
+        : null);
+  const retentionRate: number | null = typeof analytics?.retention_rate === 'number'
+    ? analytics.retention_rate
+    : (turnoverRate != null ? 100 - turnoverRate : null);
+  const hasRate = turnoverRate != null && retentionRate != null;
+  const periodLabel = dateRangePreset === 'Year' ? 'annual' : dateRangePreset === 'Month' ? 'month' : dateRangePreset.toLowerCase();
 
-  // Get terminated breakdown by role
-  const terminatedBreakdownData = currentChart === 'terminated'
-    ? roleBreakdown
-        .filter(r => r.terminated > 0)
-        .map((r, idx) => ({
-          name: r.role,
-          value: r.terminated,
-          percentage: roleBreakdown.reduce((sum, role) => sum + role.terminated, 0) > 0
-            ? Math.round((r.terminated / roleBreakdown.reduce((sum, role) => sum + role.terminated, 0)) * 100 * 10) / 10
-            : 0,
-          color: roleColors[idx % roleColors.length],
-        }))
-    : roleBreakdown
-        .filter(r => r.quit > 0)
-        .map((r, idx) => ({
-          name: r.role,
-          value: r.quit,
-          percentage: roleBreakdown.reduce((sum, role) => sum + role.quit, 0) > 0
-            ? Math.round((r.quit / roleBreakdown.reduce((sum, role) => sum + role.quit, 0)) * 100 * 10) / 10
-            : 0,
-          color: roleColors[idx % roleColors.length],
-        }));
+  // Quit and Terminated breakdown by role (both shown at once, separated)
+  const safeRoleBreakdown = Array.isArray(roleBreakdown) ? roleBreakdown : [];
+  const totalQuit = safeRoleBreakdown.reduce((sum, r) => sum + r.quit, 0);
+  const totalTerminated = safeRoleBreakdown.reduce((sum, r) => sum + r.terminated, 0);
+  const quitBreakdownData = safeRoleBreakdown
+    .filter(r => r.quit > 0)
+    .map((r, idx) => ({
+      name: r.role,
+      value: r.quit,
+      percentage: totalQuit > 0 ? Math.round((r.quit / totalQuit) * 100 * 10) / 10 : 0,
+      color: roleColors[idx % roleColors.length],
+    }));
+  const terminatedBreakdownData = safeRoleBreakdown
+    .filter(r => r.terminated > 0)
+    .map((r, idx) => ({
+      name: r.role,
+      value: r.terminated,
+      percentage: totalTerminated > 0 ? Math.round((r.terminated / totalTerminated) * 100 * 10) / 10 : 0,
+      color: roleColors[(idx + 3) % roleColors.length],
+    }));
 
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -347,19 +575,14 @@ function DashboardContent() {
   const isManager = userRole === 'manager' || storedRole === 'manager';
   // Show message if: explicitly not approved, OR we're a manager and approval status is null/unknown
   const isNotApproved = isApproved === false || (isApproved === null && isManager);
-  
-  // Debug logging
-  if (isManager) {
-    console.log('Manager check:', { userRole, storedRole, isApproved, isNotApproved, willShow: isManager && isNotApproved });
-  }
-  
+
   if (isManager && isNotApproved) {
     return (
       <RequireAuth>
         <div className="flex min-h-screen" style={{ backgroundColor: COLORS.gray[50] }}>
           <HubSidebar />
-          <main className="ml-64 p-8 flex-1" style={{ maxWidth: 'calc(100vw - 256px)' }}>
-            <div className="rounded-xl p-12 text-center" style={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}` }}>
+          <main className="ml-64 flex-1 min-w-0 p-4 sm:p-6 lg:p-8 overflow-x-hidden" style={{ maxWidth: 'calc(100vw - 16rem)' }}>
+            <div className="rounded-xl p-6 sm:p-12 text-center" style={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}` }}>
               <div className="mb-6">
                 <svg className="mx-auto h-16 w-16" fill="none" viewBox="0 0 24 24" stroke="currentColor" style={{ color: COLORS.warning }}>
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -384,32 +607,32 @@ function DashboardContent() {
       <div className="flex min-h-screen" style={{ backgroundColor: COLORS.gray[50] }}>
         <HubSidebar />
         
-        <main className="ml-64 p-8 flex-1" style={{ maxWidth: 'calc(100vw - 256px)' }}>
+        <main className="ml-64 flex-1 min-w-0 p-4 sm:p-6 lg:p-8 overflow-x-hidden" style={{ maxWidth: 'calc(100vw - 16rem)' }}>
           {/* Header */}
-          <div className="mb-8">
-            <div className="flex items-start justify-between">
-              <div>
-                <h1 className="text-2xl font-semibold mb-1" style={{ color: COLORS.gray[900] }}>Dashboard</h1>
+          <div className="mb-6 lg:mb-8">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0">
+                <h1 className="text-xl sm:text-2xl font-semibold mb-1 truncate" style={{ color: COLORS.gray[900] }}>Dashboard</h1>
                 <p className="text-sm" style={{ color: COLORS.gray[500] }}>
                   Overview of your dealership's performance and analytics
                 </p>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center gap-2 sm:gap-3 flex-shrink-0">
                 <div className="flex items-center gap-2 px-3 py-2 rounded-lg" style={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}` }}>
                   <input
                     type="date"
                     value={startDate}
                     onChange={(e) => setStartDate(e.target.value)}
-                    className="text-sm border-none outline-none bg-transparent"
-                    style={{ color: COLORS.gray[700], width: '120px' }}
+                    className="text-sm border-none outline-none bg-transparent min-w-0"
+                    style={{ color: COLORS.gray[700], width: '110px', maxWidth: '50vw' }}
                   />
-                  <span className="text-sm" style={{ color: COLORS.gray[300] }}>—</span>
+                  <span className="text-sm flex-shrink-0" style={{ color: COLORS.gray[300] }}>—</span>
                   <input
                     type="date"
                     value={endDate}
                     onChange={(e) => setEndDate(e.target.value)}
-                    className="text-sm border-none outline-none bg-transparent"
-                    style={{ color: COLORS.gray[700], width: '120px' }}
+                    className="text-sm border-none outline-none bg-transparent min-w-0"
+                    style={{ color: COLORS.gray[700], width: '110px', maxWidth: '50vw' }}
                   />
                 </div>
                 <div className="relative">
@@ -439,34 +662,88 @@ function DashboardContent() {
           </div>
 
           {/* Key Metrics Cards */}
-          <div className="grid grid-cols-5 gap-4 mb-6">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 mb-4 lg:mb-6">
             {[
               { label: 'Total Employees', value: analyticsLoading ? '...' : totalEmployees.toLocaleString(), sub: `+${analytics?.last_30_days || 0} new`, color: COLORS.gray[900] },
               { label: 'Terminated', value: dataLoading ? '...' : (analytics?.by_status?.termination || 0), sub: 'employees', color: COLORS.gray[900] },
               { label: 'Quit', value: dataLoading ? '...' : (analytics?.by_status?.leave || 0), sub: 'employees', color: COLORS.gray[900] },
-              { label: 'Turnover Rate', value: dataLoading ? '...' : `${turnoverRate}%`, sub: 'annual', color: COLORS.negative },
-              { label: 'Retention', value: dataLoading ? '...' : `${(100 - turnoverRate).toFixed(1)}%`, sub: 'annual', color: COLORS.success },
+              { label: 'Turnover Rate', value: dataLoading ? '...' : (hasRate ? `${turnoverRate}%` : 'N/A'), sub: periodLabel, color: COLORS.negative },
+              { label: 'Retention', value: dataLoading ? '...' : (retentionRate != null ? `${retentionRate.toFixed(1)}%` : 'N/A'), sub: periodLabel, color: COLORS.success },
             ].map((kpi, idx) => (
-              <div key={idx} className="rounded-xl p-4" style={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}` }}>
-                <p className="text-xs font-medium uppercase tracking-wide mb-2" style={{ color: COLORS.gray[400] }}>{kpi.label}</p>
-                <p className="text-2xl font-semibold" style={{ color: kpi.color }}>{kpi.value}</p>
-                <p className="text-xs mt-1" style={{ color: COLORS.gray[400] }}>{kpi.sub}</p>
+              <div key={idx} className="rounded-xl p-3 sm:p-4 min-w-0" style={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}` }}>
+                <p className="text-xs font-medium uppercase tracking-wide mb-1 sm:mb-2 truncate" style={{ color: COLORS.gray[400] }}>{kpi.label}</p>
+                <p className="text-xl sm:text-2xl font-semibold truncate" style={{ color: kpi.color }}>{kpi.value}</p>
+                <p className="text-xs mt-1 truncate" style={{ color: COLORS.gray[400] }}>{kpi.sub}</p>
               </div>
             ))}
           </div>
 
           {/* Interview Process, Survey Feedback, and Role Distribution */}
-          <div className="grid grid-cols-3 gap-6 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6 mb-4 lg:mb-6">
             {/* Interviewing Process */}
-            <div className="rounded-xl p-6" style={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}` }}>
+            <div className="rounded-xl p-4 sm:p-6 min-w-0 overflow-hidden" style={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}` }}>
               <h2 className="text-sm font-medium mb-4" style={{ color: COLORS.gray[900] }}>Interviewing Process</h2>
-              <div className="text-center py-12" style={{ color: COLORS.gray[400] }}>
-                <div className="text-sm">No data available</div>
-              </div>
+              {candidatesData.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr style={{ borderBottom: `1px solid ${COLORS.gray[200]}` }}>
+                        <th className="text-left py-2 px-2 font-medium" style={{ color: COLORS.gray[600] }}>Candidate</th>
+                        <th className="text-left py-2 px-2 font-medium" style={{ color: COLORS.gray[600] }}>Position</th>
+                        <th className="text-left py-2 px-2 font-medium" style={{ color: COLORS.gray[600] }}>Status</th>
+                        <th className="text-left py-2 px-2 font-medium" style={{ color: COLORS.gray[600] }}>Updated</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {candidatesData.map((candidate) => {
+                        const updatedDate = candidate.updatedAt 
+                          ? new Date(candidate.updatedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                          : 'N/A';
+                        return (
+                          <tr key={candidate.id} style={{ borderBottom: `1px solid ${COLORS.gray[100]}` }}>
+                            <td className="py-2 px-2" style={{ color: COLORS.gray[900] }}>
+                              <a 
+                                href={`/candidates/${candidate.id}`}
+                                className="hover:underline"
+                                style={{ color: COLORS.primary }}
+                              >
+                                {candidate.name}
+                              </a>
+                            </td>
+                            <td className="py-2 px-2" style={{ color: COLORS.gray[700] }}>{candidate.position}</td>
+                            <td className="py-2 px-2" style={{ color: COLORS.gray[700] }}>
+                              <div>{candidate.status}</div>
+                              <div className="text-xs mt-0.5" style={{ color: COLORS.gray[500] }}>
+                                {candidate.highestStage > 0 ? `Stage ${candidate.highestStage}` : 'Awaiting'}
+                              </div>
+                            </td>
+                            <td className="py-2 px-2" style={{ color: COLORS.gray[500], fontSize: '11px' }}>{updatedDate}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                  {candidatesData.length >= 5 && (
+                    <div className="mt-4 pt-4" style={{ borderTop: `1px solid ${COLORS.gray[200]}` }}>
+                      <a
+                        href="/candidates"
+                        className="block text-center text-sm font-medium cursor-pointer hover:opacity-80 transition-opacity"
+                        style={{ color: COLORS.primary }}
+                      >
+                        View More →
+                      </a>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="text-center py-12" style={{ color: COLORS.gray[400] }}>
+                  <div className="text-sm">{dataLoading ? 'Loading...' : 'No candidates available'}</div>
+                </div>
+              )}
             </div>
 
             {/* Survey Feedback */}
-            <div className="rounded-xl p-6" style={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}` }}>
+            <div className="rounded-xl p-4 sm:p-6 min-w-0 overflow-hidden" style={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}` }}>
               <h2 className="text-sm font-medium mb-4" style={{ color: COLORS.gray[900] }}>Survey Feedback</h2>
               {surveyFeedback.length > 0 ? (
                 <ResponsiveContainer width="100%" height={180}>
@@ -504,20 +781,21 @@ function DashboardContent() {
             </div>
 
             {/* Terminated vs Quit */}
-            <div className="rounded-xl p-6" style={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}` }}>
+            <div className="rounded-xl p-4 sm:p-6 min-w-0 overflow-hidden" style={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}` }}>
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-sm font-medium" style={{ color: COLORS.gray[900] }}>Terminated vs Quit</h2>
               </div>
               {terminatedQuitData.length > 0 ? (
-                <div className="flex items-center gap-6">
-                  <ResponsiveContainer width="50%" height={180}>
-                    <PieChart>
+                <div className="flex flex-col md:flex-row items-center gap-4 md:gap-6">
+                  <div className="w-full md:w-1/2 min-w-0" style={{ height: 180 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart margin={{ top: 8, right: 8, bottom: 8, left: 8 }}>
                       <Pie
                         data={terminatedQuitData}
                         cx="50%"
                         cy="50%"
-                        innerRadius={45}
-                        outerRadius={70}
+                        innerRadius="50%"
+                        outerRadius="75%"
                         dataKey="value"
                         paddingAngle={2}
                       >
@@ -536,14 +814,15 @@ function DashboardContent() {
                       />
                     </PieChart>
                   </ResponsiveContainer>
-                  <div className="flex flex-col gap-3 flex-1">
+                  </div>
+                  <div className="flex flex-col gap-4 flex-1 w-full md:min-w-0 min-w-[8rem]">
                     {terminatedQuitData.map((item, idx) => (
-                      <div key={idx} className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: CHART_COLORS[idx] }}></div>
-                          <span className="text-sm" style={{ color: COLORS.gray[600] }}>{item.name}</span>
+                      <div key={idx} className="flex items-start gap-2 min-w-0">
+                        <div className="w-3 h-3 rounded-full flex-shrink-0 mt-0.5" style={{ backgroundColor: CHART_COLORS[idx] }} />
+                        <div className="flex flex-col min-w-0">
+                          <span className="text-sm leading-tight" style={{ color: COLORS.gray[600] }}>{item.name}</span>
+                          <span className="text-sm font-medium mt-0.5" style={{ color: COLORS.gray[900] }}>{item.value} ({item.percentage}%)</span>
                         </div>
-                        <span className="text-sm font-medium" style={{ color: COLORS.gray[900] }}>{item.value} ({item.percentage}%)</span>
                       </div>
                     ))}
                   </div>
@@ -557,126 +836,139 @@ function DashboardContent() {
           </div>
 
           {/* Role Breakdown Row */}
-          <div className="grid grid-cols-2 gap-6 mb-6">
-            {/* Quit by Role */}
-            <div className="rounded-xl p-6" style={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}` }}>
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-sm font-medium" style={{ color: COLORS.gray[900] }}>
-                  {currentChart === 'terminated' ? 'Terminated by Role' : 'Quit by Role'}
-                </h2>
-                <div className="flex items-center gap-1 rounded-lg p-1" style={{ backgroundColor: COLORS.gray[100] }}>
-                  <button
-                    onClick={() => setCurrentChart('quit')}
-                    className="cursor-pointer px-3 py-1.5 text-xs rounded-md transition-all"
-                    style={{ 
-                      backgroundColor: currentChart === 'quit' ? '#fff' : 'transparent',
-                      color: currentChart === 'quit' ? COLORS.gray[900] : COLORS.gray[500],
-                      boxShadow: currentChart === 'quit' ? '0 1px 2px rgba(0,0,0,0.05)' : 'none'
-                    }}
-                  >
-                    Quit
-                  </button>
-                  <button
-                    onClick={() => setCurrentChart('terminated')}
-                    className="cursor-pointer px-3 py-1.5 text-xs rounded-md transition-all"
-                    style={{ 
-                      backgroundColor: currentChart === 'terminated' ? '#fff' : 'transparent',
-                      color: currentChart === 'terminated' ? COLORS.gray[700] : COLORS.gray[500],
-                      boxShadow: currentChart === 'terminated' ? '0 1px 2px rgba(0,0,0,0.05)' : 'none'
-                    }}
-                  >
-                    Terminated
-                  </button>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6 mb-4 lg:mb-6">
+            {/* Quit & Terminated by Role - left and right with donuts */}
+            <div className="rounded-xl p-4 sm:p-6 min-w-0 overflow-hidden" style={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}` }}>
+              <h2 className="text-sm font-medium mb-4" style={{ color: COLORS.gray[900] }}>Quit & Terminated by Role</h2>
+              <div className="flex flex-col sm:flex-row gap-4 sm:gap-6">
+                {/* Left: Quit by Role */}
+                <div className="flex-1 min-w-0 border-r-0 sm:border-r sm:pr-6" style={{ borderColor: COLORS.gray[200] }}>
+                  <h3 className="text-xs font-medium uppercase tracking-wide mb-2" style={{ color: COLORS.gray[500] }}>Quit</h3>
+                  {quitBreakdownData.length > 0 ? (
+                    <div className="flex items-center gap-3">
+                      <div className="w-24 h-24 min-w-[6rem] min-h-[6rem] flex-shrink-0">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart margin={{ top: 4, right: 4, bottom: 4, left: 4 }}>
+                            <Pie
+                              data={quitBreakdownData}
+                              cx="50%"
+                              cy="50%"
+                              innerRadius="50%"
+                              outerRadius="75%"
+                              dataKey="value"
+                              paddingAngle={2}
+                            >
+                              {quitBreakdownData.map((entry, index) => (
+                                <Cell key={`quit-${index}`} fill={entry.color} />
+                              ))}
+                            </Pie>
+                            <Tooltip
+                              contentStyle={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}`, borderRadius: '6px', padding: '6px 8px', fontSize: '11px' }}
+                            />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      </div>
+                      <div className="flex flex-col gap-1.5 flex-1 min-w-0 max-h-[96px] overflow-y-auto">
+                        {quitBreakdownData.map((item, idx) => (
+                          <div key={idx} className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: item.color }} />
+                              <span className="text-sm truncate" style={{ color: COLORS.gray[600] }}>{item.name}</span>
+                            </div>
+                            <span className="text-sm font-medium flex-shrink-0" style={{ color: COLORS.gray[900] }}>{item.value}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-sm" style={{ color: COLORS.gray[400] }}>{dataLoading ? 'Loading...' : 'No data'}</p>
+                  )}
+                </div>
+
+                {/* Right: Terminated by Role */}
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-xs font-medium uppercase tracking-wide mb-2" style={{ color: COLORS.gray[500] }}>Terminated</h3>
+                  {terminatedBreakdownData.length > 0 ? (
+                    <div className="flex items-center gap-3">
+                      <div className="w-24 h-24 min-w-[6rem] min-h-[6rem] flex-shrink-0">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart margin={{ top: 4, right: 4, bottom: 4, left: 4 }}>
+                            <Pie
+                              data={terminatedBreakdownData}
+                              cx="50%"
+                              cy="50%"
+                              innerRadius="50%"
+                              outerRadius="75%"
+                              dataKey="value"
+                              paddingAngle={2}
+                            >
+                              {terminatedBreakdownData.map((entry, index) => (
+                                <Cell key={`term-${index}`} fill={entry.color} />
+                              ))}
+                            </Pie>
+                            <Tooltip
+                              contentStyle={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}`, borderRadius: '6px', padding: '6px 8px', fontSize: '11px' }}
+                            />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      </div>
+                      <div className="flex flex-col gap-1.5 flex-1 min-w-0 max-h-[96px] overflow-y-auto">
+                        {terminatedBreakdownData.map((item, idx) => (
+                          <div key={idx} className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: item.color }} />
+                              <span className="text-sm truncate" style={{ color: COLORS.gray[600] }}>{item.name}</span>
+                            </div>
+                            <span className="text-sm font-medium flex-shrink-0" style={{ color: COLORS.gray[900] }}>{item.value}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-sm" style={{ color: COLORS.gray[400] }}>{dataLoading ? 'Loading...' : 'No data'}</p>
+                  )}
                 </div>
               </div>
-              {terminatedBreakdownData.length > 0 ? (
-                <div className="flex items-center gap-6">
-                  <ResponsiveContainer width="45%" height={180}>
-                    <PieChart>
-                      <Pie
-                        data={terminatedBreakdownData}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={40}
-                        outerRadius={65}
-                        dataKey="value"
-                        paddingAngle={2}
-                      >
-                        {terminatedBreakdownData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip 
-                        contentStyle={{ 
-                          backgroundColor: '#fff', 
-                          border: `1px solid ${COLORS.gray[200]}`,
-                          borderRadius: '8px',
-                          padding: '8px 12px',
-                          fontSize: '12px'
-                        }}
-                      />
-                    </PieChart>
-                  </ResponsiveContainer>
-                  <div className="flex flex-col gap-2 flex-1 max-h-[180px] overflow-y-auto">
-                    {terminatedBreakdownData.map((item, idx) => (
-                      <div key={idx} className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: CHART_COLORS[idx % CHART_COLORS.length] }}></div>
-                          <span className="text-sm truncate" style={{ color: COLORS.gray[600] }}>{item.name}</span>
-                        </div>
-                        <span className="text-sm font-medium flex-shrink-0" style={{ color: COLORS.gray[900] }}>{item.value}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : (
-                <div className="text-center py-12" style={{ color: COLORS.gray[400] }}>
-                  <div className="text-sm">{dataLoading ? 'Loading...' : 'No data'}</div>
-                </div>
-              )}
             </div>
 
-            {/* Turnover Trend */}
-            <div className="rounded-xl p-6" style={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}` }}>
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-sm font-medium" style={{ color: COLORS.gray[900] }}>Turnover Trend</h2>
-              </div>
-              {turnoverTimeSeries.length > 0 ? (
-                <ResponsiveContainer width="100%" height={180}>
-                  <LineChart data={turnoverTimeSeries} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke={COLORS.gray[200]} />
-                    <XAxis 
-                      dataKey="month" 
-                      tick={{ fill: COLORS.gray[500], fontSize: 11 }}
-                    />
-                    <YAxis 
-                      domain={[0, 'auto']} 
-                      tick={{ fill: COLORS.gray[500], fontSize: 11 }}
-                    />
-                    <Tooltip 
-                      contentStyle={{ 
-                        backgroundColor: '#fff', 
-                        border: `1px solid ${COLORS.gray[200]}`,
-                        borderRadius: '8px',
-                        padding: '8px 12px',
-                        fontSize: '12px'
-                      }}
-                    />
-                    <Line 
-                      type="monotone" 
-                      dataKey="value" 
-                      stroke={COLORS.primary} 
-                      strokeWidth={2} 
-                      dot={{ fill: COLORS.primary, r: 3 }} 
-                      activeDot={{ r: 5 }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="text-center py-12" style={{ color: COLORS.gray[400] }}>
-                  <div className="text-sm">{dataLoading ? 'Loading...' : 'No data'}</div>
+            {/* Turnover Trend & Retention Trend */}
+            <div className="rounded-xl p-4 sm:p-6 min-w-0 overflow-hidden" style={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}` }}>
+              <div className="flex flex-col sm:flex-row gap-4 sm:gap-6">
+                {/* Left: Turnover Trend */}
+                <div className="flex-1 min-w-0">
+                  <h2 className="text-sm font-medium mb-3" style={{ color: COLORS.gray[900] }}>Turnover Trend</h2>
+                  {turnoverTimeSeries.length > 0 && turnoverTimeSeries.some(d => (d.value ?? 0) > 0) ? (
+                    <ResponsiveContainer width="100%" height={180}>
+                      <LineChart data={turnoverTimeSeries} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke={COLORS.gray[200]} />
+                        <XAxis dataKey="month" tick={{ fill: COLORS.gray[500], fontSize: 11 }} />
+                        <YAxis domain={[0, 'auto']} tick={{ fill: COLORS.gray[500], fontSize: 11 }} />
+                        <Tooltip contentStyle={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}`, borderRadius: '8px', padding: '8px 12px', fontSize: '12px' }} />
+                        <Line type="monotone" dataKey="value" name="Exits" stroke={COLORS.primary} strokeWidth={2} dot={{ fill: COLORS.primary, r: 3 }} activeDot={{ r: 5 }} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="text-center py-12" style={{ color: COLORS.gray[400] }}><div className="text-sm">{dataLoading ? 'Loading...' : 'No data'}</div></div>
+                  )}
                 </div>
-              )}
+                {/* Right: Retention Trend */}
+                <div className="flex-1 min-w-0">
+                  <h2 className="text-sm font-medium mb-3" style={{ color: COLORS.gray[900] }}>Retention Trend</h2>
+                  {turnoverTimeSeries.length > 0 && turnoverTimeSeries.some(d => d.retention_rate != null) ? (
+                    <ResponsiveContainer width="100%" height={180}>
+                      <LineChart data={turnoverTimeSeries} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke={COLORS.gray[200]} />
+                        <XAxis dataKey="month" tick={{ fill: COLORS.gray[500], fontSize: 11 }} />
+                        <YAxis domain={[0, 100]} tick={{ fill: COLORS.gray[500], fontSize: 11 }} />
+                        <Tooltip contentStyle={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}`, borderRadius: '8px', padding: '8px 12px', fontSize: '12px' }} formatter={(v: number) => [`${v}%`, 'Retention']} />
+                        <Line type="monotone" dataKey="retention_rate" name="Retention %" stroke={COLORS.success} strokeWidth={2} dot={{ fill: COLORS.success, r: 3 }} activeDot={{ r: 5 }} connectNulls />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="text-center py-12" style={{ color: COLORS.gray[400] }}><div className="text-sm">{dataLoading ? 'Loading...' : 'No data'}</div></div>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         </main>

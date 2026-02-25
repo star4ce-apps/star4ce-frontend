@@ -4,6 +4,7 @@ import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { API_BASE, saveSession } from '@/lib/auth';
+import Logo from '@/components/Logo';
 
 type Step = 'request' | 'reset' | 'done';
 
@@ -146,11 +147,7 @@ function ForgotPageContent() {
             {/* Logo and Title */}
             <div className="text-center mb-6">
               <Link href="/" className="inline-block">
-                <img
-                  src="/images/Logo 4.png"
-                  alt="Star4ce"
-                  className="h-12 md:h-16 mx-auto mb-3"
-                />
+                <Logo size="lg" className="justify-center mb-3" />
               </Link>
               <h2 className="text-xl font-semibold text-[#0B2E65] mb-1">
                 Forgot your login information?

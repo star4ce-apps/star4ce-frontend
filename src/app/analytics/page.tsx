@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import HubSidebar from '@/components/sidebar/HubSidebar';
 import RequireAuth from '@/components/layout/RequireAuth';
-import { API_BASE, getToken } from '@/lib/auth';
+import { API_BASE, getToken, getSelectedDealershipId } from '@/lib/auth';
 import { getJsonAuth } from '@/lib/http';
 import {
   PieChart,
@@ -61,6 +61,8 @@ type AnalyticsSummary = {
     'leave': number;
     'none': number;
   };
+  turnover_rate?: number | null;
+  retention_rate?: number | null;
   message?: string;
 };
 
@@ -100,33 +102,14 @@ type Employee = {
   gender?: string;
 };
 
-// Survey feedback data
-const defaultSurveyCategories = [
-  { category: 'Work Environment', score: 4.3 },
-  { category: 'Management', score: 4.0 },
-  { category: 'Career Growth', score: 3.7 },
-  { category: 'Compensation', score: 3.5 },
-  { category: 'Work-Life Balance', score: 4.1 },
-  { category: 'Team Collaboration', score: 4.4 },
-  { category: 'Training', score: 3.8 },
-  { category: 'Culture', score: 4.2 },
-];
-
-const topConcerns = [
-  { concern: 'Career advancement opportunities', mentions: 34 },
-  { concern: 'Competitive compensation', mentions: 28 },
-  { concern: 'Training programs needed', mentions: 22 },
-  { concern: 'Communication from leadership', mentions: 18 },
-  { concern: 'Workload distribution', mentions: 15 },
-];
-
-const topPraises = [
-  { praise: 'Supportive team environment', mentions: 48 },
-  { praise: 'Flexible work arrangements', mentions: 36 },
-  { praise: 'Good management support', mentions: 32 },
-  { praise: 'Positive company culture', mentions: 28 },
-  { praise: 'Quality of workplace facilities', mentions: 24 },
-];
+// Feedback sentiment colors (match dashboard)
+const feedbackColors: Record<string, string> = {
+  'Extremely Negative': '#e74c3c',
+  'Semi Negative': '#f97316',
+  'Neutral': '#94A3B8',
+  'Semi Positive': '#6366F1',
+  'Extremely Positive': '#3B5998',
+};
 
 export default function AnalyticsPage() {
   const [loading, setLoading] = useState(true);
@@ -173,12 +156,14 @@ export default function AnalyticsPage() {
     setEndDate(end.toISOString().split('T')[0]);
   };
   
-  // API data states
+  // API data states (aligned with dashboard)
   const [summary, setSummary] = useState<AnalyticsSummary | null>(null);
   const [averages, setAverages] = useState<AnalyticsAverages | null>(null);
   const [roleBreakdown, setRoleBreakdown] = useState<RoleBreakdown>({});
   const [timeSeries, setTimeSeries] = useState<TimeSeriesData>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [surveyFeedback, setSurveyFeedback] = useState<{ name: string; value: number; color: string }[]>([]);
+  const [turnoverTimeSeries, setTurnoverTimeSeries] = useState<{ month: string; value: number; retention_rate?: number | null }[]>([]);
 
   useEffect(() => {
     loadAnalytics();
@@ -187,7 +172,7 @@ export default function AnalyticsPage() {
   async function loadAnalytics() {
     setLoading(true);
     setError(null);
-    
+
     try {
       const token = getToken();
       if (!token) {
@@ -195,52 +180,130 @@ export default function AnalyticsPage() {
         setLoading(false);
         return;
       }
-      
-      // Build date range query params
-      const rangeParam = `?start_date=${startDate}&end_date=${endDate}`;
 
-      // Use getJsonAuth to include X-Dealership-Id header for corporate users
-      const [summaryData, averagesData, breakdownData, timeSeriesData, employeesData] = await Promise.all([
-        getJsonAuth(`/analytics/summary${rangeParam}`).catch(() => null),
+      let rangeParam = `?start_date=${startDate}&end_date=${endDate}`;
+      const dealershipId = getSelectedDealershipId();
+      if (dealershipId != null) {
+        rangeParam += `&dealership_id=${dealershipId}`;
+      }
+
+      const handle403 = (err: unknown) => {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (msg.includes('403') || msg.includes('forbidden') || msg.includes('insufficient role')) return { ok: false };
+        throw err;
+      };
+
+      // Same endpoints as dashboard, with graceful 403 handling
+      const [summaryResult, terminatedQuitResult, roleBreakdownResult, surveyFeedbackResult, turnoverTsResult, interviewingResult, averagesResult, timeSeriesResult, employeesResult] = await Promise.all([
+        getJsonAuth(`/analytics/summary${rangeParam}`).catch(handle403),
+        getJsonAuth(`/analytics/terminated-quit${rangeParam}`).catch(handle403),
+        getJsonAuth(`/analytics/role-breakdown${rangeParam}`).catch(handle403),
+        getJsonAuth(`/analytics/survey-feedback${rangeParam}`).catch(handle403),
+        getJsonAuth(`/analytics/turnover-time-series${rangeParam}`).catch(handle403),
+        getJsonAuth(`/analytics/interviewing-process${rangeParam}`).catch(handle403),
         getJsonAuth(`/analytics/averages${rangeParam}`).catch(() => null),
-        getJsonAuth(`/analytics/role-breakdown${rangeParam}`).catch(() => null),
         getJsonAuth(`/analytics/time-series${rangeParam}`).catch(() => null),
         getJsonAuth(`/employees${rangeParam}`).catch(() => null),
       ]);
 
-      if (summaryData) setSummary(summaryData);
-      if (averagesData) setAverages(averagesData);
-      if (breakdownData) {
-        setRoleBreakdown(breakdownData.breakdown || breakdownData || {});
+      const summaryData = summaryResult && typeof summaryResult === 'object' && 'ok' in summaryResult ? summaryResult : summaryResult;
+      if (summaryData && typeof summaryData === 'object' && (summaryData as any).ok !== false) {
+        setSummary(summaryData as AnalyticsSummary);
+      } else {
+        setSummary(null);
       }
-      if (timeSeriesData) {
-        setTimeSeries(timeSeriesData.data || timeSeriesData || []);
+
+      const breakdownData = roleBreakdownResult as any;
+      if (breakdownData && breakdownData.ok !== false && (breakdownData.breakdown != null || Array.isArray(breakdownData))) {
+        const raw = breakdownData.breakdown ?? breakdownData;
+        const normalized: RoleBreakdown = Array.isArray(raw)
+          ? (raw as { role: string; terminated: number; quit: number; total: number }[]).reduce<RoleBreakdown>((acc, r) => {
+              acc[r.role] = {
+                count: r.total,
+                by_status: {
+                  'newly-hired': 0,
+                  termination: r.terminated,
+                  leave: r.quit,
+                  none: Math.max(0, r.total - r.terminated - r.quit),
+                },
+              };
+              return acc;
+            }, {})
+          : (raw as RoleBreakdown) || {};
+        setRoleBreakdown(normalized);
+      } else {
+        setRoleBreakdown({});
       }
-      if (employeesData) {
-        // Ensure employees is always an array
-        const employeesList = employeesData.employees || employeesData.items || employeesData || [];
+
+      const surveyData = surveyFeedbackResult && typeof surveyFeedbackResult === 'object' ? surveyFeedbackResult as { ok?: boolean; feedback?: { name: string; value: number }[] } : null;
+      if (surveyData?.ok && Array.isArray(surveyData.feedback)) {
+        const feedback = surveyData.feedback.map((item: { name: string; value: number }) => ({
+          name: item.name,
+          value: item.value,
+          color: feedbackColors[item.name] || '#6b7280',
+        }));
+        setSurveyFeedback(feedback);
+      } else {
+        setSurveyFeedback([]);
+      }
+
+      const turnoverData = turnoverTsResult && typeof turnoverTsResult === 'object' ? turnoverTsResult as { ok?: boolean; time_series?: { month: string; value: number; retention_rate?: number | null }[] } : null;
+      if (turnoverData?.ok && Array.isArray(turnoverData.time_series)) {
+        setTurnoverTimeSeries(turnoverData.time_series);
+      } else {
+        setTurnoverTimeSeries([]);
+      }
+
+      if (averagesResult && typeof averagesResult === 'object' && !('ok' in averagesResult && (averagesResult as any).ok === false)) {
+        setAverages(averagesResult as AnalyticsAverages);
+      }
+      if (timeSeriesResult && typeof timeSeriesResult === 'object') {
+        const ts = (timeSeriesResult as any).data || timeSeriesResult;
+        setTimeSeries(Array.isArray(ts) ? ts : []);
+      }
+      if (employeesResult && typeof employeesResult === 'object') {
+        const employeesList = (employeesResult as any).employees ?? (employeesResult as any).items ?? employeesResult;
         setEmployees(Array.isArray(employeesList) ? employeesList : []);
       }
     } catch (err) {
       console.error('Failed to load analytics:', err);
-      setError('Some analytics data could not be loaded');
+      const msg = err instanceof Error ? err.message : String(err);
+      setError(msg.includes('429') ? 'Too many requests. Please wait a moment and refresh the page.' : 'Some analytics data could not be loaded');
     } finally {
       setLoading(false);
     }
   }
 
-  // Calculate statistics
-  const totalEmployees = (Array.isArray(employees) ? employees.length : 0) || summary?.total_responses || 0;
+  // Calculate statistics — use same source as Dashboard: /analytics/summary (total_responses = ending headcount)
+  const totalEmployees = summary?.total_responses ?? 0;
   const totalTerminations = summary?.by_status?.termination || 0;
   const totalNewHires = summary?.by_status?.['newly-hired'] || 0;
   const totalOnLeave = summary?.by_status?.leave || 0;
   const totalActive = summary?.by_status?.none || 0;
-  const turnoverRate = totalEmployees > 0 ? ((totalTerminations / totalEmployees) * 100).toFixed(1) : '0.0';
-  const retentionRate = (100 - parseFloat(turnoverRate)).toFixed(1);
-  const satisfactionAvg = averages?.satisfaction_avg?.toFixed(1) || '0.0';
+  const hasEmployeeData = totalEmployees > 0;
+  const turnoverRate: string =
+    !hasEmployeeData
+      ? 'N/A'
+      : typeof summary?.turnover_rate === 'number'
+        ? summary.turnover_rate.toFixed(1)
+        : ((totalTerminations + totalOnLeave) / totalEmployees * 100).toFixed(1);
+  const retentionRate: string =
+    !hasEmployeeData
+      ? 'N/A'
+      : typeof summary?.retention_rate === 'number'
+        ? summary.retention_rate.toFixed(1)
+        : (100 - parseFloat(turnoverRate)).toFixed(1);
+  const hasSurveyData = (averages?.total_responses ?? 0) > 0;
+  const satisfactionAvg = !hasSurveyData ? 'N/A' : (averages?.satisfaction_avg?.toFixed(1) ?? '0.0');
   const trainingAvg = averages?.training_avg?.toFixed(1) || '0.0';
-  const totalResponses = summary?.total_responses || averages?.total_responses || 0;
+  // Survey responses = count of survey responses (from /analytics/averages). Summary.total_responses is ending headcount, not survey count.
+  const surveyResponseCount = averages?.total_responses ?? 0;
   const last30Days = summary?.last_30_days || 0;
+
+  // Response rate = % of employees who submitted a survey (capped at 100%)
+  const responseRate = totalEmployees > 0
+    ? Math.min(100, Math.round((surveyResponseCount / totalEmployees) * 100))
+    : 0;
 
   // Process data
   const turnoverByRole = Object.entries(roleBreakdown).map(([role, data]) => ({
@@ -391,15 +454,15 @@ export default function AnalyticsPage() {
             </div>
           )}
 
-          {/* KPI Cards - Clean minimal style */}
+          {/* KPI Cards - Clean minimal style; show N/A when no data */}
           <div className="grid grid-cols-6 gap-4 mb-8">
             {[
               { label: 'Total Employees', value: totalEmployees, sub: `+${totalNewHires} new`, color: '#394B67' },
-              { label: 'Turnover Rate', value: `${turnoverRate}%`, sub: `${totalTerminations} left`, color: COLORS.negative },
-              { label: 'Retention', value: `${retentionRate}%`, sub: 'current', color: COLORS.success },
+              { label: 'Turnover Rate', value: turnoverRate === 'N/A' ? 'N/A' : `${turnoverRate}%`, sub: hasEmployeeData ? `${totalTerminations} left` : '—', color: COLORS.negative },
+              { label: 'Retention', value: retentionRate === 'N/A' ? 'N/A' : `${retentionRate}%`, sub: hasEmployeeData ? 'current' : '—', color: COLORS.success },
               { label: 'On Leave', value: totalOnLeave, sub: 'employees', color: '#394B67' },
-              { label: 'Responses', value: totalResponses, sub: `${last30Days} recent`, color: '#394B67' },
-              { label: 'Satisfaction', value: `${satisfactionAvg}`, sub: 'out of 5.0', color: '#394B67' },
+              { label: 'Survey responses', value: surveyResponseCount, sub: 'last 30 days', color: '#394B67' },
+              { label: 'Satisfaction', value: satisfactionAvg, sub: satisfactionAvg === 'N/A' ? '—' : 'out of 5.0', color: '#394B67' },
             ].map((kpi, idx) => (
               <div key={idx} className="rounded-xl p-5" style={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}` }}>
                 <p className="text-xs font-medium uppercase tracking-wide mb-3" style={{ color: COLORS.gray[400] }}>{kpi.label}</p>
@@ -420,7 +483,7 @@ export default function AnalyticsPage() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as typeof activeTab)}
-                className="px-5 py-3 text-sm font-medium transition-all relative"
+                className="px-5 py-3 text-sm font-medium transition-all relative cursor-pointer"
                 style={{
                   color: activeTab === tab.id ? COLORS.primary : COLORS.gray[500],
                 }}
@@ -651,7 +714,27 @@ export default function AnalyticsPage() {
           {/* Trends Tab */}
           {activeTab === 'trends' && (
             <div className="space-y-6">
-              {/* Response Trend Chart */}
+              {/* Turnover / Exit trend (real API data) */}
+              <div className="rounded-xl p-6" style={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}` }}>
+                <h3 className="text-sm font-medium mb-6" style={{ color: COLORS.gray[900] }}>Turnover by Month</h3>
+                {turnoverTimeSeries.length > 0 ? (
+                  <ResponsiveContainer width="100%" height={280}>
+                    <LineChart data={turnoverTimeSeries}>
+                      <CartesianGrid strokeDasharray="3 3" stroke={COLORS.gray[100]} vertical={false} />
+                      <XAxis dataKey="month" tick={{ fontSize: 11, fill: COLORS.gray[400] }} axisLine={false} tickLine={false} />
+                      <YAxis tick={{ fontSize: 11, fill: COLORS.gray[400] }} axisLine={false} tickLine={false} />
+                      <Tooltip contentStyle={{ borderRadius: '8px', border: `1px solid ${COLORS.gray[200]}`, boxShadow: 'none' }} />
+                      <Legend />
+                      <Line type="monotone" dataKey="value" name="Exits" stroke={COLORS.negative} strokeWidth={2} dot={{ r: 3 }} />
+                      <Line type="monotone" dataKey="retention_rate" name="Retention %" stroke={COLORS.success} strokeWidth={2} dot={{ r: 3 }} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <p className="text-sm text-center py-16" style={{ color: COLORS.gray[400] }}>No turnover time series data available</p>
+                )}
+              </div>
+
+              {/* Response Trend Chart (survey responses over time) */}
               <div className="rounded-xl p-6" style={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}` }}>
                 <h3 className="text-sm font-medium mb-6" style={{ color: COLORS.gray[900] }}>Response Trends</h3>
                 {monthlyTrends.length > 0 ? (
@@ -678,8 +761,8 @@ export default function AnalyticsPage() {
               {/* Stats Grid */}
               <div className="grid grid-cols-4 gap-4">
                 {[
-                  { label: 'Total Responses', value: totalResponses },
-                  { label: 'Last 30 Days', value: last30Days },
+                  { label: 'Survey responses', value: surveyResponseCount },
+                  { label: 'New hires (period)', value: last30Days },
                   { label: 'Satisfaction', value: `${satisfactionAvg}/5` },
                   { label: 'Training Score', value: `${trainingAvg}/5` },
                 ].map((stat, idx) => (
@@ -692,14 +775,14 @@ export default function AnalyticsPage() {
             </div>
           )}
 
-          {/* Survey Tab */}
+          {/* Survey Tab - real data from /analytics/survey-feedback */}
           {activeTab === 'survey' && (
             <div className="space-y-6">
               {/* Survey Stats */}
               <div className="grid grid-cols-4 gap-4">
                 {[
-                  { label: 'Responses', value: totalResponses, sub: `${last30Days} recent` },
-                  { label: 'Response Rate', value: totalEmployees > 0 ? `${((totalResponses / totalEmployees) * 100).toFixed(0)}%` : '0%', sub: 'of employees' },
+                  { label: 'Survey responses', value: surveyResponseCount, sub: 'last 30 days' },
+                  { label: 'Response rate', value: `${responseRate}%`, sub: 'of employees' },
                   { label: 'Satisfaction', value: satisfactionAvg, sub: 'out of 5.0' },
                   { label: 'Training', value: trainingAvg, sub: 'out of 5.0' },
                 ].map((stat, idx) => (
@@ -711,53 +794,44 @@ export default function AnalyticsPage() {
                 ))}
               </div>
 
-              {/* Category Scores */}
+              {/* Satisfaction feedback (real API: sentiment distribution) */}
               <div className="rounded-xl p-6" style={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}` }}>
-                <h3 className="text-sm font-medium mb-6" style={{ color: COLORS.gray[900] }}>Category Scores</h3>
-                <div className="grid grid-cols-4 gap-4">
-                  {defaultSurveyCategories.map((cat, idx) => (
-                    <div key={cat.category} className="p-4 rounded-lg" style={{ backgroundColor: COLORS.gray[50] }}>
-                      <p className="text-xs font-medium mb-2" style={{ color: COLORS.gray[500] }}>{cat.category}</p>
-                      <p className="text-2xl font-semibold mb-2" style={{ color: COLORS.gray[900] }}>{cat.score}</p>
-                      <div className="w-full h-1.5 rounded-full" style={{ backgroundColor: COLORS.gray[200] }}>
-                        <div className="h-1.5 rounded-full" style={{ width: `${(cat.score / 5) * 100}%`, backgroundColor: CHART_COLORS[idx % CHART_COLORS.length] }}></div>
-                      </div>
+                <h3 className="text-sm font-medium mb-6" style={{ color: COLORS.gray[900] }}>Satisfaction feedback</h3>
+                {surveyFeedback.length > 0 ? (
+                  <div className="flex flex-wrap items-center gap-6">
+                    <ResponsiveContainer width={240} height={240}>
+                      <PieChart>
+                        <Pie
+                          data={surveyFeedback}
+                          dataKey="value"
+                          nameKey="name"
+                          cx="50%"
+                          cy="50%"
+                          outerRadius={80}
+                          label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                        >
+                          {surveyFeedback.map((entry, index) => (
+                            <Cell key={entry.name} fill={entry.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip contentStyle={{ borderRadius: '8px', border: `1px solid ${COLORS.gray[200]}`, boxShadow: 'none' }} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                    <div className="flex-1 min-w-[200px] space-y-2">
+                      {surveyFeedback.map((item) => (
+                        <div key={item.name} className="flex items-center justify-between gap-4">
+                          <div className="flex items-center gap-2">
+                            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }} />
+                            <span className="text-sm" style={{ color: COLORS.gray[700] }}>{item.name}</span>
+                          </div>
+                          <span className="text-sm font-medium" style={{ color: COLORS.gray[900] }}>{item.value}</span>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Concerns & Praises */}
-              <div className="grid grid-cols-2 gap-6">
-                <div className="rounded-xl p-6" style={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}` }}>
-                  <h3 className="text-sm font-medium mb-6" style={{ color: COLORS.gray[900] }}>Top Concerns</h3>
-                  <div className="space-y-3">
-                    {topConcerns.map((item, idx) => (
-                      <div key={item.concern} className="flex items-center gap-3 p-3 rounded-lg" style={{ backgroundColor: '#fdf2f2', border: '1px solid #fecaca' }}>
-                        <span className="text-sm font-semibold w-5" style={{ color: COLORS.negative }}>{idx + 1}</span>
-                        <span className="text-sm flex-1" style={{ color: COLORS.gray[700] }}>{item.concern}</span>
-                        <span className="text-xs font-medium px-2 py-1 rounded" style={{ backgroundColor: '#fee2e2', color: COLORS.negative }}>
-                          {item.mentions}
-                        </span>
-                      </div>
-                    ))}
                   </div>
-                </div>
-
-                <div className="rounded-xl p-6" style={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}` }}>
-                  <h3 className="text-sm font-medium mb-6" style={{ color: COLORS.gray[900] }}>Top Praises</h3>
-                  <div className="space-y-3">
-                    {topPraises.map((item, idx) => (
-                      <div key={item.praise} className="flex items-center gap-3 p-3 rounded-lg" style={{ backgroundColor: COLORS.gray[50] }}>
-                        <span className="text-sm font-semibold w-5" style={{ color: COLORS.gray[400] }}>{idx + 1}</span>
-                        <span className="text-sm flex-1" style={{ color: COLORS.gray[700] }}>{item.praise}</span>
-                        <span className="text-xs font-medium px-2 py-1 rounded" style={{ backgroundColor: COLORS.gray[200], color: COLORS.gray[600] }}>
-                          {item.mentions}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+                ) : (
+                  <p className="text-sm text-center py-12" style={{ color: COLORS.gray[400] }}>No survey feedback data for this period</p>
+                )}
               </div>
             </div>
           )}

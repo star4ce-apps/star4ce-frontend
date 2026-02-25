@@ -30,6 +30,19 @@ export default function RequireAuth({ children }: Props) {
         const data = await res.json().catch(() => ({}));
 
         if (res.ok) {
+          // Pending admin registration (skipped subscription): send to subscription page (200 + flag, no 403)
+          if (data?.subscription_required) {
+            const email = (data.email || '').trim();
+            router.replace(email ? `/admin-subscribe?email=${encodeURIComponent(email)}` : '/admin-subscribe');
+            return;
+          }
+          // When subscription is inactive, only allow the subscription page (so they can pay to restore access)
+          const subscriptionActive = data?.subscription_active !== false;
+          const onSubscriptionPage = pathname?.startsWith('/subscription');
+          if (!subscriptionActive && !onSubscriptionPage) {
+            router.replace('/subscription');
+            return;
+          }
           // Corporate users must select an active dealership before using the app
           const role = data?.user?.role || data?.role || null;
           if (role === 'corporate') {
@@ -45,6 +58,11 @@ export default function RequireAuth({ children }: Props) {
           }
           // User is authenticated and approved
           setOk(true);
+        } else if (res.status === 403 && data.error === 'subscription_required') {
+          // Legacy: backend used to return 403 subscription_required
+          const email = (data.email || '').trim();
+          router.replace(email ? `/admin-subscribe?email=${encodeURIComponent(email)}` : '/admin-subscribe');
+          return;
         } else if (res.status === 403 && data.error === 'manager_not_approved') {
           // Manager not approved - allow access so they can see the waiting message
           setOk(true);

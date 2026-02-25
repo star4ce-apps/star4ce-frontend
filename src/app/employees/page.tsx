@@ -1,10 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
 import RequireAuth from '@/components/layout/RequireAuth';
 import HubSidebar from '@/components/sidebar/HubSidebar';
 import { API_BASE, getToken } from '@/lib/auth';
-import { getJsonAuth } from '@/lib/http';
+import { getJsonAuth, deleteJsonAuth } from '@/lib/http';
 import toast from 'react-hot-toast';
 
 // Modern color palette - matching surveys page
@@ -22,6 +23,43 @@ const COLORS = {
     900: '#0F172A',
   }
 };
+
+// Job roles dropdown options
+const JOB_ROLES = [
+  'Body Shop Manager',
+  'Body Shop Technician',
+  'Business Manager',
+  'Business Office Support',
+  'C-Level Executives',
+  'Platform Manager',
+  'Controller',
+  'Finance Manager',
+  'Finance Director',
+  'General Manager',
+  'Human Resources Manager',
+  'IT Manager',
+  'Loaner Agent',
+  'Mobility Manager',
+  'Parts Counter Employee',
+  'Parts Manager',
+  'Parts Support',
+  'Drivers',
+  'Sales Manager',
+  'GSM',
+  'Sales People',
+  'Sales Support',
+  'Receptionist',
+  'Service Advisor',
+  'Service Director',
+  'Service Drive Manager',
+  'Service Manager',
+  'Parts and Service Director',
+  'Service Support',
+  'Porters',
+  'Technician',
+  'Used Car Director',
+  'Used Car Manager',
+];
 
 type Employee = {
   id: number;
@@ -47,6 +85,8 @@ type Employee = {
 };
 
 export default function EmployeesPage() {
+  const router = useRouter();
+  const pathname = usePathname();
   const [role, setRole] = useState<string | null>(null);
   const [isApproved, setIsApproved] = useState<boolean | null>(null);
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -57,13 +97,16 @@ export default function EmployeesPage() {
   const [showViewModal, setShowViewModal] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [viewingEmployee, setViewingEmployee] = useState<Employee | null>(null);
+  const [performanceScore, setPerformanceScore] = useState<number | null>(null);
+  const [loadingPerformanceScore, setLoadingPerformanceScore] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedJobTitle, setSelectedJobTitle] = useState('All Job Titles');
   const [selectedStatus, setSelectedStatus] = useState('All Statuses');
   const [currentPage, setCurrentPage] = useState(1);
   const [sortColumn, setSortColumn] = useState<string>('name');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
-  const itemsPerPage = 20;
+  const [deletingEmployeeId, setDeletingEmployeeId] = useState<number | null>(null);
+  const itemsPerPage = 10;
 
   // Form state
   const [formData, setFormData] = useState({
@@ -82,6 +125,8 @@ export default function EmployeesPage() {
     hiredDate: '',
     department: '',
     status: '',
+    university: '',
+    degree: '',
   });
   const [customDepartment, setCustomDepartment] = useState('');
 
@@ -119,10 +164,32 @@ export default function EmployeesPage() {
       
       checkUserStatus();
       loadEmployees();
+      // If we landed here after reverting "Employee Created" on Change History, refetch to drop removed employee
+      if (sessionStorage.getItem('employees-list-refresh')) {
+        sessionStorage.removeItem('employees-list-refresh');
+        loadEmployees(true);
+      }
     }
   }, []);
 
-  async function loadEmployees() {
+  // Refetch when user returns to this tab (focus) or when route is employees (e.g. navigated from Change History)
+  useEffect(() => {
+    const onFocus = () => loadEmployees();
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, []);
+  useEffect(() => {
+    if (pathname === '/employees') {
+      if (typeof window !== 'undefined' && sessionStorage.getItem('employees-list-refresh')) {
+        sessionStorage.removeItem('employees-list-refresh');
+        loadEmployees(true);
+      } else {
+        loadEmployees();
+      }
+    }
+  }, [pathname]);
+
+  async function loadEmployees(cacheBust = false) {
     setLoading(true);
     setError(null);
     try {
@@ -132,10 +199,12 @@ export default function EmployeesPage() {
         return;
       }
 
-      // Use getJsonAuth to include X-Dealership-Id header for corporate users
-      const data = await getJsonAuth<{ ok: boolean; items: any[] }>('/employees');
+      const url = cacheBust ? `/employees?_=${Date.now()}` : '/employees';
+      const data = await getJsonAuth<{ ok: boolean; items: any[] }>(url);
+      // Include all employees (active and inactive/terminated/resigned); use status filter to narrow
       setEmployees(data.items || []);
     } catch (err: unknown) {
+      setEmployees([]);
       setError(err instanceof Error ? err.message : 'Failed to load employees');
     } finally {
       setLoading(false);
@@ -157,7 +226,7 @@ export default function EmployeesPage() {
     }
     
     if (missingFields.length > 0) {
-      setError('All fields must be filled');
+      setError('Please fill in all required fields (marked with *)');
       return;
     }
 
@@ -183,6 +252,8 @@ export default function EmployeesPage() {
         zip_code: formData.zipCode || null,
         date_of_birth: formData.dateOfBirth || null,
         gender: formData.gender || null,
+        university: formData.university || null,
+        degree: formData.degree || null,
       };
 
       const res = await fetch(`${API_BASE}/employees`, {
@@ -235,6 +306,8 @@ export default function EmployeesPage() {
       hiredDate: '',
       department: '',
       status: '',
+      university: '',
+      degree: '',
     });
     setCustomDepartment('');
     setShowModal(false);
@@ -242,12 +315,77 @@ export default function EmployeesPage() {
     setShowViewModal(false);
     setEditingEmployee(null);
     setViewingEmployee(null);
+    setPerformanceScore(null);
     setError(null);
   }
 
+  async function loadPerformanceScore(employeeId: number) {
+    setLoadingPerformanceScore(true);
+    try {
+      const token = getToken();
+      if (!token) {
+        setPerformanceScore(null);
+        return;
+      }
+
+      // Try to fetch performance reviews for this employee
+      const data = await getJsonAuth<{ ok: boolean; reviews?: any[] }>(`/employees/${employeeId}/performance-reviews`);
+      
+      if (data.ok && data.reviews && data.reviews.length > 0) {
+        // Calculate average of overall_rating from all reviews
+        const ratings = data.reviews
+          .map((review: any) => review.overall_rating)
+          .filter((rating: any) => rating !== null && rating !== undefined && !isNaN(rating));
+        
+        if (ratings.length > 0) {
+          const average = ratings.reduce((sum: number, rating: number) => sum + rating, 0) / ratings.length;
+          setPerformanceScore(Math.round(average * 10) / 10); // Round to 1 decimal place
+        } else {
+          setPerformanceScore(null);
+        }
+      } else {
+        setPerformanceScore(null);
+      }
+    } catch (err) {
+      console.error('Failed to load performance score:', err);
+      setPerformanceScore(null);
+    } finally {
+      setLoadingPerformanceScore(false);
+    }
+  }
+
   function openViewModal(employee: Employee) {
-    setViewingEmployee(employee);
-    setShowViewModal(true);
+    // Navigate to employee profile page
+    router.push(`/employees/${employee.id}`);
+  }
+
+  async function handleDeleteEmployee(emp: Employee, e: React.MouseEvent) {
+    e.stopPropagation();
+    if (role === 'corporate') return;
+    if (!confirm(`Remove "${emp.name}" from the system? This cannot be undone and will not affect turnover or other data.`)) return;
+    
+    setDeletingEmployeeId(emp.id);
+    const employeeIdToDelete = emp.id;
+    
+    // Store original list in case we need to revert
+    const originalEmployees = [...employees];
+    
+    // Immediately remove from list for instant feedback
+    setEmployees(prev => prev.filter(e => e.id !== employeeIdToDelete));
+    
+    try {
+      await deleteJsonAuth(`/employees/${employeeIdToDelete}`);
+      
+      toast.success('Employee removed');
+    } catch (err: unknown) {
+      console.error('Delete error:', err);
+      // Revert the UI change if deletion failed
+      setEmployees(originalEmployees);
+      const errorMsg = err instanceof Error ? err.message : 'Failed to remove employee';
+      toast.error(errorMsg);
+    } finally {
+      setDeletingEmployeeId(null);
+    }
   }
 
   function openEditModal(employee: Employee) {
@@ -268,6 +406,8 @@ export default function EmployeesPage() {
       hiredDate: employee.hired_date ? employee.hired_date.split('T')[0] : '',
       department: employee.department || '',
       status: employee.status || '',
+      university: (employee as any).university || '',
+      degree: (employee as any).degree || '',
     });
     setEditingEmployee(employee);
     setShowEditModal(true);
@@ -449,10 +589,10 @@ export default function EmployeesPage() {
     'Virginia', 'Washington', 'West Virginia', 'Wisconsin', 'Wyoming'
   ];
 
-  const statuses = ['Full-Time', 'Part-time', 'Intern', 'Onboarding'];
+  const statuses = ['Full-Time', 'Part-time', 'Intern'];
   
   // Statuses that should be excluded from the filter (removed from system)
-  const excludedStatuses = ['Resigned', 'Terminated', 'Fired', 'On Leave'];
+  const excludedStatuses = ['Resigned', 'Terminated', 'Fired', 'On Leave', 'Onboarding'];
   
   // Get unique statuses from employees, plus standard options
   // Filter out excluded statuses that are no longer valid options
@@ -552,7 +692,7 @@ export default function EmployeesPage() {
                   onClick={() => setShowModal(true)}
                   className="cursor-pointer px-4 py-2 rounded-lg text-sm font-medium transition-all"
                   style={{ 
-                    backgroundColor: COLORS.primary,
+                    backgroundColor: '#4D6DBE',
                     color: '#FFFFFF'
                   }}
                 >
@@ -706,7 +846,7 @@ export default function EmployeesPage() {
                         <SortIcon column="status" />
                       </div>
                     </th>
-                    <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider text-white">
+                    <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider text-white w-24">
                       Actions
                     </th>
                   </tr>
@@ -760,12 +900,10 @@ export default function EmployeesPage() {
                                 backgroundColor: emp.status === 'Full-Time' ? '#D1FAE5' : 
                                                 emp.status === 'Part-time' ? '#DBEAFE' :
                                                 emp.status === 'Intern' ? '#FEF3C7' :
-                                                emp.status === 'Onboarding' ? '#F3E8FF' :
                                                 emp.is_active ? '#D1FAE5' : '#F3F4F6',
                                 color: emp.status === 'Full-Time' ? '#065F46' :
                                        emp.status === 'Part-time' ? '#1E40AF' :
                                        emp.status === 'Intern' ? '#92400E' :
-                                       emp.status === 'Onboarding' ? '#6B21A8' :
                                        emp.is_active ? '#065F46' : '#374151'
                               }}
                             >
@@ -773,20 +911,26 @@ export default function EmployeesPage() {
                             </span>
                           </td>
                           <td className="py-3 px-4" onClick={(e) => e.stopPropagation()}>
-                            {role !== 'corporate' ? (
+                            {role !== 'corporate' && (
                               <button
-                                onClick={() => openEditModal(emp)}
-                                className="cursor-pointer p-1.5 rounded-md transition-all hover:bg-gray-100"
-                                style={{ color: '#4D6DBE' }}
-                                title="Edit Employee"
+                                type="button"
+                                onClick={(e) => handleDeleteEmployee(emp, e)}
+                                disabled={deletingEmployeeId === emp.id}
+                                className="cursor-pointer inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-all hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                                style={{ border: '1px solid #FCA5A5', color: '#DC2626' }}
+                                title="Remove employee from system (does not affect turnover)"
                               >
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                </svg>
+                                {deletingEmployeeId === emp.id ? (
+                                  'Removing...'
+                                ) : (
+                                  <>
+                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                    Delete
+                                  </>
+                                )}
                               </button>
-                            ) : (
-                              <span className="text-xs text-gray-400" title="View-Only Mode">👁️</span>
                             )}
                           </td>
                         </tr>
@@ -1031,17 +1175,33 @@ export default function EmployeesPage() {
                                 backgroundColor: viewingEmployee.status === 'Full-Time' ? '#D1FAE5' : 
                                                 viewingEmployee.status === 'Part-time' ? '#DBEAFE' :
                                                 viewingEmployee.status === 'Intern' ? '#FEF3C7' :
-                                                viewingEmployee.status === 'Onboarding' ? '#F3E8FF' :
                                                 viewingEmployee.is_active ? '#D1FAE5' : '#F3F4F6',
                                 color: viewingEmployee.status === 'Full-Time' ? '#065F46' :
                                        viewingEmployee.status === 'Part-time' ? '#1E40AF' :
                                        viewingEmployee.status === 'Intern' ? '#92400E' :
-                                       viewingEmployee.status === 'Onboarding' ? '#6B21A8' :
                                        viewingEmployee.is_active ? '#065F46' : '#374151'
                               }}
                             >
                               {viewingEmployee.status || (viewingEmployee.is_active ? 'Active' : 'Inactive')}
                             </span>
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium mb-1.5" style={{ color: '#6B7280' }}>Performance Score</label>
+                          <div className="text-sm font-semibold" style={{ color: '#232E40' }}>
+                            {loadingPerformanceScore ? (
+                              <span style={{ color: '#6B7280' }}>Loading...</span>
+                            ) : performanceScore !== null ? (
+                              <span style={{ 
+                                color: performanceScore >= 4 ? '#059669' : 
+                                       performanceScore >= 3 ? '#D97706' : 
+                                       '#DC2626' 
+                              }}>
+                                {performanceScore.toFixed(1)} / 5.0
+                              </span>
+                            ) : (
+                              <span style={{ color: '#6B7280' }}>—</span>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -1280,8 +1440,9 @@ export default function EmployeesPage() {
                           <option value="">Select Gender</option>
                           <option value="Male">Male</option>
                           <option value="Female">Female</option>
-                          <option value="Other">Other</option>
+                          <option value="Non-binary">Non-binary</option>
                           <option value="Prefer not to say">Prefer not to say</option>
+                          <option value="Other">Other</option>
                         </select>
                         <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: '#6B7280' }}>
@@ -1289,6 +1450,36 @@ export default function EmployeesPage() {
                           </svg>
                         </div>
                       </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold mb-1.5" style={{ color: '#374151' }}>University</label>
+                      <input
+                        type="text"
+                        placeholder="University name"
+                        value={formData.university}
+                        onChange={(e) => setFormData({ ...formData, university: e.target.value })}
+                        className="w-full px-3 py-2 text-sm rounded-lg transition-all focus:outline-none focus:ring-2"
+                        style={{ 
+                          border: '1px solid #D1D5DB', 
+                          color: '#374151', 
+                          backgroundColor: '#FFFFFF',
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold mb-1.5" style={{ color: '#374151' }}>Degree</label>
+                      <input
+                        type="text"
+                        placeholder="Degree (e.g., Bachelor's, Master's)"
+                        value={formData.degree}
+                        onChange={(e) => setFormData({ ...formData, degree: e.target.value })}
+                        className="w-full px-3 py-2 text-sm rounded-lg transition-all focus:outline-none focus:ring-2"
+                        style={{ 
+                          border: '1px solid #D1D5DB', 
+                          color: '#374151', 
+                          backgroundColor: '#FFFFFF',
+                        }}
+                      />
                     </div>
                     <div>
                       <label className="block text-xs font-semibold mb-1.5" style={{ color: '#374151' }}>Employee ID</label>
@@ -1338,19 +1529,29 @@ export default function EmployeesPage() {
                     </div>
                     <div>
                       <label className="block text-xs font-semibold mb-1.5" style={{ color: '#374151' }}>Job Title *</label>
-                      <input
-                        type="text"
-                        placeholder="e.g., Sales Consultant"
-                        value={formData.jobTitle}
-                        onChange={(e) => setFormData({ ...formData, jobTitle: e.target.value })}
-                        required
-                        className="w-full px-3 py-2 text-sm rounded-lg transition-all focus:outline-none focus:ring-2"
-                        style={{ 
-                          border: '1px solid #D1D5DB', 
-                          color: '#374151', 
-                          backgroundColor: '#FFFFFF',
-                        }}
-                      />
+                      <div className="relative">
+                        <select
+                          value={formData.jobTitle}
+                          onChange={(e) => setFormData({ ...formData, jobTitle: e.target.value })}
+                          required
+                          className="w-full px-3 py-2 text-sm rounded-lg appearance-none cursor-pointer transition-all focus:outline-none focus:ring-2"
+                          style={{ 
+                            border: '1px solid #D1D5DB', 
+                            color: '#374151', 
+                            backgroundColor: '#FFFFFF',
+                          }}
+                        >
+                          <option value="">Select Job Title</option>
+                          {JOB_ROLES.map(role => (
+                            <option key={role} value={role}>{role}</option>
+                          ))}
+                        </select>
+                        <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: '#6B7280' }}>
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                          </svg>
+                        </div>
+                      </div>
                     </div>
                     <div>
                       <label className="block text-xs font-semibold mb-1.5" style={{ color: '#374151' }}>Hired Date *</label>
@@ -1481,11 +1682,6 @@ export default function EmployeesPage() {
             <div 
               className="fixed inset-0 z-50 flex items-center justify-center p-4"
               style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}
-              onClick={(e) => {
-                if (e.target === e.currentTarget) {
-                  resetForm();
-                }
-              }}
             >
               <div 
                 className="bg-white rounded-xl shadow-2xl"
@@ -1500,7 +1696,7 @@ export default function EmployeesPage() {
               >
                 <div className="p-4 border-b" style={{ borderColor: '#E5E7EB', backgroundColor: '#4D6DBE' }}>
                   <h2 className="text-xl font-bold mb-0.5" style={{ color: '#FFFFFF' }}>Add an Existing Employee</h2>
-                  <p className="text-xs" style={{ color: '#E0E7FF' }}>All fields must be filled *</p>
+                  <p className="text-xs" style={{ color: '#E0E7FF' }}>Fields marked with * are required</p>
                 </div>
                 <form onSubmit={handleSubmit} className="p-5">
                   <div className="grid grid-cols-2 gap-3 mb-3">
@@ -1631,8 +1827,9 @@ export default function EmployeesPage() {
                           <option value="">Select Gender</option>
                           <option value="Male">Male</option>
                           <option value="Female">Female</option>
-                          <option value="Other">Other</option>
+                          <option value="Non-binary">Non-binary</option>
                           <option value="Prefer not to say">Prefer not to say</option>
+                          <option value="Other">Other</option>
                         </select>
                         <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: '#6B7280' }}>
@@ -1640,6 +1837,36 @@ export default function EmployeesPage() {
                           </svg>
                         </div>
                       </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold mb-1.5" style={{ color: '#374151' }}>University</label>
+                      <input
+                        type="text"
+                        placeholder="University name"
+                        value={formData.university}
+                        onChange={(e) => setFormData({ ...formData, university: e.target.value })}
+                        className="w-full px-3 py-2 text-sm rounded-lg transition-all focus:outline-none focus:ring-2"
+                        style={{ 
+                          border: '1px solid #D1D5DB', 
+                          color: '#374151', 
+                          backgroundColor: '#FFFFFF',
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold mb-1.5" style={{ color: '#374151' }}>Degree</label>
+                      <input
+                        type="text"
+                        placeholder="Degree (e.g., Bachelor's, Master's)"
+                        value={formData.degree}
+                        onChange={(e) => setFormData({ ...formData, degree: e.target.value })}
+                        className="w-full px-3 py-2 text-sm rounded-lg transition-all focus:outline-none focus:ring-2"
+                        style={{ 
+                          border: '1px solid #D1D5DB', 
+                          color: '#374151', 
+                          backgroundColor: '#FFFFFF',
+                        }}
+                      />
                     </div>
                     <div>
                       <label className="block text-xs font-semibold mb-1.5" style={{ color: '#374151' }}>Employee ID</label>
@@ -1689,19 +1916,29 @@ export default function EmployeesPage() {
                     </div>
                     <div>
                       <label className="block text-xs font-semibold mb-1.5" style={{ color: '#374151' }}>Job Title *</label>
-                      <input
-                        type="text"
-                        placeholder="e.g., Sales Consultant"
-                        value={formData.jobTitle}
-                        onChange={(e) => setFormData({ ...formData, jobTitle: e.target.value })}
-                        required
-                        className="w-full px-3 py-2 text-sm rounded-lg transition-all focus:outline-none focus:ring-2"
-                        style={{ 
-                          border: '1px solid #D1D5DB', 
-                          color: '#374151', 
-                          backgroundColor: '#FFFFFF',
-                        }}
-                      />
+                      <div className="relative">
+                        <select
+                          value={formData.jobTitle}
+                          onChange={(e) => setFormData({ ...formData, jobTitle: e.target.value })}
+                          required
+                          className="w-full px-3 py-2 text-sm rounded-lg appearance-none cursor-pointer transition-all focus:outline-none focus:ring-2"
+                          style={{ 
+                            border: '1px solid #D1D5DB', 
+                            color: '#374151', 
+                            backgroundColor: '#FFFFFF',
+                          }}
+                        >
+                          <option value="">Select Job Title</option>
+                          {JOB_ROLES.map(role => (
+                            <option key={role} value={role}>{role}</option>
+                          ))}
+                        </select>
+                        <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: '#6B7280' }}>
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                          </svg>
+                        </div>
+                      </div>
                     </div>
                     <div>
                       <label className="block text-xs font-semibold mb-1.5" style={{ color: '#374151' }}>Hired Date *</label>

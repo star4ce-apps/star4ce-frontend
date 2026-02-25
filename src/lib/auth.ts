@@ -67,7 +67,13 @@ export async function registerApi(email: string, password: string, role: string)
     const err = await res.json().catch(() => ({}));
     throw new Error(err.error || `Register failed (${res.status})`);
   }
-  return res.json() as Promise<{ ok: boolean; email: string; role: string; message: string }>;
+  
+  // Safe JSON parsing
+  try {
+    return await res.json() as { ok: boolean; email: string; role: string; message: string };
+  } catch (err) {
+    throw new Error('Failed to parse registration response');
+  }
 }
 
 export async function meApi(token: string) {
@@ -75,7 +81,14 @@ export async function meApi(token: string) {
     headers: { Authorization: `Bearer ${token}` },
     cache: "no-store",
   });
-  return res.json();
+  
+  // Safe JSON parsing
+  try {
+    return await res.json();
+  } catch (err) {
+    // If JSON parsing fails, return empty object
+    return {};
+  }
 }
 
 // ---- local session helpers ----
@@ -121,12 +134,28 @@ export async function getCurrentUser() {
     });
     
     if (res.ok) {
-      const data = await res.json();
-      return data;
+      // Check content-type before parsing JSON
+      const contentType = res.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        try {
+          const data = await res.json();
+          return data;
+        } catch (err) {
+          // JSON parsing failed
+          return null;
+        }
+      }
+      // If not JSON, try to parse anyway but catch errors
+      try {
+        const data = await res.json();
+        return data;
+      } catch (err) {
+        return null;
+      }
     }
     return null;
   } catch (err) {
-    console.error('Failed to get current user:', err);
+    // Suppress errors - network issues shouldn't break the app
     return null;
   }
 }

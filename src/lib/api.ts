@@ -33,5 +33,21 @@ export async function apiGet(path: string) {
   const base = normalizeApiBase(process.env.NEXT_PUBLIC_STAR4CE_API_BASE);
   const res = await fetch(`${base}${path}`, { cache: "no-store" });
   if (!res.ok) throw new Error(`API ${path} failed: ${res.status}`);
-  return res.json();
+  
+  // Check content-type before parsing JSON
+  const contentType = res.headers.get('content-type');
+  if (contentType && contentType.includes('application/json')) {
+    try {
+      return await res.json();
+    } catch (err) {
+      throw new Error(`Failed to parse JSON response from ${path}`);
+    }
+  }
+  
+  // If not JSON, try to parse anyway but catch errors
+  try {
+    return await res.json();
+  } catch (err) {
+    throw new Error(`Response from ${path} is not valid JSON`);
+  }
 }

@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { API_BASE } from '@/lib/auth';
+import { API_BASE, getToken } from '@/lib/auth';
 import toast from 'react-hot-toast';
 
 function AdminSubscribePageContent() {
@@ -11,54 +11,67 @@ function AdminSubscribePageContent() {
   const searchParams = useSearchParams();
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
+  const [authCheckDone, setAuthCheckDone] = useState(false);
   const [error, setError] = useState('');
   const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'annual'>('monthly');
   const [isNavigatingToCheckout, setIsNavigatingToCheckout] = useState(false);
+  const canceledToastShown = useRef(false);
 
   useEffect(() => {
-    const emailParam = searchParams?.get('email');
     const subscriptionParam = searchParams?.get('subscription');
-    const userIdParam = searchParams?.get('user_id');
-    
-    if (emailParam) {
-      setEmail(emailParam);
-    } else {
-      // If no email, redirect back
-      router.push('/admin-register');
+    if (subscriptionParam === 'canceled' && !canceledToastShown.current) {
+      canceledToastShown.current = true;
+      toast.error('Subscription canceled. You can try again whenever you\'re ready.');
+    }
+  }, [searchParams]);
+
+  // Security: require login. Never trust email/user_id from URL — use only authenticated user.
+  useEffect(() => {
+    const token = getToken();
+    if (!token) {
+      const redirect = '/admin-subscribe' + (searchParams?.toString() ? `?${searchParams.toString()}` : '');
+      router.replace(`/login?redirect=${encodeURIComponent(redirect)}`);
       return;
     }
-
-    // Check if coming from canceled subscription
-    if (subscriptionParam === 'canceled') {
-      toast.error('Subscription canceled. Your account will be deleted.');
-      // Delete the account
-      setTimeout(async () => {
-        try {
-          await fetch(`${API_BASE}/admin/delete-unsubscribed`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-              email: emailParam,
-              user_id: userIdParam ? parseInt(userIdParam) : null
-            }),
-          });
-          toast.success('Account deleted. You can register again anytime.');
-          setTimeout(() => {
-            router.push('/');
-          }, 2000);
-        } catch (err) {
-          toast.error('Failed to delete account');
-          console.error(err);
+    fetch(`${API_BASE}/auth/me`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => res.json().catch(() => ({})))
+      .then((data) => {
+        if (data.subscription_required && data.email) {
+          setEmail((data.email || '').trim());
+          setAuthCheckDone(true);
+          return;
         }
-      }, 1000);
-    }
-
-    // No warning needed - system will handle cleanup automatically
+        if (data.subscription_active !== false && (data.user?.role === 'admin' || data.role === 'admin')) {
+          router.replace('/dashboard');
+          return;
+        }
+        if (data.user?.email) {
+          setEmail((data.user.email || '').trim());
+        } else if (data.email) {
+          setEmail((data.email || '').trim());
+        } else {
+          router.replace('/admin-register');
+          return;
+        }
+        setAuthCheckDone(true);
+      })
+      .catch(() => {
+        router.replace('/login?redirect=' + encodeURIComponent('/admin-subscribe'));
+      });
   }, [searchParams, router]);
 
   async function handleSubscribe(plan: 'monthly' | 'annual') {
     if (!email) {
       toast.error('Email is required');
+      return;
+    }
+
+    const token = getToken();
+    if (!token) {
+      toast.error('Please sign in to continue.');
+      router.replace('/login?redirect=' + encodeURIComponent('/admin-subscribe'));
       return;
     }
 
@@ -69,34 +82,17 @@ function AdminSubscribePageContent() {
       let dealershipInfo: any = null;
       try {
         const stored = localStorage.getItem('pending_dealership_info');
-        console.log('[CHECKOUT] Checking localStorage for dealership info:', stored);
-        console.log('[CHECKOUT] Current email from URL:', email);
         if (stored) {
           const parsed = JSON.parse(stored);
-          console.log('[CHECKOUT] Parsed dealership info:', parsed);
-          console.log('[CHECKOUT] Stored email:', parsed.email, 'Type:', typeof parsed.email);
-          console.log('[CHECKOUT] Current email (normalized):', email.trim().toLowerCase(), 'Type:', typeof email);
-          
-          // Normalize both emails for comparison
           const storedEmail = (parsed.email || '').trim().toLowerCase();
           const currentEmail = email.trim().toLowerCase();
-          
-          // Only use if email matches
           if (storedEmail === currentEmail) {
             dealershipInfo = parsed;
-            console.log('[CHECKOUT] ✅ Email match! Using dealership info for checkout:', dealershipInfo);
-            // Clean up after retrieving
             localStorage.removeItem('pending_dealership_info');
-          } else {
-            console.warn('[CHECKOUT] ❌ Email mismatch - stored:', storedEmail, 'current:', currentEmail);
-            console.warn('[CHECKOUT] Stored email length:', storedEmail.length, 'Current email length:', currentEmail.length);
           }
-        } else {
-          console.log('[CHECKOUT] No dealership info found in localStorage');
         }
-      } catch (e) {
+      } catch {
         // Ignore localStorage errors
-        console.error('[CHECKOUT] Failed to retrieve dealership info from localStorage:', e);
       }
 
       // Create checkout session - checkout endpoint will find user by email
@@ -112,31 +108,38 @@ function AdminSubscribePageContent() {
         checkoutBody.dealership_city = dealershipInfo.city || null;
         checkoutBody.dealership_state = dealershipInfo.state || null;
         checkoutBody.dealership_zip_code = dealershipInfo.zip_code || null;
-        console.log('[CHECKOUT] Sending dealership info to backend:', {
-          name: checkoutBody.dealership_name,
-          address: checkoutBody.dealership_address,
-          city: checkoutBody.dealership_city,
-          state: checkoutBody.dealership_state,
-          zip_code: checkoutBody.dealership_zip_code,
-        });
-      } else {
-        console.log('[CHECKOUT] No dealership info to send');
       }
 
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${(token || '').trim()}`,
+      };
       const checkoutRes = await fetch(`${API_BASE}/subscription/create-checkout`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(checkoutBody),
       });
 
       if (!checkoutRes.ok) {
-        // Try to parse error message
         let errorMsg = 'Failed to create checkout session';
         try {
           const errorData = await checkoutRes.json();
-          errorMsg = errorData.error || errorMsg;
+          const backendError = (errorData.error || '').trim();
+          if (checkoutRes.status === 401) {
+            errorMsg = backendError || 'Please sign in to subscribe or renew your subscription.';
+            // If token is invalid/expired, send to login so they can sign in and return here
+            if (/expired|invalid token|missing bearer|empty token|user not found/i.test(backendError)) {
+              toast.error('Session invalid or expired. Redirecting to sign in...');
+              router.replace('/login?redirect=' + encodeURIComponent('/admin-subscribe'));
+              setLoading(false);
+              return;
+            }
+          } else if (checkoutRes.status === 400 && (backendError.includes('not eligible') || backendError.includes('already registered') || backendError.includes('sign in to subscribe'))) {
+            errorMsg = "This email isn't registered for admin signup. Please create an account and verify your email first.";
+          } else {
+            errorMsg = backendError || errorMsg;
+          }
         } catch (e) {
-          // If response is not JSON, use status text
           errorMsg = `Server error: ${checkoutRes.status} ${checkoutRes.statusText}`;
         }
         setError(errorMsg);
@@ -157,12 +160,30 @@ function AdminSubscribePageContent() {
         setLoading(false);
       }
     } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : 'Network error. Please check if the backend server is running.';
+      const msg = err instanceof Error ? err.message : '';
+      const errorMsg = msg === 'Failed to fetch'
+        ? "Couldn't reach the server. If you haven't created an account yet, please register and verify your email first, then try again."
+        : msg || 'Network error. Please check your connection and try again.';
       setError(errorMsg);
       toast.error(errorMsg);
       setLoading(false);
       console.error('Checkout error:', err);
     }
+  }
+
+  if (!authCheckDone) {
+    return (
+      <div className="min-h-screen flex items-center justify-center py-12 px-4" style={{ background: '#0f172a' }}>
+        <div className="flex items-center gap-3 text-white">
+          <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+          <span>Loading...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (!email) {
+    return null;
   }
 
   return (
@@ -173,7 +194,6 @@ function AdminSubscribePageContent() {
         backgroundSize: 'cover',
         backgroundPosition: 'center',
         backgroundAttachment: 'fixed',
-        paddingTop: '140px',
       }}
     >
       {/* Blurred background overlay */}
@@ -189,8 +209,8 @@ function AdminSubscribePageContent() {
         <div className="bg-white rounded-lg shadow-2xl overflow-hidden">
           {/* Header */}
           <div className="bg-gradient-to-r from-[#071F45] to-[#203F70] p-8 text-white text-center">
-            <h1 className="text-3xl font-bold mb-2">🎉 Email Verified!</h1>
-            <p className="text-lg opacity-90">
+            <h1 className="text-3xl font-bold mb-2 text-white">Email Verified!</h1>
+            <p className="text-lg opacity-90 text-white">
               Your email has been verified. Please choose a subscription plan to become an admin.
             </p>
              <p className="text-sm text-white opacity-90 mt-2">
@@ -212,33 +232,35 @@ function AdminSubscribePageContent() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
               {/* Monthly Plan */}
               <div 
-                className={`bg-white rounded-xl border-2 p-6 cursor-pointer transition-all ${
+                className={`bg-white rounded-xl border-2 p-6 cursor-pointer transition-all min-h-[240px] flex flex-col ${
                   selectedPlan === 'monthly'
-                    ? 'border-[#0B2E65] shadow-lg scale-105'
+                    ? 'border-[#0B2E65] shadow-lg'
                     : 'border-gray-300 hover:border-gray-400'
                 }`}
                 onClick={() => setSelectedPlan('monthly')}
               >
-                <div className="text-center">
+                <div className="text-center flex-grow flex flex-col justify-center">
                   <h3 className="text-2xl font-bold text-gray-900 mb-2">Monthly</h3>
                   <div className="mb-4">
                     <span className="text-4xl font-bold text-[#0B2E65]">$199</span>
                     <span className="text-gray-600 ml-2">/ month</span>
                   </div>
-                  {selectedPlan === 'monthly' && (
-                    <div className="inline-block bg-[#0B2E65] text-white px-3 py-1 rounded-full text-sm font-semibold mb-4">
-                      Selected
-                    </div>
-                  )}
+                  <div className="h-8 mb-4 flex items-center justify-center">
+                    {selectedPlan === 'monthly' && (
+                      <div className="inline-block bg-[#0B2E65] text-white px-3 py-1 rounded-full text-sm font-semibold">
+                        Selected
+                      </div>
+                    )}
+                  </div>
                   <p className="text-sm text-gray-600">Billed monthly, cancel anytime</p>
                 </div>
               </div>
 
               {/* Annual Plan */}
               <div 
-                className={`bg-white rounded-xl border-2 p-6 cursor-pointer transition-all relative ${
+                className={`bg-white rounded-xl border-2 p-6 cursor-pointer transition-all relative min-h-[240px] flex flex-col ${
                   selectedPlan === 'annual'
-                    ? 'border-[#0B2E65] shadow-lg scale-105'
+                    ? 'border-[#0B2E65] shadow-lg'
                     : 'border-gray-300 hover:border-gray-400'
                 }`}
                 onClick={() => setSelectedPlan('annual')}
@@ -246,17 +268,19 @@ function AdminSubscribePageContent() {
                 <div className="absolute top-0 right-0 bg-[#e74c3c] text-white text-xs font-bold px-3 py-1 rounded-bl-lg rounded-tr-xl">
                   BEST VALUE
                 </div>
-                <div className="text-center">
+                <div className="text-center flex-grow flex flex-col justify-center">
                   <h3 className="text-2xl font-bold text-gray-900 mb-2">Annual</h3>
                   <div className="mb-4">
                     <span className="text-4xl font-bold text-[#0B2E65]">$166</span>
                     <span className="text-gray-600 ml-2">/ month</span>
                   </div>
-                  {selectedPlan === 'annual' && (
-                    <div className="inline-block bg-[#0B2E65] text-white px-3 py-1 rounded-full text-sm font-semibold mb-4">
-                      Selected
-                    </div>
-                  )}
+                  <div className="h-8 mb-4 flex items-center justify-center">
+                    {selectedPlan === 'annual' && (
+                      <div className="inline-block bg-[#0B2E65] text-white px-3 py-1 rounded-full text-sm font-semibold">
+                        Selected
+                      </div>
+                    )}
+                  </div>
                   <p className="text-sm text-gray-600 mb-1">Billed annually</p>
                   <p className="text-sm font-semibold text-[#e74c3c]">Save $396/year!</p>
                 </div>
@@ -267,7 +291,7 @@ function AdminSubscribePageContent() {
             <button
               onClick={() => handleSubscribe(selectedPlan)}
               disabled={loading || !email}
-              className="w-full bg-[#0B2E65] text-white py-4 rounded-lg font-semibold text-lg hover:bg-[#2c5aa0] transition-colors disabled:opacity-60 disabled:cursor-not-allowed mb-4"
+              className="w-full bg-[#0B2E65] text-white py-4 rounded-lg font-semibold text-lg hover:bg-[#2c5aa0] transition-colors disabled:opacity-60 disabled:cursor-not-allowed mb-4 cursor-pointer"
             >
               {loading ? 'Processing...' : `Subscribe to ${selectedPlan === 'monthly' ? 'Monthly' : 'Annual'} Plan`}
             </button>
