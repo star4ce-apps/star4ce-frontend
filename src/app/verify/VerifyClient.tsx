@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { API_BASE, getToken } from '@/lib/auth';
+import { API_BASE, getToken, saveSession } from '@/lib/auth';
 import Logo from '@/components/Logo';
 
 export default function VerifyPage() {
@@ -135,11 +135,22 @@ export default function VerifyPage() {
 
       // Check if this is an admin registration that needs to subscribe
       if (data.redirect_to_subscription || search.get('admin') === 'true') {
-        setMessage('Your email has been verified! Redirecting to sign in and choose a plan...');
-        // admin-subscribe requires login; send them to login then back to subscribe
-        setTimeout(() => {
-          router.push('/login?redirect=' + encodeURIComponent('/admin-subscribe'));
-        }, 1500);
+        // If backend returned token (post-verify auto-login), save session and go straight to subscribe
+        if (data.token && data.email && data.role) {
+          saveSession({ token: data.token, email: data.email, role: data.role });
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('auth-session-updated'));
+          }
+          setMessage('Your email has been verified! Redirecting to choose a plan...');
+          setTimeout(() => {
+            router.push('/admin-subscribe');
+          }, 1000);
+        } else {
+          setMessage('Your email has been verified! Redirecting to sign in and choose a plan...');
+          setTimeout(() => {
+            router.push('/login?redirect=' + encodeURIComponent('/admin-subscribe'));
+          }, 1500);
+        }
       } else if (data.is_manager_pending) {
         // Manager with pending request - show waiting message
         setMessage('Your email has been verified! Your request to join the dealership is pending admin approval. Please wait for an admin to approve your request before logging in.');
