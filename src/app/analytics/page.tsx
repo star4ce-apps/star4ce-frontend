@@ -280,17 +280,21 @@ export default function AnalyticsPage() {
   const totalNewHires = summary?.by_status?.['newly-hired'] || 0;
   const totalOnLeave = summary?.by_status?.leave || 0;
   const totalActive = summary?.by_status?.none || 0;
+  const hasEmployeeData = totalEmployees > 0;
   const turnoverRate: string =
-    typeof summary?.turnover_rate === 'number'
-      ? summary.turnover_rate.toFixed(1)
-      : totalEmployees > 0
-        ? ((totalTerminations + totalOnLeave) / totalEmployees * 100).toFixed(1)
-        : '0.0';
+    !hasEmployeeData
+      ? 'N/A'
+      : typeof summary?.turnover_rate === 'number'
+        ? summary.turnover_rate.toFixed(1)
+        : ((totalTerminations + totalOnLeave) / totalEmployees * 100).toFixed(1);
   const retentionRate: string =
-    typeof summary?.retention_rate === 'number'
-      ? summary.retention_rate.toFixed(1)
-      : (100 - parseFloat(turnoverRate)).toFixed(1);
-  const satisfactionAvg = averages?.satisfaction_avg?.toFixed(1) || '0.0';
+    !hasEmployeeData
+      ? 'N/A'
+      : typeof summary?.retention_rate === 'number'
+        ? summary.retention_rate.toFixed(1)
+        : (100 - parseFloat(turnoverRate)).toFixed(1);
+  const hasSurveyData = (averages?.total_responses ?? 0) > 0;
+  const satisfactionAvg = !hasSurveyData ? 'N/A' : (averages?.satisfaction_avg?.toFixed(1) ?? '0.0');
   const trainingAvg = averages?.training_avg?.toFixed(1) || '0.0';
   // Survey responses = count of survey responses (from /analytics/averages). Summary.total_responses is ending headcount, not survey count.
   const surveyResponseCount = averages?.total_responses ?? 0;
@@ -450,15 +454,15 @@ export default function AnalyticsPage() {
             </div>
           )}
 
-          {/* KPI Cards - Clean minimal style */}
+          {/* KPI Cards - Clean minimal style; show N/A when no data */}
           <div className="grid grid-cols-6 gap-4 mb-8">
             {[
               { label: 'Total Employees', value: totalEmployees, sub: `+${totalNewHires} new`, color: '#394B67' },
-              { label: 'Turnover Rate', value: `${turnoverRate}%`, sub: `${totalTerminations} left`, color: COLORS.negative },
-              { label: 'Retention', value: `${retentionRate}%`, sub: 'current', color: COLORS.success },
+              { label: 'Turnover Rate', value: turnoverRate === 'N/A' ? 'N/A' : `${turnoverRate}%`, sub: hasEmployeeData ? `${totalTerminations} left` : '—', color: COLORS.negative },
+              { label: 'Retention', value: retentionRate === 'N/A' ? 'N/A' : `${retentionRate}%`, sub: hasEmployeeData ? 'current' : '—', color: COLORS.success },
               { label: 'On Leave', value: totalOnLeave, sub: 'employees', color: '#394B67' },
               { label: 'Survey responses', value: surveyResponseCount, sub: 'last 30 days', color: '#394B67' },
-              { label: 'Satisfaction', value: `${satisfactionAvg}`, sub: 'out of 5.0', color: '#394B67' },
+              { label: 'Satisfaction', value: satisfactionAvg, sub: satisfactionAvg === 'N/A' ? '—' : 'out of 5.0', color: '#394B67' },
             ].map((kpi, idx) => (
               <div key={idx} className="rounded-xl p-5" style={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}` }}>
                 <p className="text-xs font-medium uppercase tracking-wide mb-3" style={{ color: COLORS.gray[400] }}>{kpi.label}</p>
