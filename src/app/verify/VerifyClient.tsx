@@ -137,13 +137,18 @@ export default function VerifyPage() {
       if (data.redirect_to_subscription || search.get('admin') === 'true') {
         // If backend returned token (post-verify auto-login), save session and go straight to subscribe
         if (data.token && data.email && data.role) {
-          saveSession({ token: data.token, email: data.email, role: data.role });
+          saveSession({
+            token: String(data.token || '').trim(),
+            email: String(data.email || '').trim(),
+            role: String(data.role || 'manager').trim(),
+          });
           if (typeof window !== 'undefined') {
             window.dispatchEvent(new CustomEvent('auth-session-updated'));
           }
           setMessage('Your email has been verified! Redirecting to choose a plan...');
+          // Full page navigation so admin-subscribe loads with the saved token in localStorage
           setTimeout(() => {
-            router.push('/admin-subscribe');
+            window.location.href = '/admin-subscribe';
           }, 1000);
         } else {
           setMessage('Your email has been verified! Redirecting to sign in and choose a plan...');

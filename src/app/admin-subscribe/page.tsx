@@ -68,6 +68,13 @@ function AdminSubscribePageContent() {
       return;
     }
 
+    const token = getToken();
+    if (!token) {
+      toast.error('Please sign in to continue.');
+      router.replace('/login?redirect=' + encodeURIComponent('/admin-subscribe'));
+      return;
+    }
+
     setLoading(true);
     setError('');
     try {
@@ -129,9 +136,10 @@ function AdminSubscribePageContent() {
         console.log('[CHECKOUT] No dealership info to send');
       }
 
-      const token = getToken();
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${(token || '').trim()}`,
+      };
       const checkoutRes = await fetch(`${API_BASE}/subscription/create-checkout`, {
         method: 'POST',
         headers,
@@ -143,7 +151,16 @@ function AdminSubscribePageContent() {
         try {
           const errorData = await checkoutRes.json();
           const backendError = (errorData.error || '').trim();
-          if (checkoutRes.status === 400 && (backendError.includes('not eligible') || backendError.includes('already registered') || backendError.includes('sign in to subscribe'))) {
+          if (checkoutRes.status === 401) {
+            errorMsg = backendError || 'Please sign in to subscribe or renew your subscription.';
+            // If token is invalid/expired, send to login so they can sign in and return here
+            if (/expired|invalid token|missing bearer|empty token|user not found/i.test(backendError)) {
+              toast.error('Session invalid or expired. Redirecting to sign in...');
+              router.replace('/login?redirect=' + encodeURIComponent('/admin-subscribe'));
+              setLoading(false);
+              return;
+            }
+          } else if (checkoutRes.status === 400 && (backendError.includes('not eligible') || backendError.includes('already registered') || backendError.includes('sign in to subscribe'))) {
             errorMsg = "This email isn't registered for admin signup. Please create an account and verify your email first.";
           } else {
             errorMsg = backendError || errorMsg;
