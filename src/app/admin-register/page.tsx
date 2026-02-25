@@ -326,9 +326,6 @@ function AdminRegisterPageContent() {
             email: email.trim().toLowerCase(),
           };
           localStorage.setItem('pending_dealership_info', JSON.stringify(dealershipInfo));
-          console.log('[REGISTER] Stored dealership info in localStorage:', dealershipInfo);
-        } else {
-          console.log('[REGISTER] No dealership info to store');
         }
 
         // Redirect to verification page - user must verify email first, then subscribe

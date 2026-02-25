@@ -636,7 +636,6 @@ export default function UserManagementPage() {
             try {
               // Update permission
               const url = `${API_BASE}/admin/managers/${managerId}/permissions`;
-              console.log('Updating permission:', { url, permissionKey, allowed, managerId });
               
               const permRes = await fetch(url, {
                 method: 'POST',
@@ -650,7 +649,6 @@ export default function UserManagementPage() {
                 }),
               });
 
-              console.log('Permission update response:', { status: permRes.status, ok: permRes.ok });
 
               if (!permRes.ok) {
                 const data = await permRes.json().catch(() => ({ error: 'Failed to update permission' }));

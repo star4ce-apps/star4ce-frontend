@@ -262,7 +262,6 @@ export default function TerminationPage() {
             data = await getJsonAuth('/role-history?limit=500');
           } catch (roleHistoryErr) {
             // If role history also fails, just set empty records
-            console.log('Could not load exit records:', roleHistoryErr);
             setExitRecords([]);
             return;
           }
@@ -394,7 +393,6 @@ export default function TerminationPage() {
         }
         // If endpoint doesn't exist (404), the record will be tracked via role history
         if (!errorMsg.includes('404')) {
-          console.log('Exit endpoint not available, using role history');
         }
       }
 

@@ -505,7 +505,6 @@ export default function CandidateProfilePage() {
           });
 
           if (!historyRes.ok) {
-            console.warn('Failed to create role history entry, but employee was created');
           }
         } catch (err) {
           console.error('Error creating role history entry:', err);
