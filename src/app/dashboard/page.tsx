@@ -952,7 +952,7 @@ function DashboardContent() {
                 {/* Left: Turnover Trend */}
                 <div className="flex-1 min-w-0">
                   <h2 className="text-sm font-medium mb-3" style={{ color: COLORS.gray[900] }}>Turnover Trend</h2>
-                  {turnoverTimeSeries.length > 0 ? (
+                  {turnoverTimeSeries.length > 0 && turnoverTimeSeries.some(d => (d.value ?? 0) > 0) ? (
                     <ResponsiveContainer width="100%" height={180}>
                       <LineChart data={turnoverTimeSeries} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke={COLORS.gray[200]} />
