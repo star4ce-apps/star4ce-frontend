@@ -454,8 +454,8 @@ export default function EmployeeProfilePage() {
         return;
       }
 
-      const currentUser = getCurrentUser();
-      const currentUserFullName = currentUser?.name || currentUser?.email || 'Manager';
+      const userData = await getCurrentUser();
+      const currentUserFullName = userData?.user?.full_name || userData?.user?.email || 'Manager';
 
       // Calculate average score
       const scores = [ratings.jobKnowledge, ratings.workQuality, ratings.servicePerformance, ratings.teamwork, ratings.attendance];
@@ -828,8 +828,8 @@ ${managerNotes.trim()}` : ''}`;
             // Get current user info for role history
             let changedBy = 'Unknown';
             try {
-              const currentUser = getCurrentUser();
-              changedBy = currentUser?.name || currentUser?.email || 'Unknown';
+              const userData = await getCurrentUser();
+              changedBy = userData?.user?.full_name || userData?.user?.email || 'Unknown';
             } catch (err) {
               console.error('Failed to get user info:', err);
             }
