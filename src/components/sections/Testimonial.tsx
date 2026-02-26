@@ -33,6 +33,7 @@ export default function Testimonial() {
           <div className="relative w-full" style={{ paddingBottom: '56.25%' }}> {/* 16:9 aspect ratio */}
             <video
               className="absolute top-0 left-0 w-full h-full rounded-lg shadow-2xl"
+              src="/videos/intro.mp4"
               controls
               autoPlay
               muted
@@ -41,8 +42,6 @@ export default function Testimonial() {
               preload="auto"
               style={{ objectFit: 'cover' }}
             >
-              <source src="/videos/intro.mp4" type="video/mp4" />
-              <source src="/videos/intro.webm" type="video/webm" />
               Your browser does not support the video tag.
             </video>
           </div>
