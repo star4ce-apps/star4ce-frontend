@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import Link from 'next/link';is set in your deployment platform (Railway).`
+import Link from 'next/link';
 import { API_BASE } from '@/lib/auth';
 import toast from 'react-hot-toast';
 import Logo from '@/components/Logo';
