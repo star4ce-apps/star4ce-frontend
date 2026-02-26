@@ -347,7 +347,7 @@ function AdminRegisterPageContent() {
       router.push(`/verify?email=${encodeURIComponent(email.trim().toLowerCase())}&admin=true`);
     } catch (err) {
       const errorMessage = err instanceof TypeError && err.message === 'Failed to fetch'
-        ? `Unable to connect to backend server. Please ensure the backend is deployed and the NEXT_PUBLIC_STAR4CE_API_BASE environment variable is set in Vercel.`
+        ? `Unable to connect to backend server. Please ensure the backend is deployed and the NEXT_PUBLIC_STAR4CE_API_BASE environment variable is set in your deployment platform (Railway).`
         : (err instanceof Error ? err.message : 'Failed to process registration. Please try again.');
       setError(errorMessage);
       toast.error(errorMessage);
