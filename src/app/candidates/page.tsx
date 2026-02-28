@@ -931,7 +931,16 @@ export default function CandidatesPage() {
                   <h2 className="text-xl font-bold mb-0.5" style={{ color: '#FFFFFF' }}>Add a Candidate</h2>
                   <p className="text-xs" style={{ color: '#E0E7FF' }}>Enter candidate information</p>
                 </div>
-                <form onSubmit={(e) => handleSubmit(e)} className="p-6 overflow-y-auto flex-1 rounded-b-xl" style={{ minHeight: 0 }}>
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleSubmit(e);
+                  }}
+                  noValidate
+                  className="p-6 overflow-y-auto flex-1 rounded-b-xl"
+                  style={{ minHeight: 0 }}
+                >
                   {/* Step 1: Personal Information */}
                   {formStep === 1 && (
                     <div className="space-y-4">
@@ -1196,8 +1205,16 @@ export default function CandidatesPage() {
                         <div
                           role="button"
                           tabIndex={0}
-                          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') resumeInputRef.current?.click(); }}
-                          onClick={() => resumeInputRef.current?.click()}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault();
+                              resumeInputRef.current?.click();
+                            }
+                          }}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            resumeInputRef.current?.click();
+                          }}
                           onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setResumeDragActive(true); }}
                           onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setResumeDragActive(false); }}
                           onDrop={(e) => {
