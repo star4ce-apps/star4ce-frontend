@@ -920,6 +920,12 @@ export default function CandidatesPage() {
             <div 
               className="fixed inset-0 z-50 flex items-center justify-center p-4"
               style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}
+              onMouseDown={(e) => {
+                if (e.target === e.currentTarget) {
+                  e.preventDefault();
+                  resetForm();
+                }
+              }}
             >
               <div 
                 className="bg-white rounded-xl shadow-2xl flex flex-col overflow-hidden"
