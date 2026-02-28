@@ -418,37 +418,27 @@ export default function CandidatesPage() {
         referral: referral || undefined,
       };
 
-      let res: Response;
-      if (resumeFile) {
-        const formDataToSend = new FormData();
-        formDataToSend.append('name', name);
-        formDataToSend.append('email', payload.email);
-        formDataToSend.append('phone', payload.phone ?? '');
-        formDataToSend.append('position', payload.position);
-        formDataToSend.append('status', payload.status);
-        formDataToSend.append('notes', payload.notes ?? '');
-        if (address) formDataToSend.append('address', address);
-        if (dateOfBirth) formDataToSend.append('date_of_birth', dateOfBirth);
-        if (payload.gender) formDataToSend.append('gender', payload.gender);
-        if (payload.university) formDataToSend.append('university', payload.university);
-        if (payload.degree) formDataToSend.append('degree', payload.degree);
-        if (payload.referral) formDataToSend.append('referral', payload.referral);
-        formDataToSend.append('resume', resumeFile);
-        res = await fetch(`${API_BASE}/candidates`, {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${token}` },
-          body: formDataToSend,
-        });
-      } else {
-        res = await fetch(`${API_BASE}/candidates`, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(payload),
-        });
-      }
+      // Always send multipart/form-data so resume can be included if present
+      const formDataToSend = new FormData();
+      formDataToSend.append('name', name);
+      formDataToSend.append('email', payload.email);
+      formDataToSend.append('phone', payload.phone ?? '');
+      formDataToSend.append('position', payload.position);
+      formDataToSend.append('status', payload.status);
+      formDataToSend.append('notes', payload.notes ?? '');
+      if (address) formDataToSend.append('address', address);
+      if (dateOfBirth) formDataToSend.append('date_of_birth', dateOfBirth);
+      if (payload.gender) formDataToSend.append('gender', payload.gender);
+      if (payload.university) formDataToSend.append('university', payload.university);
+      if (payload.degree) formDataToSend.append('degree', payload.degree);
+      if (payload.referral) formDataToSend.append('referral', payload.referral);
+      if (resumeFile) formDataToSend.append('resume', resumeFile);
+
+      const res = await fetch(`${API_BASE}/candidates`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formDataToSend,
+      });
 
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
