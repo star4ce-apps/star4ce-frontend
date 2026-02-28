@@ -649,7 +649,11 @@ export default function CandidatesPage() {
               {role !== 'corporate' && (
                 <div className="flex gap-3">
                   <button
-                    onClick={() => setShowModal(true)}
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setShowModal(true);
+                    }}
                     className="cursor-pointer px-4 py-2 rounded-lg font-medium text-sm transition-colors"
                     style={{ 
                       backgroundColor: '#4D6DBE', 
