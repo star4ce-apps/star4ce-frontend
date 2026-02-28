@@ -432,7 +432,10 @@ export default function CandidatesPage() {
       if (payload.university) formDataToSend.append('university', payload.university);
       if (payload.degree) formDataToSend.append('degree', payload.degree);
       if (payload.referral) formDataToSend.append('referral', payload.referral);
-      if (resumeFile) formDataToSend.append('resume', resumeFile);
+      const fileToUpload = resumeFile ?? resumeInputRef.current?.files?.[0] ?? null;
+      if (fileToUpload) {
+        formDataToSend.append('resume', fileToUpload);
+      }
 
       const res = await fetch(`${API_BASE}/candidates`, {
         method: 'POST',
