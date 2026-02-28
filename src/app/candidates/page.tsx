@@ -330,8 +330,8 @@ export default function CandidatesPage() {
     }
   }
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  async function handleSubmit(e?: React.FormEvent) {
+    if (e) e.preventDefault();
     setError(null);
 
     // If on step 1, validate step 1 fields and move to step 2
@@ -922,7 +922,7 @@ export default function CandidatesPage() {
                   <h2 className="text-xl font-bold mb-0.5" style={{ color: '#FFFFFF' }}>Add a Candidate</h2>
                   <p className="text-xs" style={{ color: '#E0E7FF' }}>Enter candidate information</p>
                 </div>
-                <form onSubmit={handleSubmit} className="p-6 overflow-y-auto flex-1 rounded-b-xl" style={{ minHeight: 0 }}>
+                <form onSubmit={(e) => handleSubmit(e)} className="p-6 overflow-y-auto flex-1 rounded-b-xl" style={{ minHeight: 0 }}>
                   {/* Step 1: Personal Information */}
                   {formStep === 1 && (
                     <div className="space-y-4">
@@ -1495,10 +1495,11 @@ export default function CandidatesPage() {
                         Cancel
                       </button>
                       <button
-                        type="submit"
+                        type="button"
                         disabled={loading}
                         className="cursor-pointer px-5 py-2 text-sm font-semibold text-white rounded-lg transition-all hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed"
                         style={{ backgroundColor: '#4D6DBE' }}
+                        onClick={() => handleSubmit()}
                       >
                         {loading ? 'Adding...' : formStep === 1 ? 'Next →' : 'Add Candidate'}
                       </button>
