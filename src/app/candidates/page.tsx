@@ -189,6 +189,7 @@ export default function CandidatesPage() {
   const [resumeFile, setResumeFile] = useState<File | null>(null);
   const [resumeDragActive, setResumeDragActive] = useState(false);
   const resumeInputRef = useRef<HTMLInputElement>(null);
+  const resumeFileRef = useRef<File | null>(null);
 
   const departments = [
     'Sales Department',
@@ -432,7 +433,11 @@ export default function CandidatesPage() {
       if (payload.university) formDataToSend.append('university', payload.university);
       if (payload.degree) formDataToSend.append('degree', payload.degree);
       if (payload.referral) formDataToSend.append('referral', payload.referral);
-      const fileToUpload = resumeFile ?? resumeInputRef.current?.files?.[0] ?? null;
+      const fileToUpload =
+        resumeFileRef.current ??
+        resumeInputRef.current?.files?.[0] ??
+        resumeFile ??
+        null;
       if (fileToUpload) {
         formDataToSend.append('resume', fileToUpload);
       }
@@ -483,6 +488,10 @@ export default function CandidatesPage() {
     setCustomDepartment('');
     setReferrals([]);
     setResumeFile(null);
+    resumeFileRef.current = null;
+    if (resumeInputRef.current) {
+      resumeInputRef.current.value = '';
+    }
     setFormStep(1);
     setShowModal(false);
     setError(null);
@@ -1168,7 +1177,12 @@ export default function CandidatesPage() {
                           className="sr-only"
                           onChange={(e) => {
                             const file = e.target.files?.[0] || null;
-                            if (file && !/\.(pdf|doc|docx)$/i.test(file.name)) return;
+                            if (file && !/\.(pdf|doc|docx)$/i.test(file.name)) {
+                              resumeFileRef.current = null;
+                              setResumeFile(null);
+                              return;
+                            }
+                            resumeFileRef.current = file;
                             setResumeFile(file);
                           }}
                         />
@@ -1184,8 +1198,14 @@ export default function CandidatesPage() {
                             e.stopPropagation();
                             setResumeDragActive(false);
                             const file = e.dataTransfer.files?.[0];
-                            if (file && /\.(pdf|doc|docx)$/i.test(file.name)) setResumeFile(file);
-                            else if (file) toast.error('Please use PDF, DOC, or DOCX.');
+                            if (file && /\.(pdf|doc|docx)$/i.test(file.name)) {
+                              resumeFileRef.current = file;
+                              setResumeFile(file);
+                            } else if (file) {
+                              resumeFileRef.current = null;
+                              setResumeFile(null);
+                              toast.error('Please use PDF, DOC, or DOCX.');
+                            }
                           }}
                           className="mt-1 rounded-lg border-2 border-dashed transition-colors cursor-pointer flex flex-col items-center justify-center gap-2 py-6 px-4 min-h-[120px]"
                           style={{
