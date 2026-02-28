@@ -1191,6 +1191,7 @@ export default function CandidatesPage() {
                       <div>
                         <label className="block text-sm font-semibold mb-1.5" style={{ color: '#374151' }}>Resume</label>
                         <input
+                          id="resume-upload"
                           ref={resumeInputRef}
                           type="file"
                           accept=".pdf,.doc,.docx"
@@ -1200,25 +1201,15 @@ export default function CandidatesPage() {
                             if (file && !/\.(pdf|doc|docx)$/i.test(file.name)) {
                               resumeFileRef.current = null;
                               setResumeFile(null);
+                              toast.error('Please use PDF, DOC, or DOCX.');
                               return;
                             }
                             resumeFileRef.current = file;
                             setResumeFile(file);
                           }}
                         />
-                        <div
-                          role="button"
-                          tabIndex={0}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' || e.key === ' ') {
-                              e.preventDefault();
-                              resumeInputRef.current?.click();
-                            }
-                          }}
-                          onClick={(e) => {
-                            e.preventDefault();
-                            resumeInputRef.current?.click();
-                          }}
+                        <label
+                          htmlFor="resume-upload"
                           onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setResumeDragActive(true); }}
                           onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setResumeDragActive(false); }}
                           onDrop={(e) => {
@@ -1260,7 +1251,7 @@ export default function CandidatesPage() {
                               <p className="text-xs" style={{ color: '#6B7280' }}>PDF, DOC, or DOCX</p>
                             </>
                           )}
-                        </div>
+                        </label>
                       </div>
 
                       {/* Optional Information Section */}
