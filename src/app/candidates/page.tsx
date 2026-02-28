@@ -354,6 +354,11 @@ export default function CandidatesPage() {
       setError('Please enter a department name');
       return;
     }
+    if (!resumeFileRef.current) {
+      setError('Please upload a resume before submitting');
+      toast.error('Resume is required to submit');
+      return;
+    }
 
     setLoading(true);
     try {
@@ -440,6 +445,8 @@ export default function CandidatesPage() {
         null;
       if (fileToUpload) {
         formDataToSend.append('resume', fileToUpload);
+      } else {
+        throw new Error('Resume file is missing. Please re-upload and try again.');
       }
 
       const res = await fetch(`${API_BASE}/candidates`, {
