@@ -190,6 +190,7 @@ export default function CandidatesPage() {
   const [resumeDragActive, setResumeDragActive] = useState(false);
   const resumeInputRef = useRef<HTMLInputElement>(null);
   const resumeFileRef = useRef<File | null>(null);
+  const lastLoadRef = useRef(0);
 
   const departments = [
     'Sales Department',
@@ -302,12 +303,7 @@ export default function CandidatesPage() {
     loadCandidates();
   }, []);
 
-  // Refetch when user returns to this tab so list reflects updates (e.g. after denying on detail page)
-  useEffect(() => {
-    const onFocus = () => loadCandidates();
-    window.addEventListener('focus', onFocus);
-    return () => window.removeEventListener('focus', onFocus);
-  }, []);
+  // Intentionally no refetch on window focus
 
   async function loadCandidates() {
     setLoading(true);
@@ -327,6 +323,7 @@ export default function CandidatesPage() {
       setError('Failed to load candidates');
       console.error(err);
     } finally {
+      lastLoadRef.current = Date.now();
       setLoading(false);
     }
   }
