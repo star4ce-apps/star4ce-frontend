@@ -149,23 +149,11 @@ export default function CandidateProfilePage() {
     loadUserRole();
     loadCandidates();
     
-    // Reload candidate data when page gains focus (e.g., when navigating back)
-    const handleFocus = () => {
-      if (candidateId && !isNaN(candidateId)) {
-        loadCandidates().then(() => {
-          // loadCandidate will be called automatically when allCandidates updates
-        });
-      }
-    };
-    
-    window.addEventListener('focus', handleFocus);
-    
     // Cleanup timeout on unmount
     return () => {
       if (notesTimeoutRef.current) {
         clearTimeout(notesTimeoutRef.current);
       }
-      window.removeEventListener('focus', handleFocus);
     };
   }, []);
 
@@ -179,24 +167,6 @@ export default function CandidateProfilePage() {
       loadCandidate();
     }
   }, [candidateId, allCandidates]);
-
-  // Reload candidate when page becomes visible (e.g., when navigating back)
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (!document.hidden && candidateId && !isNaN(candidateId)) {
-        // Reload candidate data when page becomes visible
-        loadCandidates().then(() => {
-          loadCandidate();
-        });
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, [candidateId]);
 
   // Fetch resume with auth for preview (iframe cannot send Authorization header)
   useEffect(() => {

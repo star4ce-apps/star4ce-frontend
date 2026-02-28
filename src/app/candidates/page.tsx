@@ -190,7 +190,6 @@ export default function CandidatesPage() {
   const [resumeDragActive, setResumeDragActive] = useState(false);
   const resumeInputRef = useRef<HTMLInputElement>(null);
   const resumeFileRef = useRef<File | null>(null);
-  const lastLoadRef = useRef(0);
 
   const departments = [
     'Sales Department',
@@ -323,7 +322,6 @@ export default function CandidatesPage() {
       setError('Failed to load candidates');
       console.error(err);
     } finally {
-      lastLoadRef.current = Date.now();
       setLoading(false);
     }
   }
