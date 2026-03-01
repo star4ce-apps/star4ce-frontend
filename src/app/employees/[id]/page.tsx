@@ -387,6 +387,8 @@ export default function EmployeeProfilePage() {
   const [managerNotes, setManagerNotes] = useState('');
   const [submittingReview, setSubmittingReview] = useState(false);
   const [expandedReviewIndex, setExpandedReviewIndex] = useState<number | null>(null);
+  const [editingReviewId, setEditingReviewId] = useState<number | null>(null);
+  const [reviewDate, setReviewDate] = useState<string>('');
 
   useEffect(() => {
     if (isNaN(employeeId) || !employeeId) {
@@ -403,17 +405,54 @@ export default function EmployeeProfilePage() {
   }, [employeeId]);
 
   function openReviewModal() {
+    setEditingReviewId(null);
     setRatings({ jobKnowledge: 0, workQuality: 0, servicePerformance: 0, teamwork: 0, attendance: 0 });
     setStrengths([]);
     setImprovements([]);
     setStrengthInput('');
     setImprovementInput('');
     setManagerNotes('');
+    setReviewDate(new Date().toISOString().split('T')[0]);
+    setShowReviewModal(true);
+  }
+
+  function openEditReviewModal(log: ReviewLogItem) {
+    if (!log.id) return;
+    setEditingReviewId(log.id);
+    setRatings({
+      jobKnowledge: typeof log.job_knowledge === 'number' ? log.job_knowledge : 0,
+      workQuality: typeof log.work_quality === 'number' ? log.work_quality : 0,
+      servicePerformance: typeof log.service_performance === 'number' ? log.service_performance : 0,
+      teamwork: typeof log.teamwork === 'number' ? log.teamwork : 0,
+      attendance: typeof log.attendance === 'number' ? log.attendance : 0,
+    });
+    const strList = Array.isArray(log.strengths) ? log.strengths : (log.strengths ? [String(log.strengths)] : []);
+    const impList = Array.isArray(log.improvements) ? log.improvements : (log.improvements ? [String(log.improvements)] : []);
+    setStrengths(strList);
+    setImprovements(impList);
+    setStrengthInput('');
+    setImprovementInput('');
+    setManagerNotes(log.notes || '');
+    setReviewDate(log.review_date || new Date().toISOString().split('T')[0]);
     setShowReviewModal(true);
   }
 
   function closeReviewModal() {
     setShowReviewModal(false);
+    setEditingReviewId(null);
+  }
+
+  async function handleDeleteReview(reviewId: number) {
+    if (!employee) return;
+    if (!confirm('Are you sure you want to delete this performance review? This cannot be undone.')) return;
+    try {
+      await deleteJsonAuth(`/employees/${employee.id}/performance-reviews/${reviewId}`);
+      toast.success('Performance review deleted.');
+      await loadEmployee();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to delete review';
+      toast.error(message);
+    }
   }
 
   function handleAddStrength(e: React.KeyboardEvent<HTMLInputElement>) {
@@ -482,24 +521,28 @@ export default function EmployeeProfilePage() {
       const allStrengths = strengths.length ? strengths : (strengthInput.trim() ? [strengthInput.trim()] : []);
       const allImprovements = improvements.length ? improvements : (improvementInput.trim() ? [improvementInput.trim()] : []);
 
-      // Submit to API endpoint
-      await postJsonAuth(
-        `/employees/${employee.id}/performance-reviews`,
-        {
-          review_date: new Date().toISOString().split('T')[0],
-          job_knowledge: ratings.jobKnowledge || 0,
-          work_quality: ratings.workQuality || 0,
-          service_performance: ratings.servicePerformance || 0,
-          teamwork: ratings.teamwork || 0,
-          attendance: ratings.attendance || 0,
-          overall_rating: averageScore,
-          strengths: allStrengths.length ? allStrengths : undefined,
-          improvements: allImprovements.length ? allImprovements : undefined,
-          notes: managerNotes.trim() || undefined,
-        }
-      );
+      const payload = {
+        review_date: reviewDate || new Date().toISOString().split('T')[0],
+        job_knowledge: ratings.jobKnowledge || 0,
+        work_quality: ratings.workQuality || 0,
+        service_performance: ratings.servicePerformance || 0,
+        teamwork: ratings.teamwork || 0,
+        attendance: ratings.attendance || 0,
+        overall_rating: averageScore,
+        strengths: allStrengths.length ? allStrengths : undefined,
+        improvements: allImprovements.length ? allImprovements : undefined,
+        notes: managerNotes.trim() || undefined,
+      };
 
-      // Also update employee notes (for backward compatibility)
+      if (editingReviewId) {
+        await putJsonAuth(`/employees/${employee.id}/performance-reviews/${editingReviewId}`, payload);
+        toast.success('Performance review updated.');
+      } else {
+        await postJsonAuth(`/employees/${employee.id}/performance-reviews`, payload);
+      }
+
+      // Also update employee notes (for backward compatibility) — only when creating new review
+      if (!editingReviewId) {
       const newReviewNotes = `Performance Review Stage: ${reviewNumber}
 Reviewer: ${currentUserFullName}
 Role: ${employee.position || 'N/A'}
@@ -531,8 +574,9 @@ ${managerNotes.trim()}` : ''}`;
         `/employees/${employee.id}`,
         { notes: updatedNotes }
       );
+      }
 
-      toast.success('Performance review saved.');
+      if (!editingReviewId) toast.success('Performance review saved.');
       closeReviewModal();
       
       // Reload employee data to refresh review logs
@@ -1160,11 +1204,39 @@ ${managerNotes.trim()}` : ''}`;
                                       Performance Review {reviewNumber} completed by {log.reviewer || log.reviewer_name || 'Unknown Reviewer'}
                                     </p>
                                   </div>
-                                  {log.review_date && (
-                                    <div className="flex-shrink-0 text-sm" style={{ color: '#6B7280' }}>
-                                      {new Date(log.review_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                                    </div>
-                                  )}
+                                  <div className="flex flex-shrink-0 items-center gap-2">
+                                    {log.review_date && (
+                                      <span className="text-sm" style={{ color: '#6B7280' }}>
+                                        {new Date(log.review_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                      </span>
+                                    )}
+                                    {role !== 'corporate' && log.id && (
+                                      <>
+                                        <button
+                                          type="button"
+                                          onClick={() => openEditReviewModal(log)}
+                                          className="cursor-pointer p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                                          title="Edit review"
+                                          style={{ border: '1px solid #E5E7EB' }}
+                                        >
+                                          <svg className="w-4 h-4" style={{ color: '#4D6DBE' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                          </svg>
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleDeleteReview(log.id!)}
+                                          className="cursor-pointer p-2 rounded-lg hover:bg-red-50 transition-colors"
+                                          title="Delete review"
+                                          style={{ border: '1px solid #FECACA' }}
+                                        >
+                                          <svg className="w-4 h-4" style={{ color: '#DC2626' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                          </svg>
+                                        </button>
+                                      </>
+                                    )}
+                                  </div>
                                 </div>
                               </div>
                             </div>
@@ -1827,7 +1899,7 @@ ${managerNotes.trim()}` : ''}`;
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex-shrink-0 px-6 py-4 rounded-t-xl" style={{ backgroundColor: '#4D6DBE' }}>
-                <h2 className="text-xl font-bold text-white">Employee Performance Review</h2>
+                <h2 className="text-xl font-bold text-white">{editingReviewId ? 'Edit Performance Review' : 'Employee Performance Review'}</h2>
               </div>
               <div className="flex-1 overflow-y-auto p-6" style={{ minHeight: 0 }}>
                 
@@ -1848,10 +1920,14 @@ ${managerNotes.trim()}` : ''}`;
                       </div>
                     </div>
                     <div>
-                      <div className="text-xs" style={{ color: '#9CA3AF' }}>Review Date</div>
-                      <div className="text-sm" style={{ color: '#232E40' }}>
-                        {new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
-                      </div>
+                      <label className="block text-xs mb-1" style={{ color: '#9CA3AF' }}>Review Date</label>
+                      <input
+                        type="date"
+                        value={reviewDate || ''}
+                        onChange={(e) => setReviewDate(e.target.value)}
+                        className="w-full px-3 py-2 rounded-lg border text-sm"
+                        style={{ borderColor: '#E5E7EB', color: '#232E40' }}
+                      />
                     </div>
                     <div>
                       <div className="text-xs" style={{ color: '#9CA3AF' }}>Department</div>
@@ -1999,7 +2075,7 @@ ${managerNotes.trim()}` : ''}`;
                     className="cursor-pointer px-6 py-2 text-sm font-semibold text-white rounded-lg transition-all hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed"
                     style={{ backgroundColor: '#4D6DBE' }}
                   >
-                    {submittingReview ? 'Saving...' : 'Confirm'}
+                    {submittingReview ? 'Saving...' : editingReviewId ? 'Update' : 'Confirm'}
                   </button>
                 </div>
               </div>
