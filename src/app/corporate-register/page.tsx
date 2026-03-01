@@ -141,8 +141,10 @@ export default function CorporateRegisterPage() {
         }
         const data = await res.json().catch(() => ({}));
         if (data.ok) {
+          const verificationCode = data?.verification_code;
           toast.success(data.message || 'Registration successful! Please check your email for the verification code.');
-          router.push(`/verify?email=${encodeURIComponent(email)}`);
+          const verifyUrl = `/verify?email=${encodeURIComponent(email)}${verificationCode ? `&code=${encodeURIComponent(verificationCode)}` : ''}`;
+          router.push(verifyUrl);
         }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to register. Please try again.';

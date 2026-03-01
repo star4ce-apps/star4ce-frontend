@@ -9,6 +9,7 @@ import Logo from '@/components/Logo';
 export default function VerifyPage() {
   const search = useSearchParams();
   const router = useRouter();
+  const devCode = search.get('code') || '';
 
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
@@ -40,11 +41,14 @@ export default function VerifyPage() {
       setEmail(qEmail);
       setEmailFromUrl(true);
     }
+    if (devCode) {
+      setCode(devCode);
+    }
     
     if (subscriptionParam === 'success') {
       setMessage('🎉 Subscription successful! Your admin account has been created. Please check your email for the verification code to complete setup.');
     }
-  }, [search, router, email]);
+  }, [search, router, email, devCode]);
 
   async function handleVerify(e: React.FormEvent) {
     e.preventDefault();
@@ -200,6 +204,22 @@ export default function VerifyPage() {
             {message && (
               <div className="mb-4 p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-800 text-sm">
                 {message}
+              </div>
+            )}
+            {devCode && (
+              <div className="mb-4 p-3 rounded-lg border border-amber-300 bg-amber-50 text-amber-900 text-sm">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <span className="font-semibold">Verification code:</span> {devCode}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setCode(devCode)}
+                    className="px-2 py-1 rounded border border-amber-300 bg-white text-amber-900 hover:bg-amber-100"
+                  >
+                    Use code
+                  </button>
+                </div>
               </div>
             )}
             {/* Verify Form */}

@@ -204,8 +204,10 @@ function ManagerRegisterContent() {
       const data = await res.json();
       if (res.ok) {
         if (data.require_verify && data.email) {
+          const verificationCode = data?.verification_code;
           toast.success(data.message || 'Check your email for the verification code.');
-          router.push(`/verify?email=${encodeURIComponent(data.email)}`);
+          const verifyUrl = `/verify?email=${encodeURIComponent(data.email)}${verificationCode ? `&code=${encodeURIComponent(verificationCode)}` : ''}`;
+          router.push(verifyUrl);
         } else {
           toast.success('Account created successfully! You can now sign in.');
           router.push('/login');

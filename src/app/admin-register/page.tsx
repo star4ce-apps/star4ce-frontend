@@ -334,9 +334,11 @@ function AdminRegisterPageContent() {
           localStorage.setItem('pending_dealership_info', JSON.stringify(dealershipInfo));
         }
 
+        const verificationCode = registerData?.verification_code;
         // Redirect to verification page - user must verify email first, then subscribe
         toast.success('Account created! Please check your email for verification code.');
-        router.push(`/verify?email=${encodeURIComponent(email.trim().toLowerCase())}&admin=true`);
+        const verifyUrl = `/verify?email=${encodeURIComponent(email.trim().toLowerCase())}&admin=true${verificationCode ? `&code=${encodeURIComponent(verificationCode)}` : ''}`;
+        router.push(verifyUrl);
         setLoading(false);
         return;
       }
