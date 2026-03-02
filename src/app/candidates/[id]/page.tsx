@@ -440,6 +440,9 @@ export default function CandidateProfilePage() {
       const hasAddress = candidate.address && candidate.address !== 'Not Provided';
       const hasGender = candidate.gender && candidate.gender !== 'Not Provided';
       const hasDob = candidate.dateOfBirthRaw && candidate.dateOfBirthRaw.trim() !== '';
+      const hasUniversity = candidate.university && candidate.university !== 'Not Provided';
+      const hasDegree = candidate.degree && candidate.degree !== 'Not Provided';
+      const hasReferral = candidate.referral && String(candidate.referral).trim() !== '';
       const employeeData: Record<string, unknown> = {
         name: candidate.name,
         email: candidate.email,
@@ -455,6 +458,9 @@ export default function CandidateProfilePage() {
         zip_code: null,
         date_of_birth: hasDob ? candidate.dateOfBirthRaw : null,
         gender: hasGender ? candidate.gender : null,
+        university: hasUniversity ? candidate.university : null,
+        degree: hasDegree ? candidate.degree : null,
+        referral: hasReferral ? candidate.referral : null,
       };
 
       // Create employee (admin/hiring_manager use their dealership)

@@ -67,10 +67,22 @@ type EmployeeProfile = {
   gender?: string;
   date_of_birth?: string;
   address?: string;
+  street?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zip_code?: string | null;
   university?: string;
   degree?: string;
   referral?: string;
 };
+
+/** Location string for display: address or street + city/state/zip */
+function employeeLocation(emp: EmployeeProfile | null): string | undefined {
+  if (!emp) return undefined;
+  if (emp.address && emp.address.trim() !== '' && emp.address !== 'Not Provided') return emp.address;
+  const parts = [emp.street, emp.city, emp.state, emp.zip_code].filter(Boolean);
+  return parts.length > 0 ? parts.join(', ') : undefined;
+}
 
 // Job roles dropdown options
 const JOB_ROLES = [
@@ -722,6 +734,10 @@ ${managerNotes.trim()}` : ''}`;
         gender: emp.gender?.trim() || undefined,
         date_of_birth: emp.date_of_birth || undefined,
         address: emp.address?.trim() || undefined,
+        street: emp.street ?? undefined,
+        city: emp.city ?? undefined,
+        state: emp.state ?? undefined,
+        zip_code: emp.zip_code ?? undefined,
         university: emp.university?.trim() || undefined,
         degree: emp.degree?.trim() || undefined,
         referral: emp.referral?.trim() || undefined,
@@ -748,7 +764,7 @@ ${managerNotes.trim()}` : ''}`;
     
     setEditEmail(employee.email || '');
     setEditPhone(employee.phone || '');
-    setEditAddress(employee.address || '');
+    setEditAddress(employeeLocation(employee) || employee.address || '');
     setEditDateOfBirth(employee.date_of_birth || '');
     setEditUniversity(employee.university || '');
     setEditDegree(employee.degree || '');
@@ -1410,8 +1426,8 @@ ${managerNotes.trim()}` : ''}`;
                       </svg>
                       <div className="flex-1 min-w-0">
                         <span className="text-xs font-medium block mb-0.5" style={{ color: '#9CA3AF' }}>Location</span>
-                        <span className={`text-sm break-words ${employee.address && employee.address !== 'Not Provided' ? '' : 'italic'}`} style={{ color: employee.address && employee.address !== 'Not Provided' ? '#374151' : '#9CA3AF' }}>
-                          {employee.address && employee.address !== 'Not Provided' ? employee.address : 'No data'}
+                        <span className={`text-sm break-words ${employeeLocation(employee) ? '' : 'italic'}`} style={{ color: employeeLocation(employee) ? '#374151' : '#9CA3AF' }}>
+                          {employeeLocation(employee) || 'No data'}
                         </span>
                       </div>
                     </div>
