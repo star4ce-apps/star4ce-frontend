@@ -16,12 +16,14 @@ function ForgotPageContent() {
   const [email, setEmail] = useState('');
   const [emailFromUrl, setEmailFromUrl] = useState(false);
 
-  // Pre-fill email from ?email=... (from email link)
+  // Pre-fill email from ?email=... and go straight to "enter code" when coming from the email link
   useEffect(() => {
     const qEmail = search.get('email');
     if (qEmail) {
-      setEmail(qEmail);
+      setEmail(decodeURIComponent(qEmail));
       setEmailFromUrl(true);
+      setStep('reset');
+      setMessage('Enter the reset code from your email below. The code expires in 10 minutes and can only be used once.');
     }
   }, [search]);
   const [code, setCode] = useState('');
@@ -49,6 +51,15 @@ function ForgotPageContent() {
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
+        // 503 = email send failed; if we have a dev code, still allow continuing
+        if (res.status === 503 && data.reset_code) {
+          setDevCode(data.reset_code);
+          setMessage(
+            data.error || "We couldn't send the email. Use the code below to reset (or try again / check spam)."
+          );
+          setStep('reset');
+          return;
+        }
         throw new Error(data.error || 'Could not send reset code');
       }
 
@@ -57,7 +68,7 @@ function ForgotPageContent() {
       }
 
       setMessage(
-        'A reset code has been generated. Please check your email (or use the code shown below for testing).'
+        data.message || 'A reset code has been sent to your email. Check your inbox and spam folder.'
       );
       setStep('reset');
     } catch (err: unknown) {
