@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import RequireAuth from '@/components/layout/RequireAuth';
 import HubSidebar from '@/components/sidebar/HubSidebar';
 import { API_BASE, getToken } from '@/lib/auth';
-import { getJsonAuth, deleteJsonAuth } from '@/lib/http';
+import { getJsonAuth } from '@/lib/http';
 import toast from 'react-hot-toast';
 
 // Modern color palette - matching surveys page
@@ -61,6 +61,43 @@ const JOB_ROLES = [
   'Used Car Manager',
 ];
 
+// Map job title to default department (for auto-select when adding/editing employee)
+const JOB_TITLE_TO_DEPARTMENT: Record<string, string> = {
+  'Body Shop Manager': 'Service Department',
+  'Body Shop Technician': 'Service Department',
+  'Business Manager': 'Finance Department',
+  'Business Office Support': 'Office Department',
+  'C-Level Executives': 'Administration Department',
+  'Platform Manager': 'Administration Department',
+  'Controller': 'Finance Department',
+  'Finance Manager': 'Finance Department',
+  'Finance Director': 'Finance Department',
+  'General Manager': 'Administration Department',
+  'Human Resources Manager': 'Human Resources',
+  'IT Manager': 'Technical Support',
+  'Loaner Agent': 'Service Department',
+  'Mobility Manager': 'Service Department',
+  'Parts Counter Employee': 'Parts Department',
+  'Parts Manager': 'Parts Department',
+  'Parts Support': 'Parts Department',
+  'Drivers': 'Parts Department',
+  'Sales Manager': 'Sales Department',
+  'GSM': 'Sales Department',
+  'Sales People': 'Sales Department',
+  'Sales Support': 'Sales Department',
+  'Receptionist': 'Office Department',
+  'Service Advisor': 'Service Department',
+  'Service Director': 'Service Department',
+  'Service Drive Manager': 'Service Department',
+  'Service Manager': 'Service Department',
+  'Parts and Service Director': 'Service Department',
+  'Service Support': 'Service Department',
+  'Porters': 'Service Department',
+  'Technician': 'Service Department',
+  'Used Car Director': 'Sales Department',
+  'Used Car Manager': 'Sales Department',
+};
+
 type Employee = {
   id: number;
   name: string;
@@ -105,7 +142,6 @@ export default function EmployeesPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [sortColumn, setSortColumn] = useState<string>('name');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
-  const [deletingEmployeeId, setDeletingEmployeeId] = useState<number | null>(null);
   const itemsPerPage = 10;
 
   // Form state
@@ -357,35 +393,6 @@ export default function EmployeesPage() {
   function openViewModal(employee: Employee) {
     // Navigate to employee profile page
     router.push(`/employees/${employee.id}`);
-  }
-
-  async function handleDeleteEmployee(emp: Employee, e: React.MouseEvent) {
-    e.stopPropagation();
-    if (role === 'corporate') return;
-    if (!confirm(`Remove "${emp.name}" from the system? This cannot be undone and will not affect turnover or other data.`)) return;
-    
-    setDeletingEmployeeId(emp.id);
-    const employeeIdToDelete = emp.id;
-    
-    // Store original list in case we need to revert
-    const originalEmployees = [...employees];
-    
-    // Immediately remove from list for instant feedback
-    setEmployees(prev => prev.filter(e => e.id !== employeeIdToDelete));
-    
-    try {
-      await deleteJsonAuth(`/employees/${employeeIdToDelete}`);
-      
-      toast.success('Employee removed');
-    } catch (err: unknown) {
-      console.error('Delete error:', err);
-      // Revert the UI change if deletion failed
-      setEmployees(originalEmployees);
-      const errorMsg = err instanceof Error ? err.message : 'Failed to remove employee';
-      toast.error(errorMsg);
-    } finally {
-      setDeletingEmployeeId(null);
-    }
   }
 
   function openEditModal(employee: Employee) {
@@ -688,16 +695,17 @@ export default function EmployeesPage() {
                 </p>
               </div>
               {role !== 'corporate' ? (
-                <button
-                  onClick={() => setShowModal(true)}
-                  className="cursor-pointer px-4 py-2 rounded-lg text-sm font-medium transition-all"
-                  style={{ 
-                    backgroundColor: '#4D6DBE',
-                    color: '#FFFFFF'
-                  }}
-                >
-                  + Add Employee
-                </button>
+                <span className="text-sm">
+                  <span style={{ color: COLORS.gray[600] }}>Have an existing employee? </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowModal(true)}
+                    className="cursor-pointer font-medium transition-opacity hover:opacity-80 bg-transparent border-0 p-0"
+                    style={{ color: '#4D6DBE' }}
+                  >
+                    Add them here
+                  </button>
+                </span>
               ) : (
                 <div className="px-3 py-2 rounded-lg text-xs font-medium" style={{ backgroundColor: '#F3F4F6', color: '#6B7280' }}>
                   View-Only Mode
@@ -846,21 +854,18 @@ export default function EmployeesPage() {
                         <SortIcon column="status" />
                       </div>
                     </th>
-                    <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider text-white w-24">
-                      Actions
-                    </th>
                   </tr>
                 </thead>
                 <tbody>
                   {loading && paginatedEmployees.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="py-12 text-center text-sm" style={{ color: '#6B7280' }}>
+                      <td colSpan={6} className="py-12 text-center text-sm" style={{ color: '#6B7280' }}>
                         Loading employees...
                       </td>
                     </tr>
                   ) : paginatedEmployees.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="py-12 text-center text-sm" style={{ color: '#6B7280' }}>
+                      <td colSpan={6} className="py-12 text-center text-sm" style={{ color: '#6B7280' }}>
                         No employees found.
                       </td>
                     </tr>
@@ -909,29 +914,6 @@ export default function EmployeesPage() {
                             >
                               {emp.status || (emp.is_active ? 'Active' : 'Inactive')}
                             </span>
-                          </td>
-                          <td className="py-3 px-4" onClick={(e) => e.stopPropagation()}>
-                            {role !== 'corporate' && (
-                              <button
-                                type="button"
-                                onClick={(e) => handleDeleteEmployee(emp, e)}
-                                disabled={deletingEmployeeId === emp.id}
-                                className="cursor-pointer inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-all hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                                style={{ border: '1px solid #FCA5A5', color: '#DC2626' }}
-                                title="Remove employee from system (does not affect turnover)"
-                              >
-                                {deletingEmployeeId === emp.id ? (
-                                  'Removing...'
-                                ) : (
-                                  <>
-                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                    </svg>
-                                    Delete
-                                  </>
-                                )}
-                              </button>
-                            )}
                           </td>
                         </tr>
                       );
@@ -1532,7 +1514,12 @@ export default function EmployeesPage() {
                       <div className="relative">
                         <select
                           value={formData.jobTitle}
-                          onChange={(e) => setFormData({ ...formData, jobTitle: e.target.value })}
+                          onChange={(e) => {
+                            const job = e.target.value;
+                            const dept = job ? (JOB_TITLE_TO_DEPARTMENT[job] || '') : '';
+                            setFormData({ ...formData, jobTitle: job, department: dept });
+                            if (dept !== 'Others') setCustomDepartment('');
+                          }}
                           required
                           className="w-full px-3 py-2 text-sm rounded-lg appearance-none cursor-pointer transition-all focus:outline-none focus:ring-2"
                           style={{ 
@@ -1698,6 +1685,9 @@ export default function EmployeesPage() {
                   <h2 className="text-xl font-bold mb-0.5" style={{ color: '#FFFFFF' }}>Add an Existing Employee</h2>
                   <p className="text-xs" style={{ color: '#E0E7FF' }}>Fields marked with * are required</p>
                 </div>
+                <p className="px-5 pt-4 pb-0 text-sm" style={{ color: '#6B7280' }}>
+                  This is for adding in employees that already exist. To board candidates, you must go to their candidate profile to board.
+                </p>
                 <form onSubmit={handleSubmit} className="p-5">
                   <div className="grid grid-cols-2 gap-3 mb-3">
                     <div>
@@ -1919,7 +1909,12 @@ export default function EmployeesPage() {
                       <div className="relative">
                         <select
                           value={formData.jobTitle}
-                          onChange={(e) => setFormData({ ...formData, jobTitle: e.target.value })}
+                          onChange={(e) => {
+                            const job = e.target.value;
+                            const dept = job ? (JOB_TITLE_TO_DEPARTMENT[job] || '') : '';
+                            setFormData({ ...formData, jobTitle: job, department: dept });
+                            if (dept !== 'Others') setCustomDepartment('');
+                          }}
                           required
                           className="w-full px-3 py-2 text-sm rounded-lg appearance-none cursor-pointer transition-all focus:outline-none focus:ring-2"
                           style={{ 

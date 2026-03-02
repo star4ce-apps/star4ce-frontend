@@ -70,6 +70,24 @@ function formatBirthday(dateStr: string): string {
   return d.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
+// Board employee: job titles, departments, statuses (match employees page)
+const BOARD_DEPARTMENTS = [
+  'Sales Department', 'Service Department', 'Parts Department', 'Administration Department',
+  'Office Department', 'Finance Department', 'Customer Relations', 'Inventory Management',
+  'Marketing Department', 'Human Resources', 'Technical Support', 'Warranty Services',
+  'Training and Development', 'Others',
+];
+const BOARD_STATUSES = ['Full-Time', 'Part-time', 'Intern'];
+const BOARD_JOB_TITLES = [
+  'Body Shop Manager', 'Body Shop Technician', 'Business Manager', 'Business Office Support',
+  'C-Level Executives', 'Platform Manager', 'Controller', 'Finance Manager', 'Finance Director',
+  'General Manager', 'Human Resources Manager', 'IT Manager', 'Loaner Agent', 'Mobility Manager',
+  'Parts Counter Employee', 'Parts Manager', 'Parts Support', 'Drivers', 'Sales Manager', 'GSM',
+  'Sales People', 'Sales Support', 'Receptionist', 'Service Advisor', 'Service Director',
+  'Service Drive Manager', 'Service Manager', 'Parts and Service Director', 'Service Support',
+  'Porters', 'Technician', 'Used Car Director', 'Used Car Manager',
+];
+
 export default function CandidateProfilePage() {
   const router = useRouter();
   const params = useParams();
@@ -89,6 +107,8 @@ export default function CandidateProfilePage() {
   const [resumePreviewLoading, setResumePreviewLoading] = useState(false);
   const [expandedInterviewIndex, setExpandedInterviewIndex] = useState<number | null>(null);
   const [showEditPersonal, setShowEditPersonal] = useState(false);
+  const [editFirstName, setEditFirstName] = useState('');
+  const [editLastName, setEditLastName] = useState('');
   const [editEmail, setEditEmail] = useState('');
   const [editPhone, setEditPhone] = useState('');
   const [editAddress, setEditAddress] = useState('');
@@ -99,6 +119,14 @@ export default function CandidateProfilePage() {
   const [editMajor, setEditMajor] = useState('');
   const [editReferrals, setEditReferrals] = useState<Array<{ firstName: string; lastName: string; phone: string; email: string; relationship: string }>>([]);
   const [savingPersonal, setSavingPersonal] = useState(false);
+  const [showBoardModal, setShowBoardModal] = useState(false);
+  const [boardForm, setBoardForm] = useState({
+    jobTitle: '',
+    department: '',
+    employeeId: '',
+    status: 'Full-Time',
+    customDepartment: '',
+  });
 
   // Parse referral string into structured format
   function parseReferrals(referralStr: string | undefined): Array<{ name: string; relationship?: string; phone?: string; email?: string }> {
@@ -403,7 +431,23 @@ export default function CandidateProfilePage() {
     }
   }
 
-  async function handleConvertToEmployee() {
+  function openBoardModal() {
+    if (!candidate) return;
+    if (role !== 'admin' && role !== 'hiring_manager') {
+      toast.error('Only admin and hiring manager can board candidates as employees.');
+      return;
+    }
+    setBoardForm({
+      jobTitle: candidate.jobPosition || '',
+      department: 'Sales Department',
+      employeeId: `EMP-${candidate.id}`,
+      status: 'Full-Time',
+      customDepartment: '',
+    });
+    setShowBoardModal(true);
+  }
+
+  async function handleConvertToEmployee(formValues?: typeof boardForm) {
     if (!candidate) return;
     
     // Only admin and hiring_manager can board (accept) candidates as employees
@@ -412,22 +456,36 @@ export default function CandidateProfilePage() {
       return;
     }
 
-    // Confirm action
-    if (!confirm('Are you sure you want to accept this candidate?\n\nThis will:\n- Move them to the employee list with their info\n- Their resume will be removed after 7 days\n- They will be removed from the candidate list\n\nDo you want to proceed?')) {
+    const useForm = formValues ?? boardForm;
+    if (useForm.department === 'Others' && !useForm.customDepartment?.trim()) {
+      toast.error('Please specify the department name.');
+      return;
+    }
+    const department = useForm.department === 'Others' ? (useForm.customDepartment || '').trim() : useForm.department;
+    if (!useForm.jobTitle?.trim()) {
+      toast.error('Please select a job title.');
+      return;
+    }
+    if (!department) {
+      toast.error('Please select or specify a department.');
+      return;
+    }
+    if (!useForm.employeeId?.trim()) {
+      toast.error('Please enter an employee ID.');
+      return;
+    }
+    if (!useForm.status) {
+      toast.error('Please select a status.');
       return;
     }
 
+    setShowBoardModal(false);
     setSaving(true);
     try {
       const token = getToken();
       if (!token) {
         throw new Error('Not logged in');
       }
-
-      // Parse candidate name into first and last name
-      const nameParts = candidate.name.trim().split(' ');
-      const firstName = nameParts[0] || '';
-      const lastName = nameParts.slice(1).join(' ') || '';
 
       // Get today's date for hired_date (use local date, not UTC)
       const now = new Date();
@@ -447,11 +505,11 @@ export default function CandidateProfilePage() {
         name: candidate.name,
         email: candidate.email,
         phone: candidate.phone || null,
-        department: 'General',
-        position: candidate.jobPosition || null,
-        employee_id: `EMP-${candidate.id}`,
+        department,
+        position: useForm.jobTitle.trim(),
+        employee_id: useForm.employeeId.trim(),
         hired_date: today,
-        status: 'Active',
+        status: useForm.status,
         street: hasAddress ? candidate.address : null,
         city: null,
         state: null,
@@ -535,6 +593,9 @@ export default function CandidateProfilePage() {
 
   function openEditPersonal() {
     if (!candidate) return;
+    const nameParts = (candidate.name || '').trim().split(/\s+/).filter(Boolean);
+    setEditFirstName(nameParts[0] || '');
+    setEditLastName(nameParts.slice(1).join(' ') || '');
     setEditEmail(candidate.email || '');
     setEditPhone(candidate.phone || '');
     setEditAddress(candidate.address === 'Not Provided' ? '' : (candidate.address || ''));
@@ -580,6 +641,8 @@ export default function CandidateProfilePage() {
     if (!candidate) return;
     setSavingPersonal(true);
     try {
+      const newName = [editFirstName.trim(), editLastName.trim()].filter(Boolean).join(' ').trim();
+
       // Format degree: combine degree level and major
       let degree = null;
       if (editDegreeLevel || editMajor) {
@@ -613,6 +676,7 @@ export default function CandidateProfilePage() {
       }
       
       const body: { 
+        name?: string;
         email?: string;
         phone?: string;
         address?: string | null;
@@ -622,6 +686,7 @@ export default function CandidateProfilePage() {
         degree?: string | null;
         referral?: string | null;
       } = {
+        name: newName || undefined,
         email: editEmail.trim() || undefined,
         phone: editPhone.trim() || undefined,
         address: editAddress.trim() || null,
@@ -636,6 +701,7 @@ export default function CandidateProfilePage() {
         const c = data.candidate;
         setCandidate({
           ...candidate,
+          name: c.name || candidate.name,
           email: c.email || candidate.email,
           phone: c.phone || candidate.phone,
           address: c.address?.trim() || 'Not Provided',
@@ -1572,7 +1638,7 @@ export default function CandidateProfilePage() {
                       {/* Accept Column */}
                       <div className="space-y-3">
                         <button
-                          onClick={handleConvertToEmployee}
+                          onClick={openBoardModal}
                           disabled={saving}
                           className="cursor-pointer group relative overflow-hidden rounded-xl font-semibold transition-all disabled:opacity-60 disabled:cursor-not-allowed flex flex-col items-center justify-center gap-3 p-5 w-full"
                           style={{ 
@@ -1838,6 +1904,28 @@ export default function CandidateProfilePage() {
                       <div>
                         <h4 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: '#6B7280' }}>Contact</h4>
                         <div className="space-y-3">
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-xs font-medium mb-1" style={{ color: '#6B7280' }}>First Name</label>
+                              <input
+                                type="text"
+                                value={editFirstName}
+                                onChange={(e) => setEditFirstName(e.target.value)}
+                                className="w-full px-3 py-2 text-sm rounded-lg border"
+                                style={{ borderColor: '#D1D5DB', color: '#374151' }}
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium mb-1" style={{ color: '#6B7280' }}>Last Name</label>
+                              <input
+                                type="text"
+                                value={editLastName}
+                                onChange={(e) => setEditLastName(e.target.value)}
+                                className="w-full px-3 py-2 text-sm rounded-lg border"
+                                style={{ borderColor: '#D1D5DB', color: '#374151' }}
+                              />
+                            </div>
+                          </div>
                           <div>
                             <label className="block text-xs font-medium mb-1" style={{ color: '#6B7280' }}>Email</label>
                             <input
@@ -2107,6 +2195,107 @@ export default function CandidateProfilePage() {
           </div>
         </main>
       </div>
+
+      {/* Board as employee modal */}
+      {showBoardModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }} onClick={() => setShowBoardModal(false)}>
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="p-4 border-b flex-shrink-0" style={{ borderColor: '#E5E7EB', backgroundColor: '#4D6DBE' }}>
+              <h3 className="text-sm font-bold" style={{ color: '#FFFFFF' }}>Board as employee</h3>
+              <p className="text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.9)' }}>Set job title, department, employee ID, and status.</p>
+            </div>
+            <div className="p-5 overflow-y-auto flex-1">
+            <div className="grid gap-4">
+              <div>
+                <label className="block text-sm font-medium mb-1" style={{ color: '#374151' }}>Job title *</label>
+                <select
+                  value={boardForm.jobTitle}
+                  onChange={(e) => setBoardForm({ ...boardForm, jobTitle: e.target.value })}
+                  className="w-full px-3 py-2 rounded-lg border text-sm"
+                  style={{ borderColor: '#D1D5DB', color: '#111827' }}
+                  required
+                >
+                  <option value="">Select job title</option>
+                  {BOARD_JOB_TITLES.map((title) => (
+                    <option key={title} value={title}>{title}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1" style={{ color: '#374151' }}>Department *</label>
+                <select
+                  value={boardForm.department}
+                  onChange={(e) => setBoardForm({ ...boardForm, department: e.target.value })}
+                  className="w-full px-3 py-2 rounded-lg border text-sm"
+                  style={{ borderColor: '#D1D5DB', color: '#111827' }}
+                  required
+                >
+                  <option value="">Select department</option>
+                  {BOARD_DEPARTMENTS.map((dept) => (
+                    <option key={dept} value={dept}>{dept}</option>
+                  ))}
+                </select>
+                {boardForm.department === 'Others' && (
+                  <input
+                    type="text"
+                    value={boardForm.customDepartment}
+                    onChange={(e) => setBoardForm({ ...boardForm, customDepartment: e.target.value })}
+                    placeholder="Enter department name"
+                    className="w-full mt-2 px-3 py-2 rounded-lg border text-sm"
+                    style={{ borderColor: '#D1D5DB', color: '#111827' }}
+                  />
+                )}
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1" style={{ color: '#374151' }}>Employee ID *</label>
+                <input
+                  type="text"
+                  value={boardForm.employeeId}
+                  onChange={(e) => setBoardForm({ ...boardForm, employeeId: e.target.value })}
+                  placeholder="e.g. EMP-001"
+                  className="w-full px-3 py-2 rounded-lg border text-sm"
+                  style={{ borderColor: '#D1D5DB', color: '#111827' }}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1" style={{ color: '#374151' }}>Status *</label>
+                <select
+                  value={boardForm.status}
+                  onChange={(e) => setBoardForm({ ...boardForm, status: e.target.value })}
+                  className="w-full px-3 py-2 rounded-lg border text-sm"
+                  style={{ borderColor: '#D1D5DB', color: '#111827' }}
+                  required
+                >
+                  {BOARD_STATUSES.map((s) => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className="flex gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowBoardModal(false)}
+                className="flex-1 py-2 text-sm font-medium rounded-lg border cursor-pointer hover:bg-gray-50"
+                style={{ borderColor: '#D1D5DB', color: '#374151' }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => handleConvertToEmployee()}
+                disabled={saving}
+                className="flex-1 py-2 text-sm font-semibold rounded-lg text-white cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+                style={{ backgroundColor: '#4D6DBE' }}
+              >
+                {saving ? 'Boarding...' : 'Board as employee'}
+              </button>
+            </div>
+            </div>
+          </div>
+        </div>
+      )}
+
     </RequireAuth>
   );
 }
