@@ -13,6 +13,7 @@ export default function LoginForm() {
   const adminReg = search.get('admin_registration');
   const adminEmail = search.get('email');
   const subscriptionSuccess = search.get('subscription') === 'success';
+  const sessionId = search.get('session_id');
   const router = useRouter();
 
   const [email, setEmail] = useState(adminEmail || '');
@@ -22,14 +23,21 @@ export default function LoginForm() {
 
   const [loading, setLoading] = useState(false);
 
-  // Show success message if coming from subscription
+  // Show success message if coming from subscription; request receipt email (fallback when webhook doesn't run)
   useEffect(() => {
     if (subscriptionSuccess) {
       setSuccessMessage('🎉 Subscription successful! Your admin account has been created. Please sign in with your email and password.');
-      // Clear the URL parameter
-      router.replace(`/login?email=${encodeURIComponent(adminEmail || '')}`);
+      if (sessionId) {
+        fetch(`${API_BASE}/subscription/send-receipt`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ session_id: sessionId }),
+        }).catch(() => {});
+      }
+      // Clear the URL parameters (keep email for convenience)
+      router.replace(`/login?email=${encodeURIComponent(adminEmail || search.get('email') || '')}`);
     }
-  }, [subscriptionSuccess, adminEmail, router]);
+  }, [subscriptionSuccess, sessionId, adminEmail, router]);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
