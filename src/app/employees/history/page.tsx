@@ -34,6 +34,7 @@ type HistoryEntry = {
   timestamp: string;
   department?: string;
   employee_id?: number | null; // For "Employee Created" revert - exact id to delete
+  audit_log_id?: number; // Stable ID of source audit log for unique revert matching
   reason?: string; // For terminations
   termination_date?: string; // For terminations
   reverted?: boolean; // Whether this entry has been reverted
@@ -132,18 +133,18 @@ export default function EmployeeRoleHistoryPage() {
             termination_date: term.termination_date || term.timestamp,
           }));
 
-          // Merge and deduplicate (prefer termination entries if duplicate)
+          // Merge with terminations; never merge entries that have different audit_log_id (e.g. two Denied = two rows)
           const allEntries = [...entries, ...terminationEntries];
           const uniqueEntries = allEntries.reduce((acc, entry) => {
             const existing = acc.find(e => 
               e.name === entry.name && 
               e.action === entry.action && 
-              Math.abs(new Date(e.timestamp).getTime() - new Date(entry.timestamp).getTime()) < 60000 // Within 1 minute
+              Math.abs(new Date(e.timestamp).getTime() - new Date(entry.timestamp).getTime()) < 60000 && 
+              (e.audit_log_id == null && entry.audit_log_id == null || e.audit_log_id === entry.audit_log_id)
             );
             if (!existing) {
               acc.push(entry);
             } else if (entry.action === 'Terminated' && existing.action !== 'Terminated') {
-              // Replace with termination entry if it's more specific
               const index = acc.indexOf(existing);
               acc[index] = entry;
             }
@@ -288,6 +289,7 @@ export default function EmployeeRoleHistoryPage() {
           newValue: entry.newValue,
         };
         if (empIdToDelete != null) body.employee_id = empIdToDelete;
+        if (entry.audit_log_id != null) body.audit_log_id = entry.audit_log_id;
         await postJsonAuth<{ ok?: boolean; error?: string; message?: string }>('/role-history/revert', body);
         let deleteOk = true;
         if (empIdToDelete != null) {
@@ -348,6 +350,7 @@ export default function EmployeeRoleHistoryPage() {
           action: entry.action,
           previousValue: entry.previousValue,
           newValue: entry.newValue,
+          ...(entry.audit_log_id !== undefined && entry.audit_log_id !== null && { audit_log_id: entry.audit_log_id }),
         }),
       });
       
@@ -572,7 +575,7 @@ export default function EmployeeRoleHistoryPage() {
                     paginatedEntries.map((entry, index) => {
                       return (
                         <tr 
-                          key={entry.id || `entry-${index}`} 
+                          key={entry.audit_log_id != null ? `audit-${entry.audit_log_id}` : `entry-${entry.id ?? index}`} 
                           className="hover:bg-blue-50 transition-colors"
                           style={{ 
                             borderBottom: '1px solid #F3F4F6'

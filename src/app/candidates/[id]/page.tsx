@@ -370,7 +370,7 @@ export default function CandidateProfilePage() {
 
     setSaving(true);
     try {
-      await putJsonAuth(`/candidates/${candidate.id}`, { status: 'Denied' });
+      await postJsonAuth(`/candidates/${candidate.id}/deny`, {});
       await loadCandidate();
       toast.success('Application denied successfully');
     } catch (err: unknown) {
