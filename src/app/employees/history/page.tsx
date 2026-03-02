@@ -260,63 +260,9 @@ export default function EmployeeRoleHistoryPage() {
 
   async function handleRevert(entry: HistoryEntry) {
     
-    // Cannot revert candidate creation or termination
-    if (entry.action === 'Candidate Created' || entry.action === 'Terminated') {
+    // Cannot revert candidate creation, employee creation, or termination
+    if (entry.action === 'Candidate Created' || entry.action === 'Employee Created' || entry.action === 'Terminated') {
       toast.error(`Cannot revert ${entry.action}`);
-      return;
-    }
-    
-    // Employee Created (including hired-from-candidate): confirm and call backend revert
-    if (entry.action === 'Employee Created') {
-      if (!window.confirm(`Are you sure you want to revert adding "${entry.name}" as an employee?\n\nThis will remove them from the employee list. If they were hired from a candidate, they will be restored to the candidate list.`)) {
-        return;
-      }
-      try {
-        // Resolve employee id BEFORE revert (so we can delete them even if backend delete doesn't persist)
-        let empIdToDelete: number | null = null;
-        if (entry.employee_id != null) {
-          const n = Number(entry.employee_id);
-          if (!isNaN(n)) empIdToDelete = n;
-        }
-        if (empIdToDelete == null) {
-          const list = await getJsonAuth<{ ok: boolean; items: Array<{ id: number; name: string }> }>('/employees');
-          const match = (list.items || []).find((e: any) => String(e.name).trim() === String(entry.name).trim());
-          if (match) empIdToDelete = match.id;
-        }
-        const body: Record<string, unknown> = {
-          id: entry.id,
-          type: entry.type,
-          name: entry.name,
-          action: entry.action,
-          previousValue: entry.previousValue,
-          newValue: entry.newValue,
-        };
-        if (empIdToDelete != null) body.employee_id = empIdToDelete;
-        if (entry.audit_log_id != null) body.audit_log_id = entry.audit_log_id;
-        await postJsonAuth<{ ok?: boolean; error?: string; message?: string }>('/role-history/revert', body);
-        let deleteOk = true;
-        if (empIdToDelete != null) {
-          try {
-            await deleteJsonAuth(`/employees/${empIdToDelete}`);
-          } catch (e: unknown) {
-            const msg = e instanceof Error ? e.message : String(e);
-            if (!msg.includes('404') && !msg.toLowerCase().includes('not found')) {
-              toast.error(`Revert saved but could not remove from employee list: ${msg}`);
-              deleteOk = false;
-            }
-          }
-        } else {
-          toast.error('Could not find employee to remove. They may already be removed.');
-          deleteOk = false;
-        }
-        if (deleteOk) toast.success('Revert successful – candidate restored, employee removed.');
-        await loadRoleHistory(true); // Refetch so reverted state is visible when user opens history again
-        router.push('/employees');
-        return;
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : 'Failed to revert';
-        toast.error(msg);
-      }
       return;
     }
     
@@ -643,7 +589,7 @@ export default function EmployeeRoleHistoryPage() {
                             <div className="relative inline-block">
                               <button
                                 onClick={() => handleRevert(entry)}
-                                disabled={entry.action === 'Candidate Created' || entry.action === 'Terminated' || (entry.action !== 'Employee Created' && entry.action !== 'Employee Removed' && entry.action !== 'Candidate Deleted' && (!entry.previousValue || entry.previousValue === '—' || entry.previousValue === 'N/A')) || entry.reverted}
+                                disabled={entry.action === 'Candidate Created' || entry.action === 'Employee Created' || entry.action === 'Terminated' || (entry.action !== 'Employee Removed' && entry.action !== 'Candidate Deleted' && (!entry.previousValue || entry.previousValue === '—' || entry.previousValue === 'N/A')) || entry.reverted}
                                 className="p-1.5 rounded-md hover:bg-gray-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                                 style={{ color: '#6B7280' }}
                                 title="Revert this change"
