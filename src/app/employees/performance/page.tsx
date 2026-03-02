@@ -431,7 +431,25 @@ ${managerNotes.trim()}` : ''}`;
         updatedNotes = newReviewNotes;
       }
 
-      // Update employee with notes
+      // Create performance review via API so "Last Review" updates
+      const today = new Date();
+      const reviewDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+      await postJsonAuth(
+        `/employees/${selectedEmployee.id}/performance-reviews`,
+        {
+          review_date: reviewDate,
+          job_knowledge: ratings.jobKnowledge || 0,
+          work_quality: ratings.workQuality || 0,
+          service_performance: ratings.servicePerformance || 0,
+          teamwork: ratings.teamwork || 0,
+          attendance: ratings.attendance || 0,
+          strengths: allStrengths.length ? allStrengths : undefined,
+          improvements: allImprovements.length ? allImprovements : undefined,
+          notes: managerNotes.trim() || undefined,
+        }
+      );
+
+      // Update employee notes for timeline/legacy display
       await putJsonAuth<{ ok?: boolean; employee?: { notes?: string }; error?: string }>(
         `/employees/${selectedEmployee.id}`,
         { notes: updatedNotes }
@@ -532,7 +550,7 @@ ${managerNotes.trim()}` : ''}`;
                       <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider text-white">Department</th>
                       <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider text-white">Role</th>
                       <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider text-white">Last Review</th>
-                      <th className="text-right py-3 px-4 text-[11px] font-semibold uppercase tracking-wider text-white">Actions</th>
+                      <th className="text-right py-3 px-4 text-[11px] font-semibold uppercase tracking-wider text-white" aria-hidden="true"></th>
                     </tr>
                   </thead>
                   <tbody>

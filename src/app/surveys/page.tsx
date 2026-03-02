@@ -455,7 +455,7 @@ export default function SurveysPage() {
             </div>
             <div className="rounded-xl p-5" style={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}` }}>
               <p className="text-xs font-medium uppercase tracking-wide mb-2" style={{ color: COLORS.gray[400] }}>Surveys taken</p>
-              <p className="text-2xl font-semibold" style={{ color: COLORS.primary }}>{surveysTaken}</p>
+              <p className="text-2xl font-semibold" style={{ color: '#394B67' }}>{surveysTaken}</p>
               <p className="text-xs mt-1" style={{ color: COLORS.gray[400] }}>Submitted in date range</p>
             </div>
             <div className="rounded-xl p-5" style={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}` }}>

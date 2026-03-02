@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import HubSidebar from '@/components/sidebar/HubSidebar';
 import RequireAuth from '@/components/layout/RequireAuth';
 import { API_BASE, getToken, getSelectedDealershipId } from '@/lib/auth';
@@ -34,6 +35,7 @@ type HistoryEntry = {
   timestamp: string;
   department?: string;
   employee_id?: number | null; // For "Employee Created" revert - exact id to delete
+  audit_log_id?: number; // Stable ID of source audit log for unique revert matching
   reason?: string; // For terminations
   termination_date?: string; // For terminations
   reverted?: boolean; // Whether this entry has been reverted
@@ -42,6 +44,7 @@ type HistoryEntry = {
 };
 
 export default function EmployeeRoleHistoryPage() {
+  const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedType, setSelectedType] = useState('All Types');
   const [selectedAction, setSelectedAction] = useState('All Actions');
@@ -59,7 +62,7 @@ export default function EmployeeRoleHistoryPage() {
     loadRoleHistory();
   }, [selectedType, selectedAction]);
 
-  async function loadRoleHistory() {
+  async function loadRoleHistory(forceRefresh?: boolean) {
     setLoading(true);
     setError(null);
     
@@ -69,9 +72,10 @@ export default function EmployeeRoleHistoryPage() {
         throw new Error('Not logged in');
       }
       
-      // Build query params
+      // Build query params (cache-bust after revert so "Reverted" state shows)
       const params = new URLSearchParams();
       params.append('limit', '500'); // Get enough entries
+      if (forceRefresh) params.append('_t', String(Date.now()));
       if (selectedType !== 'All Types') {
         // Map "Employee" -> "employee", "Candidate" -> "candidate"
         const typeMap: { [key: string]: string } = {
@@ -132,18 +136,18 @@ export default function EmployeeRoleHistoryPage() {
             termination_date: term.termination_date || term.timestamp,
           }));
 
-          // Merge and deduplicate (prefer termination entries if duplicate)
+          // Merge with terminations; never merge entries that have different audit_log_id (e.g. two Denied = two rows)
           const allEntries = [...entries, ...terminationEntries];
           const uniqueEntries = allEntries.reduce((acc, entry) => {
             const existing = acc.find(e => 
               e.name === entry.name && 
               e.action === entry.action && 
-              Math.abs(new Date(e.timestamp).getTime() - new Date(entry.timestamp).getTime()) < 60000 // Within 1 minute
+              Math.abs(new Date(e.timestamp).getTime() - new Date(entry.timestamp).getTime()) < 60000 && 
+              (e.audit_log_id == null && entry.audit_log_id == null || e.audit_log_id === entry.audit_log_id)
             );
             if (!existing) {
               acc.push(entry);
             } else if (entry.action === 'Terminated' && existing.action !== 'Terminated') {
-              // Replace with termination entry if it's more specific
               const index = acc.indexOf(existing);
               acc[index] = entry;
             }
@@ -288,6 +292,7 @@ export default function EmployeeRoleHistoryPage() {
           newValue: entry.newValue,
         };
         if (empIdToDelete != null) body.employee_id = empIdToDelete;
+        if (entry.audit_log_id != null) body.audit_log_id = entry.audit_log_id;
         await postJsonAuth<{ ok?: boolean; error?: string; message?: string }>('/role-history/revert', body);
         let deleteOk = true;
         if (empIdToDelete != null) {
@@ -305,8 +310,8 @@ export default function EmployeeRoleHistoryPage() {
           deleteOk = false;
         }
         if (deleteOk) toast.success('Revert successful – candidate restored, employee removed.');
-        await loadRoleHistory();
-        window.location.href = '/employees';
+        await loadRoleHistory(true); // Refetch so reverted state is visible when user opens history again
+        router.push('/employees');
         return;
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : 'Failed to revert';
@@ -315,14 +320,22 @@ export default function EmployeeRoleHistoryPage() {
       return;
     }
     
-    // Need previous value to revert (for other actions)
-    if (!entry.previousValue || entry.previousValue === '—' || entry.previousValue === 'N/A') {
-      toast.error('Cannot revert - previous value not available');
-      return;
-    }
-    
-    if (!window.confirm(`Are you sure you want to revert "${entry.action}" for ${entry.name}?`)) {
-      return;
+    // Restore deleted employee or candidate (no previousValue required; backend uses audit log)
+    if (entry.action === 'Employee Removed' || entry.action === 'Candidate Deleted') {
+      const what = entry.action === 'Employee Removed' ? 'employee' : 'candidate';
+      if (!window.confirm(`Restore ${entry.name}? This will add them back to the ${what} list.`)) {
+        return;
+      }
+      // Fall through to generic revert POST (sends audit_log_id)
+    } else {
+      // Need previous value to revert (for other actions)
+      if (!entry.previousValue || entry.previousValue === '—' || entry.previousValue === 'N/A') {
+        toast.error('Cannot revert - previous value not available');
+        return;
+      }
+      if (!window.confirm(`Are you sure you want to revert "${entry.action}" for ${entry.name}?`)) {
+        return;
+      }
     }
     
     try {
@@ -348,6 +361,7 @@ export default function EmployeeRoleHistoryPage() {
           action: entry.action,
           previousValue: entry.previousValue,
           newValue: entry.newValue,
+          ...(entry.audit_log_id !== undefined && entry.audit_log_id !== null && { audit_log_id: entry.audit_log_id }),
         }),
       });
       
@@ -359,8 +373,8 @@ export default function EmployeeRoleHistoryPage() {
       
       toast.success(data.message || 'Change reverted successfully');
       
-      // Reload history to show updated data
-      await loadRoleHistory();
+      // Reload history so "Reverted" badge appears (force refresh to avoid cached response)
+      await loadRoleHistory(true);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to revert change';
       toast.error(msg);
@@ -572,7 +586,7 @@ export default function EmployeeRoleHistoryPage() {
                     paginatedEntries.map((entry, index) => {
                       return (
                         <tr 
-                          key={entry.id || `entry-${index}`} 
+                          key={entry.audit_log_id != null ? `audit-${entry.audit_log_id}` : `entry-${entry.id ?? index}`} 
                           className="hover:bg-blue-50 transition-colors"
                           style={{ 
                             borderBottom: '1px solid #F3F4F6'
@@ -629,7 +643,7 @@ export default function EmployeeRoleHistoryPage() {
                             <div className="relative inline-block">
                               <button
                                 onClick={() => handleRevert(entry)}
-                                disabled={entry.action === 'Candidate Created' || entry.action === 'Terminated' || (entry.action !== 'Employee Created' && (!entry.previousValue || entry.previousValue === '—' || entry.previousValue === 'N/A')) || entry.reverted}
+                                disabled={entry.action === 'Candidate Created' || entry.action === 'Terminated' || (entry.action !== 'Employee Created' && entry.action !== 'Employee Removed' && entry.action !== 'Candidate Deleted' && (!entry.previousValue || entry.previousValue === '—' || entry.previousValue === 'N/A')) || entry.reverted}
                                 className="p-1.5 rounded-md hover:bg-gray-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                                 style={{ color: '#6B7280' }}
                                 title="Revert this change"

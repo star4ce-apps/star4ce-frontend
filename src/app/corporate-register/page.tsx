@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { API_BASE } from '@/lib/auth';
+import { formatPhoneInput, validatePhoneFormat, PHONE_FORMAT_HELP } from '@/lib/phone';
 import toast from 'react-hot-toast';
 import Logo from '@/components/Logo';
 
@@ -14,6 +15,7 @@ export default function CorporateRegisterPage() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
+  const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [joinCode, setJoinCode] = useState('');
@@ -116,6 +118,14 @@ export default function CorporateRegisterPage() {
       return;
     }
 
+    if (!phone.trim()) {
+      setError('Phone number is required.');
+      return;
+    }
+    if (!validatePhoneFormat(phone)) {
+      setError(PHONE_FORMAT_HELP);
+      return;
+    }
     setLoading(true);
     try {
         // Register with join code (assigns to dealership)
@@ -128,6 +138,7 @@ export default function CorporateRegisterPage() {
             password,
             first_name: firstName.trim(),
             last_name: lastName.trim(),
+            phone: phone.trim(),
           }),
         }).catch((fetchError) => {
           console.error('Network error:', fetchError);
@@ -291,6 +302,19 @@ export default function CorporateRegisterPage() {
                       onChange={(e) => setEmail(e.target.value)}
                       required
                     />
+                  </div>
+                  <div className="mb-3">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Phone *</label>
+                    <input
+                      type="tel"
+                      placeholder="(123) 456-7890"
+                      autoComplete="tel"
+                      className="w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#0B2E65] focus:border-transparent"
+                      value={phone}
+                      onChange={(e) => setPhone(formatPhoneInput(e.target.value))}
+                      required
+                    />
+                    <p className="text-xs text-gray-500 mt-1">{PHONE_FORMAT_HELP}</p>
                   </div>
                   <div className="mb-3">
                     <label className="block text-sm font-medium text-gray-700 mb-1">Password *</label>

@@ -6,6 +6,7 @@ import HubSidebar from '@/components/sidebar/HubSidebar';
 import RequireAuth from '@/components/layout/RequireAuth';
 import { getToken, API_BASE, clearSession } from '@/lib/auth';
 import { deleteJsonAuth, patchJsonAuth, putJsonAuth } from '@/lib/http';
+import { formatPhoneDisplay, formatPhoneInput, validatePhoneFormat, PHONE_FORMAT_HELP } from '@/lib/phone';
 import toast from 'react-hot-toast';
 
 export default function SettingsPage() {
@@ -62,7 +63,7 @@ export default function SettingsPage() {
           firstName: (userData.first_name ?? userData.firstName ?? (userData as any).first_name ?? '').toString().trim(),
           lastName: (userData.last_name ?? userData.lastName ?? (userData as any).last_name ?? '').toString().trim(),
           email: (userData.email ?? '').toString().trim(),
-          phone: (userData.phone ?? userData.phone_number ?? (userData as any).phone ?? '').toString().trim(),
+          phone: (() => { const raw = (userData.phone ?? (userData as any).phone_number ?? (userData as any).phone ?? '').toString().trim(); return raw ? formatPhoneDisplay(raw) : ''; })(),
           dealershipName: (userData.dealership_name ?? userData.dealershipName ?? (userData as any).dealership?.name ?? '').toString().trim(),
           address: (userData.dealership_street ?? (userData as any).dealership?.address ?? '').toString().trim(),
           city: (userData.dealership_city ?? (userData as any).dealership?.city ?? '').toString().trim(),
@@ -122,10 +123,23 @@ export default function SettingsPage() {
         return;
       }
 
-      // Update user profile (first name, last name) in DB
+      // Phone required, strict format
+      const phoneTrimmed = profile.phone.trim();
+      if (!phoneTrimmed) {
+        toast.error('Phone number is required.');
+        setLoading(false);
+        return;
+      }
+      if (!validatePhoneFormat(phoneTrimmed)) {
+        toast.error(PHONE_FORMAT_HELP);
+        setLoading(false);
+        return;
+      }
+      // Update user profile (first name, last name, phone) in DB
       await patchJsonAuth('/auth/me', {
         first_name: profile.firstName || null,
         last_name: profile.lastName || null,
+        phone: phoneTrimmed || null,
       });
 
       // If user is admin and has a dealership, update dealership name and address fields in DB
@@ -221,15 +235,18 @@ export default function SettingsPage() {
                   </div>
                   <div className="mb-4">
                     <label className="block text-sm font-medium mb-2" style={{ color: '#374151' }}>
-                      Phone Number
+                      Phone Number *
                     </label>
                     <input
                       type="tel"
+                      placeholder="(123) 456-7890"
+                      required
                       value={profile.phone}
-                      onChange={(e) => setProfile({ ...profile, phone: e.target.value })}
+                      onChange={(e) => setProfile({ ...profile, phone: formatPhoneInput(e.target.value) })}
                       className="w-full px-3 py-2 rounded-lg border bg-white"
                       style={{ borderColor: '#D1D5DB', color: '#111827' }}
                     />
+                    <p className="text-xs mt-1" style={{ color: '#6B7280' }}>{PHONE_FORMAT_HELP}</p>
                   </div>
                   <div className="mb-4">
                     <label className="block text-sm font-medium mb-2" style={{ color: '#374151' }}>
@@ -347,7 +364,7 @@ export default function SettingsPage() {
                       Phone Number
                     </label>
                     <div className="px-3 py-2 rounded-lg" style={{ backgroundColor: '#F9FAFB', color: '#374151' }}>
-                      {profile.phone || '—'}
+                      {profile.phone ? formatPhoneDisplay(profile.phone) : '—'}
                     </div>
                   </div>
                   <div className="mb-4">
