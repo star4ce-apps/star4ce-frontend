@@ -122,10 +122,11 @@ export default function SettingsPage() {
         return;
       }
 
-      // Update user profile (first name, last name) in DB
+      // Update user profile (first name, last name, phone) in DB
       await patchJsonAuth('/auth/me', {
         first_name: profile.firstName || null,
         last_name: profile.lastName || null,
+        phone: profile.phone.trim() || null,
       });
 
       // If user is admin and has a dealership, update dealership name and address fields in DB

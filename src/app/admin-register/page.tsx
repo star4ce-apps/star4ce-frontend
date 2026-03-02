@@ -15,6 +15,7 @@ function AdminRegisterPageContent() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
+  const [phone, setPhone] = useState('');
   const [dealershipName, setDealershipName] = useState('');
   const [dealershipAddress, setDealershipAddress] = useState('');
   const [dealershipCity, setDealershipCity] = useState('');
@@ -285,6 +286,7 @@ function AdminRegisterPageContent() {
             password,
             first_name: firstName.trim(),
             last_name: lastName.trim(),
+            phone: phone.trim() || null,
             is_admin_registration: true,  // Flag for admin registration
             dealership_name: dealershipName.trim() || null,
             dealership_address: dealershipAddress.trim() || null,
@@ -493,6 +495,18 @@ function AdminRegisterPageContent() {
                       />
                     </div>
 
+                    {/* Phone Field (optional) */}
+                    <div className="mb-3">
+                      <input
+                        type="tel"
+                        placeholder="Phone (optional)"
+                        autoComplete="tel"
+                        className="w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#0B2E65] focus:border-transparent"
+                        value={phone}
+                        onChange={(e) => setPhone(e.target.value)}
+                      />
+                    </div>
+
                     {/* Password Field */}
                     <div className="mb-3">
                       <input
@@ -593,7 +607,7 @@ function AdminRegisterPageContent() {
                           ))}
                         </select>
                       </div>
-                      <div className="col-span-2">
+                      <div>
                         <select
                           className="cursor-pointer w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#0B2E65] focus:border-transparent disabled:bg-gray-100 disabled:text-gray-400"
                           value={dealershipCity === '__other__' ? '__other__' : dealershipCity}

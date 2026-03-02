@@ -24,6 +24,7 @@ function ManagerRegisterContent() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
+  const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
   const [loadingInvite, setLoadingInvite] = useState(false);
   const [error, setError] = useState('');
@@ -189,6 +190,7 @@ function ManagerRegisterContent() {
         last_name: lastName.trim(),
         email: email.trim().toLowerCase(),
       };
+      if (phone.trim()) body.phone = phone.trim();
       if (inviteToken) {
         body.token = inviteToken;
       } else {
@@ -363,6 +365,17 @@ function ManagerRegisterContent() {
                     required
                     disabled={isInviteMode && !!inviteToken}
                   />
+                  </div>
+                  <div className="mb-3">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Phone (optional)</label>
+                    <input
+                      type="tel"
+                      placeholder="Phone"
+                      autoComplete="tel"
+                      className="w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#0B2E65] focus:border-transparent"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                    />
                   </div>
                   <div className="mb-3">
                     <label className="block text-sm font-medium text-gray-700 mb-1">Password *</label>

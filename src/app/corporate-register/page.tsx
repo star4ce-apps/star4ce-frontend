@@ -14,6 +14,7 @@ export default function CorporateRegisterPage() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
+  const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [joinCode, setJoinCode] = useState('');
@@ -128,6 +129,7 @@ export default function CorporateRegisterPage() {
             password,
             first_name: firstName.trim(),
             last_name: lastName.trim(),
+            phone: phone.trim() || null,
           }),
         }).catch((fetchError) => {
           console.error('Network error:', fetchError);
@@ -290,6 +292,17 @@ export default function CorporateRegisterPage() {
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       required
+                    />
+                  </div>
+                  <div className="mb-3">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Phone (optional)</label>
+                    <input
+                      type="tel"
+                      placeholder="Phone"
+                      autoComplete="tel"
+                      className="w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#0B2E65] focus:border-transparent"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
                     />
                   </div>
                   <div className="mb-3">
