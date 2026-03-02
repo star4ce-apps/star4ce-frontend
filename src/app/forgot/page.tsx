@@ -16,14 +16,19 @@ function ForgotPageContent() {
   const [email, setEmail] = useState('');
   const [emailFromUrl, setEmailFromUrl] = useState(false);
 
-  // Pre-fill email from ?email=... and go straight to "enter code" when coming from the email link
+  // Pre-fill email and code from ?email=...&code=... when opening the link from the email
   useEffect(() => {
     const qEmail = search.get('email');
+    const qCode = search.get('code') || '';
+    const codeDigits = qCode.replace(/\D/g, '').slice(0, 6);
     if (qEmail) {
       setEmail(decodeURIComponent(qEmail));
       setEmailFromUrl(true);
       setStep('reset');
       setMessage('Enter the reset code from your email below. The code expires in 10 minutes and can only be used once.');
+    }
+    if (codeDigits) {
+      setCode(codeDigits);
     }
   }, [search]);
   const [code, setCode] = useState('');
