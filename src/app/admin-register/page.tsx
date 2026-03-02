@@ -4,6 +4,7 @@ import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { API_BASE } from '@/lib/auth';
+import { formatPhoneInput, validatePhoneFormat, PHONE_FORMAT_HELP } from '@/lib/phone';
 import toast from 'react-hot-toast';
 import Logo from '@/components/Logo';
 
@@ -277,6 +278,14 @@ function AdminRegisterPageContent() {
           return;
         }
       } else {
+        if (!phone.trim()) {
+          setError('Phone number is required.');
+          return;
+        }
+        if (!validatePhoneFormat(phone)) {
+          setError(PHONE_FORMAT_HELP);
+          return;
+        }
         // New registration - create the user account (include dealership info so backend can save for checkout)
         const registerRes = await fetch(`${API_BASE}/auth/register`, {
           method: 'POST',
@@ -286,7 +295,7 @@ function AdminRegisterPageContent() {
             password,
             first_name: firstName.trim(),
             last_name: lastName.trim(),
-            phone: phone.trim() || null,
+            phone: phone.trim(),
             is_admin_registration: true,  // Flag for admin registration
             dealership_name: dealershipName.trim() || null,
             dealership_address: dealershipAddress.trim() || null,
@@ -495,16 +504,18 @@ function AdminRegisterPageContent() {
                       />
                     </div>
 
-                    {/* Phone Field (optional) */}
+                    {/* Phone Field (required) */}
                     <div className="mb-3">
                       <input
                         type="tel"
-                        placeholder="Phone (optional)"
+                        placeholder="(123) 456-7890 *"
                         autoComplete="tel"
                         className="w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#0B2E65] focus:border-transparent"
                         value={phone}
-                        onChange={(e) => setPhone(e.target.value)}
+                        onChange={(e) => setPhone(formatPhoneInput(e.target.value))}
+                        required
                       />
+                      <p className="text-xs text-gray-500 mt-1">{PHONE_FORMAT_HELP}</p>
                     </div>
 
                     {/* Password Field */}
