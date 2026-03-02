@@ -572,7 +572,7 @@ function AdminRegisterPageContent() {
                     </div>
 
                     {/* State, City, Zip */}
-                    <div className="grid grid-cols-3 gap-4 mb-3">
+                    <div className="grid grid-cols-2 gap-4 mb-3">
                       <div>
                         <select
                           className="cursor-pointer w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#0B2E65] focus:border-transparent"
