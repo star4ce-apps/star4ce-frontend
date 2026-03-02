@@ -29,7 +29,7 @@ const faqs: FAQItem[] = [
   {
     category: 'Getting Started',
     question: 'How do I add a new employee?',
-    answer: 'Navigate to the Employees page and click the "Add Employee" button. Fill in the required fields (marked with *) including name, email, phone, department, position, and status. You can also add optional information like address, date of birth, education, and referrals.'
+    answer: 'Navigate to the Employees page and use the link "Have an existing employee? Add them here". This is for adding existing employees (not applicants). Fill in the required fields (marked with *) including name, email, phone, department, position, and status. You can also add optional information like address, date of birth, education, and referrals.'
   },
   {
     category: 'Getting Started',
@@ -346,7 +346,7 @@ export default function HelpSupportPage() {
                     <p className="text-sm mb-4" style={{ color: '#6B7280' }}>
                       If you can't find what you're looking for, our support team is here to help.
                     </p>
-                    <div className="flex flex-wrap gap-3">
+                    <div className="flex flex-wrap gap-3 items-center">
                       <a
                         href="mailto:support@star4ce.com"
                         className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors hover:opacity-90"
@@ -357,17 +357,20 @@ export default function HelpSupportPage() {
                         </svg>
                         Email Support
                       </a>
-                      <a
-                        href="tel:+1-800-STAR4CE"
-                        className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg border transition-colors hover:bg-gray-50"
-                        style={{ borderColor: '#D1D5DB', color: '#374151' }}
+                      <span
+                        className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg border cursor-not-allowed opacity-60"
+                        style={{ borderColor: '#D1D5DB', color: '#9CA3AF' }}
+                        title="Calling isn't supported yet"
                       >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
                         </svg>
                         Call Support
-                      </a>
+                      </span>
                     </div>
+                    <p className="text-xs mt-2" style={{ color: '#9CA3AF' }}>
+                      Calling isn&apos;t supported yet. Please use Email Support for now.
+                    </p>
                   </div>
                 </div>
               </div>

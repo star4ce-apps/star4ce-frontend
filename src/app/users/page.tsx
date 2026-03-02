@@ -1455,9 +1455,12 @@ function UserManagementPageContent() {
 
           {/* Create join code modal (Corporate / Manager / Hiring Manager) */}
           {showCreateJoinCodeModal && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-              <div className="rounded-xl p-6 max-w-md w-full mx-4" style={{ backgroundColor: '#FFFFFF' }}>
-                <h2 className="text-2xl font-bold mb-4" style={{ color: '#232E40' }}>Create join code</h2>
+            <div className="fixed inset-0 flex items-center justify-center z-50 p-4" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+              <div className="rounded-xl shadow-xl max-w-md w-full overflow-hidden flex flex-col" style={{ backgroundColor: '#FFFFFF', border: '1px solid #E5E7EB' }}>
+                <div className="p-4 border-b flex-shrink-0" style={{ borderColor: '#E5E7EB', backgroundColor: '#4D6DBE' }}>
+                  <h2 className="text-lg font-bold" style={{ color: '#FFFFFF' }}>Create join code</h2>
+                </div>
+                <div className="p-6">
                 {!createdJoinCode ? (
                   <>
                     <p className="text-sm mb-4" style={{ color: '#6B7280' }}>
@@ -1471,7 +1474,7 @@ function UserManagementPageContent() {
                           onClick={() => handleCreateJoinCode(r)}
                           disabled={creatingJoinCode}
                           className="cursor-pointer w-full px-4 py-3 rounded-lg font-semibold text-sm transition-colors disabled:opacity-60"
-                          style={{ backgroundColor: '#0B2E65', color: '#FFFFFF' }}
+                          style={{ backgroundColor: '#4D6DBE', color: '#FFFFFF' }}
                         >
                           {creatingJoinCode ? 'Creating...' : joinCodeRoleLabel(r)}
                         </button>
@@ -1514,15 +1517,19 @@ function UserManagementPageContent() {
                     </button>
                   </>
                 )}
+                </div>
               </div>
             </div>
           )}
 
           {/* Send join code modal */}
           {sendJoinCodeModal && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-              <div className="rounded-xl p-6 max-w-md w-full mx-4" style={{ backgroundColor: '#FFFFFF' }}>
-                <h3 className="text-lg font-bold mb-2" style={{ color: '#232E40' }}>Send join code</h3>
+            <div className="fixed inset-0 flex items-center justify-center z-50 p-4" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+              <div className="rounded-xl shadow-xl max-w-md w-full overflow-hidden flex flex-col" style={{ backgroundColor: '#FFFFFF', border: '1px solid #E5E7EB' }}>
+                <div className="p-4 border-b flex-shrink-0" style={{ borderColor: '#E5E7EB', backgroundColor: '#4D6DBE' }}>
+                  <h3 className="text-lg font-bold" style={{ color: '#FFFFFF' }}>Send join code</h3>
+                </div>
+                <div className="p-6">
                 <p className="text-sm mb-4" style={{ color: '#6B7280' }}>
                   Enter the email address to send the code <strong>{sendJoinCodeModal.code}</strong> to.
                 </p>
@@ -1552,6 +1559,7 @@ function UserManagementPageContent() {
                   >
                     {sendingId !== null ? 'Sending…' : 'Send'}
                   </button>
+                </div>
                 </div>
               </div>
             </div>

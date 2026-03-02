@@ -1002,7 +1002,7 @@ ${managerNotes.trim()}` : ''}`;
       type: 'review' as const,
       date: review.date,
       title: `Performance Review ${review.id} Completed`,
-      description: `Performance Review ${review.id} completed by ${review.reviewer}`,
+      description: `Reviewed by ${review.reviewer || review.reviewer_name || 'Unknown Reviewer'}`,
       reviewer: review.reviewer,
       score: review.overallScore,
       review: review,
@@ -1201,7 +1201,7 @@ ${managerNotes.trim()}` : ''}`;
                                       Performance Review {reviewNumber} Completed
                                     </h3>
                                     <p className="text-sm" style={{ color: '#6B7280' }}>
-                                      Performance Review {reviewNumber} completed by {log.reviewer || log.reviewer_name || 'Unknown Reviewer'}
+                                      Reviewed by {log.reviewer || log.reviewer_name || 'Unknown Reviewer'}
                                     </p>
                                   </div>
                                   <div className="flex flex-shrink-0 items-center gap-2">

@@ -510,10 +510,12 @@ export default function CandidatesPage() {
       return false;
     }
     
-    const matchesSearch = 
-      candidate.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      candidate.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      candidate.position.toLowerCase().includes(searchQuery.toLowerCase());
+    const q = searchQuery.trim().toLowerCase();
+    const matchesSearch = !q ||
+      (candidate.name && candidate.name.toLowerCase().includes(q)) ||
+      (candidate.email && candidate.email.toLowerCase().includes(q)) ||
+      (candidate.position && candidate.position.toLowerCase().includes(q)) ||
+      (candidate.phone && candidate.phone.toLowerCase().includes(q));
     
     const matchesStatus = selectedStatus === 'All Statuses' || calculatedStatus === selectedStatus;
     
@@ -673,36 +675,49 @@ export default function CandidatesPage() {
             </div>
           )}
 
-          {/* Filters */}
-          <div className="mb-6 flex gap-4">
-            <div className="flex-1">
+          {/* Search and Filters */}
+          <div className="flex items-center gap-3 mb-6">
+            <div className="relative flex-1" style={{ maxWidth: '400px' }}>
               <input
                 type="text"
-                placeholder="Search candidates by name, email, or position..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full px-4 py-3 rounded-lg border"
-                style={{ 
-                  backgroundColor: '#FFFFFF', 
-                  borderColor: '#E5E7EB',
-                  color: '#232E40'
+                placeholder="Search candidates..."
+                className="w-full text-sm rounded-full px-4 py-2.5 pl-10 transition-all focus:outline-none focus:ring-2"
+                style={{
+                  border: '1px solid #E5E7EB',
+                  color: '#374151',
+                  backgroundColor: '#FFFFFF'
                 }}
               />
+              <svg
+                className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                style={{ color: '#9CA3AF' }}
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
             </div>
-            <select
-              value={selectedStatus}
-              onChange={(e) => setSelectedStatus(e.target.value)}
-              className="px-4 py-3 rounded-lg border"
-              style={{ 
-                backgroundColor: '#FFFFFF', 
-                borderColor: '#E5E7EB',
-                color: '#232E40'
-              }}
-            >
+            <div className="relative">
+              <select
+                value={selectedStatus}
+                onChange={(e) => setSelectedStatus(e.target.value)}
+                className="text-sm py-2.5 appearance-none cursor-pointer transition-all rounded-lg"
+                style={{
+                  border: '1px solid #E5E7EB',
+                  color: '#374151',
+                  backgroundColor: '#FFFFFF',
+                  paddingLeft: '1rem',
+                  paddingRight: '2.5rem'
+                }}
+              >
               {statusOptions.map(status => (
                 <option key={status} value={status}>{status}</option>
               ))}
             </select>
+            </div>
           </div>
 
           {/* Candidates List */}
