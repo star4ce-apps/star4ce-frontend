@@ -5,7 +5,7 @@ import { useRouter, useParams } from 'next/navigation';
 import HubSidebar from '@/components/sidebar/HubSidebar';
 import RequireAuth from '@/components/layout/RequireAuth';
 import { API_BASE, getToken } from '@/lib/auth';
-import { getJsonAuth, postJsonAuth, putJsonAuth } from '@/lib/http';
+import { deleteJsonAuth, getJsonAuth, postJsonAuth, putJsonAuth } from '@/lib/http';
 
 import toast from 'react-hot-toast';
 
@@ -375,6 +375,28 @@ export default function CandidateProfilePage() {
       toast.success('Application denied successfully');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to deny application';
+      toast.error(msg);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDeleteCandidate() {
+    if (!candidate) return;
+    if (role !== 'admin' && role !== 'hiring_manager') {
+      toast.error('Only admin and hiring manager can delete candidates.');
+      return;
+    }
+    if (!confirm('Are you sure you want to permanently delete this candidate?\n\nThis will remove them and their resume from the system. This action cannot be undone.')) {
+      return;
+    }
+    setSaving(true);
+    try {
+      await deleteJsonAuth(`/candidates/${candidate.id}`);
+      toast.success('Candidate deleted');
+      router.push('/candidates');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to delete candidate';
       toast.error(msg);
     } finally {
       setSaving(false);
@@ -2033,11 +2055,11 @@ export default function CandidateProfilePage() {
                         <div className="p-4 rounded-lg" style={{ backgroundColor: '#FEF2F2', border: '1px solid #FEE2E2' }}>
                           <h4 className="text-xs font-semibold mb-2" style={{ color: '#991B1B' }}>Danger Zone</h4>
                           <p className="text-xs mb-3" style={{ color: '#6B7280' }}>
-                            Once you delete a candidate, they will be permanently rejected and their status will be set to "Denied". This action cannot be undone.
+                            Permanently delete this candidate and their resume from the system. This action cannot be undone.
                           </p>
                           <button
                             type="button"
-                            onClick={handleDenyApplication}
+                            onClick={handleDeleteCandidate}
                             disabled={savingPersonal || role === 'corporate'}
                             className="px-4 py-2 text-sm font-medium rounded-lg cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:opacity-90"
                             style={{ 

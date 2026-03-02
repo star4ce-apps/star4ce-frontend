@@ -317,14 +317,22 @@ export default function EmployeeRoleHistoryPage() {
       return;
     }
     
-    // Need previous value to revert (for other actions)
-    if (!entry.previousValue || entry.previousValue === '—' || entry.previousValue === 'N/A') {
-      toast.error('Cannot revert - previous value not available');
-      return;
-    }
-    
-    if (!window.confirm(`Are you sure you want to revert "${entry.action}" for ${entry.name}?`)) {
-      return;
+    // Restore deleted employee or candidate (no previousValue required; backend uses audit log)
+    if (entry.action === 'Employee Removed' || entry.action === 'Candidate Deleted') {
+      const what = entry.action === 'Employee Removed' ? 'employee' : 'candidate';
+      if (!window.confirm(`Restore ${entry.name}? This will add them back to the ${what} list.`)) {
+        return;
+      }
+      // Fall through to generic revert POST (sends audit_log_id)
+    } else {
+      // Need previous value to revert (for other actions)
+      if (!entry.previousValue || entry.previousValue === '—' || entry.previousValue === 'N/A') {
+        toast.error('Cannot revert - previous value not available');
+        return;
+      }
+      if (!window.confirm(`Are you sure you want to revert "${entry.action}" for ${entry.name}?`)) {
+        return;
+      }
     }
     
     try {
@@ -632,7 +640,7 @@ export default function EmployeeRoleHistoryPage() {
                             <div className="relative inline-block">
                               <button
                                 onClick={() => handleRevert(entry)}
-                                disabled={entry.action === 'Candidate Created' || entry.action === 'Terminated' || (entry.action !== 'Employee Created' && (!entry.previousValue || entry.previousValue === '—' || entry.previousValue === 'N/A')) || entry.reverted}
+                                disabled={entry.action === 'Candidate Created' || entry.action === 'Terminated' || (entry.action !== 'Employee Created' && entry.action !== 'Employee Removed' && entry.action !== 'Candidate Deleted' && (!entry.previousValue || entry.previousValue === '—' || entry.previousValue === 'N/A')) || entry.reverted}
                                 className="p-1.5 rounded-md hover:bg-gray-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                                 style={{ color: '#6B7280' }}
                                 title="Revert this change"
