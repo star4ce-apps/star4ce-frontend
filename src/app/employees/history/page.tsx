@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import HubSidebar from '@/components/sidebar/HubSidebar';
 import RequireAuth from '@/components/layout/RequireAuth';
 import { API_BASE, getToken, getSelectedDealershipId } from '@/lib/auth';
@@ -43,6 +44,7 @@ type HistoryEntry = {
 };
 
 export default function EmployeeRoleHistoryPage() {
+  const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedType, setSelectedType] = useState('All Types');
   const [selectedAction, setSelectedAction] = useState('All Actions');
@@ -60,7 +62,7 @@ export default function EmployeeRoleHistoryPage() {
     loadRoleHistory();
   }, [selectedType, selectedAction]);
 
-  async function loadRoleHistory() {
+  async function loadRoleHistory(forceRefresh?: boolean) {
     setLoading(true);
     setError(null);
     
@@ -70,9 +72,10 @@ export default function EmployeeRoleHistoryPage() {
         throw new Error('Not logged in');
       }
       
-      // Build query params
+      // Build query params (cache-bust after revert so "Reverted" state shows)
       const params = new URLSearchParams();
       params.append('limit', '500'); // Get enough entries
+      if (forceRefresh) params.append('_t', String(Date.now()));
       if (selectedType !== 'All Types') {
         // Map "Employee" -> "employee", "Candidate" -> "candidate"
         const typeMap: { [key: string]: string } = {
@@ -307,8 +310,8 @@ export default function EmployeeRoleHistoryPage() {
           deleteOk = false;
         }
         if (deleteOk) toast.success('Revert successful – candidate restored, employee removed.');
-        await loadRoleHistory();
-        window.location.href = '/employees';
+        await loadRoleHistory(true); // Refetch so reverted state is visible when user opens history again
+        router.push('/employees');
         return;
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : 'Failed to revert';
@@ -370,8 +373,8 @@ export default function EmployeeRoleHistoryPage() {
       
       toast.success(data.message || 'Change reverted successfully');
       
-      // Reload history to show updated data
-      await loadRoleHistory();
+      // Reload history so "Reverted" badge appears (force refresh to avoid cached response)
+      await loadRoleHistory(true);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to revert change';
       toast.error(msg);
