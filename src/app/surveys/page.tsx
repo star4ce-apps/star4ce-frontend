@@ -12,6 +12,7 @@ import {
   ResponsiveContainer,
   Tooltip,
 } from 'recharts';
+import { SURVEY_TYPE_LABELS, getQuestionsForSurveyType, getScaleLabel } from '@/lib/surveyDisplay';
 
 // Modern color palette - cohesive and muted
 const COLORS = {
@@ -36,6 +37,13 @@ const COLORS = {
 
 const CHART_COLORS = ['#3B5998', '#94A3B8', '#e74c3c']; // Blue (positive), Gray (neutral), Red (negative)
 
+/** Extract only the improvement text from a feedback comment for previews. */
+function getImprovementPreview(comment: string | null | undefined): string {
+  if (!comment?.trim()) return '';
+  const m = comment.match(/^Improvement:\s*([\s\S]*?)(?=\n\n(?:Retention:|Future:|Reason for leaving:|Reason details:|Q\d+ comment:)|\n\n\n|$)/im);
+  return m ? m[1].trim() : '';
+}
+
 type SatisfactionData = {
   name: string;
   value: number;
@@ -50,12 +58,20 @@ type DepartmentData = {
   total: number;
 };
 
+type SurveyType = 'newly-hired' | 'termination' | 'leave' | 'none';
+
 type FeedbackItem = {
   id: number;
   department: string;
   date: string;
   sentiment: 'Highly Positive' | 'Positive' | 'Neutral' | 'Negative' | 'Highly Negative';
   comment: string;
+  /** Survey type when available: newly hired, on leave, terminated, none (normal). */
+  survey_type?: SurveyType | null;
+  /** Question number -> scale value (1–7) when API provides it. */
+  question_answers?: { [key: number]: string } | null;
+  /** Question number -> optional comment when API provides it. */
+  question_comments?: { [key: number]: string } | null;
 };
 
 type AccessCodeItem = {
@@ -86,6 +102,7 @@ export default function SurveysPage() {
   const [surveysNeverTook, setSurveysNeverTook] = useState<number>(0);
   const [loading, setLoading] = useState(true);
   const [selectedDepartment, setSelectedDepartment] = useState<string>('All Departments');
+  const [selectedSurveyType, setSelectedSurveyType] = useState<'All survey types' | SurveyType>('All survey types');
   const [sortBy, setSortBy] = useState<string>('Recent');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [activeTab, setActiveTab] = useState<'analytics' | 'access-codes'>('analytics');
@@ -182,8 +199,8 @@ export default function SurveysPage() {
         setSurveysTaken(data.surveys_taken ?? 0);
         setSurveysNeverTook(data.surveys_never_took ?? 0);
         
-        // Map feedback sentiment to match the expected format
-        const mappedFeedback = (data.feedback || []).map(item => {
+        // Map feedback sentiment and optional survey_type / question_answers
+        const mappedFeedback = (data.feedback || []).map((item: any) => {
           let sentiment: 'Highly Positive' | 'Positive' | 'Neutral' | 'Negative' | 'Highly Negative' = 'Neutral';
           if (item.sentiment === 'Positive') {
             sentiment = 'Positive';
@@ -192,9 +209,13 @@ export default function SurveysPage() {
           } else {
             sentiment = 'Neutral';
           }
+          const surveyType = item.survey_type ?? item.employee_status ?? undefined;
           return {
             ...item,
-            sentiment
+            sentiment,
+            survey_type: surveyType && ['newly-hired', 'termination', 'leave', 'none'].includes(surveyType) ? surveyType : undefined,
+            question_answers: item.question_answers ?? undefined,
+            question_comments: item.question_comments ?? undefined,
           };
         });
         setFeedback(mappedFeedback);
@@ -460,7 +481,7 @@ export default function SurveysPage() {
             </div>
             <div className="rounded-xl p-5" style={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}` }}>
               <p className="text-xs font-medium uppercase tracking-wide mb-2" style={{ color: COLORS.gray[400] }}>Never took</p>
-              <p className="text-2xl font-semibold" style={{ color: COLORS.negative }}>{surveysNeverTook}</p>
+              <p className="text-2xl font-semibold" style={{ color: '#394B67' }}>{surveysNeverTook}</p>
               <p className="text-xs mt-1" style={{ color: COLORS.gray[400] }}>Codes with no response</p>
             </div>
           </div>
@@ -631,6 +652,25 @@ export default function SurveysPage() {
                 </div>
               </div>
               <div className="relative">
+                <select
+                  value={selectedSurveyType}
+                  onChange={(e) => setSelectedSurveyType(e.target.value as any)}
+                  className="text-sm py-2 px-4 pr-8 appearance-none cursor-pointer rounded-lg"
+                  style={{ border: `1px solid ${COLORS.gray[200]}`, color: COLORS.gray[700], backgroundColor: '#fff' }}
+                >
+                  <option>All survey types</option>
+                  <option value="none">Employee</option>
+                  <option value="newly-hired">Newly hired</option>
+                  <option value="leave">On leave</option>
+                  <option value="termination">Terminated</option>
+                </select>
+                <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: COLORS.gray[400] }}>
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </div>
+              </div>
+              <div className="relative">
                 <select 
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value)}
@@ -656,6 +696,13 @@ export default function SurveysPage() {
                     // Filter by department
                     if (selectedDepartment !== 'All Departments' && item.department !== selectedDepartment) {
                       return false;
+                    }
+                    // Filter by survey type
+                    if (selectedSurveyType !== 'All survey types') {
+                      const typeForItem: SurveyType | 'none' = (item.survey_type as SurveyType | null | undefined) ?? 'none';
+                      if (typeForItem !== selectedSurveyType) {
+                        return false;
+                      }
                     }
                     // Filter by search query
                     if (searchQuery && !item.comment.toLowerCase().includes(searchQuery.toLowerCase()) && 
@@ -692,14 +739,16 @@ export default function SurveysPage() {
                           <span className="text-sm font-medium" style={{ color: COLORS.gray[800] }}>{item.department}</span>
                           <span className="text-xs ml-2" style={{ color: COLORS.gray[400] }}>{item.date}</span>
                         </div>
-                        <span 
-                          className="text-xs font-medium px-2 py-1 rounded"
-                          style={{ color: style.text, backgroundColor: style.bg }}
-                        >
-                          {item.sentiment}
-                        </span>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          {item.survey_type && (
+                            <span className="text-xs font-medium px-2 py-1 rounded" style={{ backgroundColor: COLORS.gray[200], color: COLORS.gray[800] }}>
+                              {SURVEY_TYPE_LABELS[item.survey_type] ?? item.survey_type}
+                            </span>
+                          )}
+                          <span className="text-xs font-medium px-2 py-1 rounded" style={{ color: style.text, backgroundColor: style.bg }}>{item.sentiment}</span>
+                        </div>
                       </div>
-                      <p className="text-sm mb-3 line-clamp-3" style={{ color: COLORS.gray[600] }}>{item.comment}</p>
+                      <p className="text-sm mb-3 line-clamp-3" style={{ color: COLORS.gray[600] }}>{getImprovementPreview(item.comment) || 'No improvement comment'}</p>
                       <button type="button" onClick={() => setShowFeedbackDetailModal(item)} className="text-xs font-medium hover:underline cursor-pointer bg-transparent border-none p-0" style={{ color: COLORS.primary }}>View more →</button>
                     </div>
                   );
@@ -979,24 +1028,97 @@ export default function SurveysPage() {
           )}
 
           {/* Single feedback View more modal */}
-          {showFeedbackDetailModal && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }} onClick={() => setShowFeedbackDetailModal(null)}>
-              <div className="rounded-xl p-6 max-w-lg w-full max-h-[85vh] overflow-hidden flex flex-col shadow-xl" style={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}` }} onClick={e => e.stopPropagation()}>
-                <div className="flex items-center justify-between mb-4 flex-shrink-0">
-                  <h2 className="text-lg font-semibold" style={{ color: COLORS.gray[900] }}>Written Feedback</h2>
-                  <button type="button" onClick={() => setShowFeedbackDetailModal(null)} className="cursor-pointer p-1 rounded hover:bg-gray-100" aria-label="Close">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                  </button>
+          {showFeedbackDetailModal && (() => {
+            const item = showFeedbackDetailModal;
+            const surveyType = item.survey_type;
+            const questionAnswers = item.question_answers ?? {};
+            const questionComments = item.question_comments ?? {};
+            const questions = surveyType ? getQuestionsForSurveyType(surveyType) : [];
+            const hasStructuredQuestions = questions.length > 0 && Object.keys(questionAnswers).length > 0;
+            // Parse comment: extract Improvement (show at top) and optionally other sections; do not show raw "Additional comments" block
+            const parseComment = (comment: string) => {
+              if (!comment?.trim()) return { improvement: null, other: [] as { label: string; text: string }[] };
+              const improvementMatch = comment.match(/^Improvement:\s*([\s\S]*?)(?=\n\n(?:Retention:|Future:|Reason for leaving:|Reason details:|Q\d+ comment:)|\n\n\n|$)/im);
+              const improvement = improvementMatch ? improvementMatch[1].trim() : null;
+              const blocks = comment.split(/\n\n+/).map(b => b.trim()).filter(Boolean);
+              const other: { label: string; text: string }[] = [];
+              for (const block of blocks) {
+                if (/^Improvement:\s*/i.test(block)) continue;
+                if (/^Retention:\s*/i.test(block)) other.push({ label: 'Retention', text: block.replace(/^Retention:\s*/i, '').trim() });
+                else if (/^Future:\s*/i.test(block)) other.push({ label: 'Future consideration', text: block.replace(/^Future:\s*/i, '').trim() });
+                else if (/^Reason for leaving:\s*/i.test(block)) other.push({ label: 'Reason for leaving', text: block.replace(/^Reason for leaving:\s*/i, '').trim() });
+                else if (/^Reason details:\s*/i.test(block)) other.push({ label: 'Reason details', text: block.replace(/^Reason details:\s*/i, '').trim() });
+              }
+              return { improvement, other };
+            };
+            const { improvement, other } = parseComment(item.comment ?? '');
+            return (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }} onClick={() => setShowFeedbackDetailModal(null)}>
+                <div className="rounded-xl p-6 max-w-lg w-full max-h-[85vh] overflow-hidden flex flex-col shadow-xl" style={{ backgroundColor: '#fff', border: `1px solid ${COLORS.gray[200]}` }} onClick={e => e.stopPropagation()}>
+                  <div className="flex items-center justify-between mb-4 flex-shrink-0">
+                    <h2 className="text-lg font-semibold" style={{ color: COLORS.gray[900] }}>Written Feedback</h2>
+                    <button type="button" onClick={() => setShowFeedbackDetailModal(null)} className="cursor-pointer p-1 rounded hover:bg-gray-100" aria-label="Close">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
+                  </div>
+                  <div className="flex items-center justify-between mb-2 flex-shrink-0">
+                    <span className="text-sm font-medium" style={{ color: COLORS.gray[800] }}>{item.department}</span>
+                    <span className="text-xs" style={{ color: COLORS.gray[400] }}>{item.date}</span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2 mb-3 flex-shrink-0">
+                    {surveyType && (
+                      <span className="text-xs font-medium px-2 py-1 rounded" style={{ backgroundColor: COLORS.gray[200], color: COLORS.gray[800] }}>
+                        {SURVEY_TYPE_LABELS[surveyType as keyof typeof SURVEY_TYPE_LABELS] ?? surveyType}
+                      </span>
+                    )}
+                    <span className="text-xs font-medium px-2 py-1 rounded" style={{ backgroundColor: getSentimentStyle(item.sentiment).bg, color: getSentimentStyle(item.sentiment).text }}>{item.sentiment}</span>
+                  </div>
+                  <div className="overflow-y-auto flex-1 pr-2 space-y-4">
+                    {improvement && (
+                      <div>
+                        <h3 className="text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: COLORS.gray[500] }}>Improvement</h3>
+                        <p className="text-sm" style={{ color: COLORS.gray[600], whiteSpace: 'pre-wrap' }}>{improvement}</p>
+                      </div>
+                    )}
+                    {hasStructuredQuestions && (
+                      <ul className="space-y-3">
+                        {questions.map((q) => {
+                          const scaleVal = questionAnswers[q.num];
+                          const label = scaleVal ? getScaleLabel(scaleVal) : '—';
+                          const comment = questionComments[q.num]?.trim();
+                          return (
+                            <li key={q.num} className="rounded-lg p-3" style={{ backgroundColor: COLORS.gray[50], border: `1px solid ${COLORS.gray[200]}` }}>
+                              {q.category && (
+                                <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: COLORS.gray[500] }}>{q.category}</p>
+                              )}
+                              <p className="text-sm font-medium mb-1" style={{ color: COLORS.gray[800] }}>{q.num}. {q.text}</p>
+                              <p className="text-xs font-medium mb-0.5" style={{ color: COLORS.primary }}>{label}</p>
+                              {comment && <p className="text-sm mt-1" style={{ color: COLORS.gray[600], whiteSpace: 'pre-wrap' }}>{comment}</p>}
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+                    {other.length > 0 && other.map((o, i) => (
+                      <div key={i}>
+                        <h3 className="text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: COLORS.gray[500] }}>{o.label}</h3>
+                        <p className="text-sm" style={{ color: COLORS.gray[600], whiteSpace: 'pre-wrap' }}>{o.text}</p>
+                      </div>
+                    ))}
+                    {!improvement && !hasStructuredQuestions && other.length === 0 && item.comment && (
+                      <div>
+                        <h3 className="text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: COLORS.gray[500] }}>Comment</h3>
+                        <p className="text-sm" style={{ color: COLORS.gray[600], whiteSpace: 'pre-wrap' }}>{item.comment}</p>
+                      </div>
+                    )}
+                    {!improvement && !hasStructuredQuestions && other.length === 0 && !item.comment && (
+                      <p className="text-sm" style={{ color: COLORS.gray[500] }}>No response content.</p>
+                    )}
+                  </div>
                 </div>
-                <div className="flex items-center justify-between mb-3 flex-shrink-0">
-                  <span className="text-sm font-medium" style={{ color: COLORS.gray[800] }}>{showFeedbackDetailModal.department}</span>
-                  <span className="text-xs" style={{ color: COLORS.gray[400] }}>{showFeedbackDetailModal.date}</span>
-                </div>
-                <span className="text-xs font-medium px-2 py-1 rounded mb-3 inline-block flex-shrink-0" style={{ backgroundColor: getSentimentStyle(showFeedbackDetailModal.sentiment).bg, color: getSentimentStyle(showFeedbackDetailModal.sentiment).text }}>{showFeedbackDetailModal.sentiment}</span>
-                <p className="text-sm overflow-y-auto flex-1 pr-2" style={{ color: COLORS.gray[600], whiteSpace: 'pre-wrap' }}>{showFeedbackDetailModal.comment}</p>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* View All feedback modal */}
           {showAllFeedbackModal && (
@@ -1012,6 +1134,10 @@ export default function SurveysPage() {
                   {(() => {
                     const filtered = feedback.filter(item => {
                       if (selectedDepartment !== 'All Departments' && item.department !== selectedDepartment) return false;
+                      if (selectedSurveyType !== 'All survey types') {
+                        const typeForItem: SurveyType | 'none' = (item.survey_type as SurveyType | null | undefined) ?? 'none';
+                        if (typeForItem !== selectedSurveyType) return false;
+                      }
                       if (searchQuery && !item.comment.toLowerCase().includes(searchQuery.toLowerCase()) && !item.department.toLowerCase().includes(searchQuery.toLowerCase())) return false;
                       return true;
                     });
@@ -1037,8 +1163,16 @@ export default function SurveysPage() {
                             <span className="text-sm font-medium" style={{ color: COLORS.gray[800] }}>{item.department}</span>
                             <span className="text-xs" style={{ color: COLORS.gray[400] }}>{item.date}</span>
                           </div>
-                          <span className="text-xs font-medium px-2 py-1 rounded inline-block mb-2" style={{ color: style.text, backgroundColor: style.bg }}>{item.sentiment}</span>
-                          <p className="text-sm" style={{ color: COLORS.gray[600], whiteSpace: 'pre-wrap' }}>{item.comment}</p>
+                          <div className="flex flex-wrap items-center gap-2 mb-2">
+                            {item.survey_type && (
+                              <span className="text-xs font-medium px-2 py-1 rounded" style={{ backgroundColor: COLORS.gray[200], color: COLORS.gray[800] }}>
+                                {SURVEY_TYPE_LABELS[item.survey_type] ?? item.survey_type}
+                              </span>
+                            )}
+                            <span className="text-xs font-medium px-2 py-1 rounded" style={{ color: style.text, backgroundColor: style.bg }}>{item.sentiment}</span>
+                          </div>
+                          <p className="text-sm mb-2 line-clamp-3" style={{ color: COLORS.gray[600] }}>{getImprovementPreview(item.comment) || 'No improvement comment'}</p>
+                          <button type="button" onClick={() => { setShowAllFeedbackModal(false); setShowFeedbackDetailModal(item); }} className="text-xs font-medium hover:underline cursor-pointer bg-transparent border-none p-0" style={{ color: COLORS.primary }}>View more →</button>
                         </div>
                       );
                     });
