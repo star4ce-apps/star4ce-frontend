@@ -11,7 +11,11 @@ function normalizeApiBase(base: string | undefined): string {
   if (!base.startsWith("http://") && !base.startsWith("https://")) {
     base = `https://${base}`;
   }
-  
+  // In production, always use HTTPS to avoid mixed content and "Not Secure" warnings
+  if (base.startsWith("http://") && typeof process !== "undefined" && process.env.NODE_ENV === "production") {
+    base = "https://" + base.slice(7);
+  }
+
   // Remove trailing slash if present
   base = base.replace(/\/$/, "");
   
