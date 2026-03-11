@@ -123,6 +123,7 @@ export default function SurveysPage() {
   const [deletingCodeId, setDeletingCodeId] = useState<number | null>(null);
   const [batchCount, setBatchCount] = useState<string>('10');
   const [batchSummary, setBatchSummary] = useState<string | null>(null);
+  const [printCode, setPrintCode] = useState<AccessCodeItem | null>(null);
   // Initialize with current month
   const getCurrentMonthDates = () => {
     const today = new Date();
@@ -806,6 +807,82 @@ export default function SurveysPage() {
             </>
           )}
 
+          {/* Printable handout for a single survey access code */}
+          {printCode && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-white">
+              <div className="absolute top-4 right-4 flex gap-2 print:hidden">
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="cursor-pointer px-4 py-2 rounded-md text-sm font-semibold text-white"
+                  style={{ backgroundColor: '#4D6DBE' }}
+                >
+                  Print
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPrintCode(null)}
+                  className="cursor-pointer px-3 py-2 rounded-md text-sm font-semibold text-gray-700 border border-gray-300 bg-white"
+                >
+                  Close
+                </button>
+              </div>
+              <div className="w-full max-w-xl mx-4 border border-gray-300 rounded-xl p-10 shadow-lg print:shadow-none">
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-2">
+                    <div
+                      className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold"
+                      style={{ backgroundColor: '#0B2E65', color: '#FFFFFF' }}
+                    >
+                      S4
+                    </div>
+                    <div className="text-lg font-semibold" style={{ color: '#0B2E65' }}>
+                      Star4ce Employee Experience Survey
+                    </div>
+                  </div>
+                  <div className="text-xs text-gray-500 print:text-gray-400">
+                    Access code handout
+                  </div>
+                </div>
+
+                <div className="mb-6">
+                  <p className="text-sm mb-2" style={{ color: '#374151' }}>
+                    Use this card to access the anonymous survey. You can enter the code online
+                    or scan the QR code (if provided by your dealership).
+                  </p>
+                </div>
+
+                <div className="border border-dashed border-gray-300 rounded-xl p-6 mb-6">
+                  <div className="text-xs font-medium uppercase tracking-wide mb-2" style={{ color: '#6B7280' }}>
+                    Access code
+                  </div>
+                  <div className="text-4xl font-mono font-bold tracking-[0.25em] text-center py-4" style={{ color: '#111827' }}>
+                    {printCode.code}
+                  </div>
+                </div>
+
+                <div className="space-y-2 text-sm" style={{ color: '#374151' }}>
+                  <div>
+                    <span className="font-semibold">Survey link:</span>{' '}
+                    <span className="font-mono text-xs break-all">
+                      {`${frontendBase}/survey?code=${encodeURIComponent(printCode.code)}`}
+                    </span>
+                  </div>
+                  {printCode.expires_at && (
+                    <div className="text-xs text-gray-600">
+                      Expires:{' '}
+                      {new Date(printCode.expires_at).toLocaleString()}
+                    </div>
+                  )}
+                  <div className="mt-4 text-xs text-gray-500">
+                    This survey is anonymous. Your responses will be combined with others to
+                    help improve the dealership&apos;s workplace experience.
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {activeTab === 'access-codes' && (
             <div className="max-w-5xl">
               {!role && (
@@ -958,6 +1035,7 @@ export default function SurveysPage() {
                               <th className="px-4 py-3 text-left font-semibold" style={{ color: '#374151' }}>Status</th>
                               <th className="px-4 py-3 text-left font-semibold" style={{ color: '#374151' }}>Survey link</th>
                               <th className="px-4 py-3 text-left font-semibold" style={{ color: '#374151', width: '60px' }}></th>
+                              <th className="px-4 py-3 text-left font-semibold" style={{ color: '#374151', width: '80px' }}></th>
                             </tr>
                           </thead>
                           <tbody>
@@ -1034,6 +1112,15 @@ export default function SurveysPage() {
                                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
                                         </svg>
                                       )}
+                                    </button>
+                                  </td>
+                                  <td className="px-4 py-3">
+                                    <button
+                                      type="button"
+                                      onClick={() => setPrintCode(c)}
+                                      className="cursor-pointer text-xs font-medium text-[#4D6DBE] hover:underline bg-transparent border-none p-0"
+                                    >
+                                      Print handout
                                     </button>
                                   </td>
                                 </tr>
