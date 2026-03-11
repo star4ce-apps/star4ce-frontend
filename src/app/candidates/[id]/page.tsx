@@ -5,6 +5,7 @@ import { useRouter, useParams } from 'next/navigation';
 import HubSidebar from '@/components/sidebar/HubSidebar';
 import RequireAuth from '@/components/layout/RequireAuth';
 import { API_BASE, getToken } from '@/lib/auth';
+import { getUserPermissions } from '@/lib/permissions';
 import { deleteJsonAuth, getJsonAuth, postJsonAuth, putJsonAuth } from '@/lib/http';
 
 import toast from 'react-hot-toast';
@@ -100,6 +101,7 @@ export default function CandidateProfilePage() {
   const [saving, setSaving] = useState(false);
   const [allCandidates, setAllCandidates] = useState<CandidateProfile[]>([]);
   const [role, setRole] = useState<string | null>(null);
+  const [canViewInterviewScores, setCanViewInterviewScores] = useState(true);
   const notesTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const resumeBlobUrlRef = useRef<string | null>(null);
   const [resumePreviewUrl, setResumePreviewUrl] = useState<string | null>(null);
@@ -169,6 +171,9 @@ export default function CandidateProfilePage() {
           const data = await res.json();
           setRole(data.user?.role || data.role || null);
         }
+
+        const perms = await getUserPermissions();
+        setCanViewInterviewScores(perms.view_interview_scores === true);
       } catch (err) {
         // Silently fail - role will remain null
       }
@@ -1269,6 +1274,7 @@ export default function CandidateProfilePage() {
                       </div>
                     );
                   })()}
+                  {canViewInterviewScores && (
                   <div className="px-3 py-1 rounded-lg text-sm font-semibold flex items-center gap-1" style={{ backgroundColor: '#4D6DBE', color: '#FFFFFF' }}>
                     <span>Overall Score:</span>
                     {hasOverallScore ? (
@@ -1285,6 +1291,7 @@ export default function CandidateProfilePage() {
                       <span>N/A</span>
                     )}
                   </div>
+                  )}
                 </div>
                 <div className="flex items-center gap-4 text-sm" style={{ color: '#6B7280' }}>
                   <span>ID: #{candidate.id.toString().padStart(8, '0')}</span>
@@ -1324,7 +1331,8 @@ export default function CandidateProfilePage() {
             <div className="col-span-2 space-y-4">
               {activeTab === 'hiring-process' && (
                 <>
-                  {/* Add New Interview Score */}
+                  {/* Add New Interview Score - only when user can view interview scores */}
+                  {canViewInterviewScores && (
                   <button
                     onClick={() => {
                       // Calculate next interview stage
@@ -1386,6 +1394,7 @@ export default function CandidateProfilePage() {
                       <span className="text-sm font-semibold">Add New Interview Score</span>
                     </div>
                   </button>
+                  )}
                   
                   {/* Hiring Process Timeline */}
                   <div className="space-y-4">

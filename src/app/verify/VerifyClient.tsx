@@ -18,9 +18,13 @@ export default function VerifyPage() {
   const [error, setError] = useState('');
   const [resendLoading, setResendLoading] = useState(false);
   const [resendCooldownSeconds, setResendCooldownSeconds] = useState(0);
+  /** In development: code fetched from backend or returned from resend */
+  const [devCodeFromApi, setDevCodeFromApi] = useState<string | null>(null);
 
   // Pre-fill email from ?email=...
   const [emailFromUrl, setEmailFromUrl] = useState(false);
+
+  const isDev = typeof process !== 'undefined' && process.env.NODE_ENV === 'development';
 
   useEffect(() => {
     const qEmail = search.get('email');
@@ -49,6 +53,33 @@ export default function VerifyPage() {
       setMessage('🎉 Subscription successful! Your admin account has been created. Please check your email for the verification code to complete setup.');
     }
   }, [search, router, email, devCode]);
+
+  // In development: fetch verification code for current email so it can be shown on the page
+  useEffect(() => {
+    if (!isDev || !email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setDevCodeFromApi(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE}/auth/dev-verification-code`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!cancelled && res.ok && data.code) {
+          setDevCodeFromApi(data.code);
+        } else {
+          setDevCodeFromApi(null);
+        }
+      } catch {
+        if (!cancelled) setDevCodeFromApi(null);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [isDev, email, API_BASE]);
 
   async function handleVerify(e: React.FormEvent) {
     e.preventDefault();
@@ -145,6 +176,10 @@ export default function VerifyPage() {
 
       setMessage('A new verification code has been sent to your email. It expires in 10 minutes.');
       setResendCooldownSeconds(30);
+      if (data.verification_code) {
+        setDevCodeFromApi(data.verification_code);
+        setCode(data.verification_code);
+      }
     } catch (err: unknown) {
       setError(
         err instanceof Error ? err.message : 'Could not resend code. Please try again.'
@@ -206,15 +241,16 @@ export default function VerifyPage() {
                 {message}
               </div>
             )}
-            {devCode && (
+            {(devCode || devCodeFromApi) && (
               <div className="mb-4 p-3 rounded-lg border border-amber-300 bg-amber-50 text-amber-900 text-sm">
-                <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
                   <div>
-                    <span className="font-semibold">Verification code:</span> {devCode}
+                    <span className="font-semibold">Development – verification code:</span>{' '}
+                    <span className="font-mono">{devCode || devCodeFromApi}</span>
                   </div>
                   <button
                     type="button"
-                    onClick={() => setCode(devCode)}
+                    onClick={() => setCode((devCode || devCodeFromApi) ?? '')}
                     className="px-2 py-1 rounded border border-amber-300 bg-white text-amber-900 hover:bg-amber-100"
                   >
                     Use code

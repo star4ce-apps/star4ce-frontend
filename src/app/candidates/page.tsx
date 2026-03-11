@@ -5,6 +5,7 @@ import HubSidebar from '@/components/sidebar/HubSidebar';
 import RequireAuth from '@/components/layout/RequireAuth';
 import { API_BASE, getToken } from '@/lib/auth';
 import { getAverageInterviewScore } from '@/lib/candidateNotes';
+import { getUserPermissions } from '@/lib/permissions';
 import { getJsonAuth } from '@/lib/http';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -271,8 +272,10 @@ export default function CandidatesPage() {
     'Used Car Manager': 'Sales Department',
   };
 
+  const [canViewInterviewScores, setCanViewInterviewScores] = useState(true);
+
   useEffect(() => {
-    // Check user approval status
+    // Check user approval status and permissions
     async function checkUserStatus() {
       try {
         const token = getToken();
@@ -293,6 +296,9 @@ export default function CandidatesPage() {
             setIsApproved(false);
           }
         }
+
+        const perms = await getUserPermissions();
+        setCanViewInterviewScores(perms.view_interview_scores === true);
       } catch (err) {
         console.error('Failed to check user status:', err);
       }
@@ -766,6 +772,7 @@ export default function CandidatesPage() {
                             <SortIcon column="status" />
                           </div>
                         </th>
+                        {canViewInterviewScores && (
                         <th 
                           className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider cursor-pointer hover:opacity-90 transition-opacity text-white"
                           onClick={() => handleSort('score')}
@@ -775,6 +782,7 @@ export default function CandidatesPage() {
                             <SortIcon column="score" />
                           </div>
                         </th>
+                        )}
                         <th 
                           className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider cursor-pointer hover:opacity-90 transition-opacity text-white"
                           onClick={() => handleSort('applied_at')}
@@ -842,12 +850,14 @@ export default function CandidatesPage() {
                               );
                             })()}
                           </td>
+                          {canViewInterviewScores && (
                           <td className="py-3 px-4 text-sm" style={{ color: '#374151' }}>
                             {(() => {
                               const avg = getAverageInterviewScore(candidate.notes);
                               return avg !== null ? `${avg}/100` : 'N/A';
                             })()}
                           </td>
+                          )}
                           <td className="py-3 px-4 text-sm" style={{ color: '#374151' }}>
                             {new Date(candidate.applied_at).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' })}
                           </td>

@@ -537,6 +537,7 @@ function UserManagementPageContent() {
       view_dashboard: 'View Dashboard',
       view_employees: 'View Employees',
       view_candidates: 'View Candidates',
+      view_interview_scores: 'View Interview Scores',
       view_analytics: 'View Analytics',
       view_surveys: 'View Surveys',
       view_subscription: 'View Subscription',
@@ -875,6 +876,8 @@ function UserManagementPageContent() {
     keys.forEach(key => {
       if (key === 'process_interviews') {
         groups['Interview Management'].push(key);
+      } else if (key === 'view_interview_scores') {
+        groups['Candidate Management'].push(key);
       } else if (key.startsWith('view_')) {
         groups['View Access'].push(key);
       } else if (key.includes('survey')) {
