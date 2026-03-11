@@ -93,6 +93,11 @@ type AccessCodeCreateResponse = {
   expires_at: string | null;
 };
 
+type AccessCodeBatchResponse = {
+  ok: boolean;
+  items: AccessCodeItem[];
+};
+
 export default function SurveysPage() {
   const [overallSatisfaction, setOverallSatisfaction] = useState<SatisfactionData[]>([]);
   const [departments, setDepartments] = useState<DepartmentData[]>([]);
@@ -116,6 +121,8 @@ export default function SurveysPage() {
   const [codes, setCodes] = useState<AccessCodeItem[]>([]);
   const [copiedCodeId, setCopiedCodeId] = useState<number | 'latest' | null>(null);
   const [deletingCodeId, setDeletingCodeId] = useState<number | null>(null);
+  const [batchCount, setBatchCount] = useState<string>('10');
+  const [batchSummary, setBatchSummary] = useState<string | null>(null);
   // Initialize with current month
   const getCurrentMonthDates = () => {
     const today = new Date();
@@ -295,6 +302,7 @@ export default function SurveysPage() {
   async function handleGenerate() {
     setError(null);
     setResult(null);
+    setBatchSummary(null);
     setLoadingCreate(true);
 
     try {
@@ -307,6 +315,36 @@ export default function SurveysPage() {
       await loadCodes();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to create access code';
+      setError(msg);
+    } finally {
+      setLoadingCreate(false);
+    }
+  }
+
+  async function handleGenerateBatch() {
+    setError(null);
+    setResult(null);
+    setBatchSummary(null);
+    setLoadingCreate(true);
+
+    try {
+      let count = parseInt(batchCount, 10);
+      if (Number.isNaN(count) || count < 1) count = 1;
+      if (count > 50) count = 50;
+
+      const data = await postJsonAuth<AccessCodeBatchResponse>(
+        '/survey/access-codes/batch',
+        { count }
+      );
+
+      if (!data.ok) {
+        throw new Error('Failed to create access codes');
+      }
+
+      setBatchSummary(`Created ${data.items.length} new access codes.`);
+      await loadCodes();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to create access codes';
       setError(msg);
     } finally {
       setLoadingCreate(false);
@@ -797,6 +835,11 @@ export default function SurveysPage() {
                       {error}
                     </div>
                   )}
+                  {batchSummary && !error && (
+                    <div className="rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+                      {batchSummary}
+                    </div>
+                  )}
 
                   <p className="text-base" style={{ color: '#374151' }}>
                     Generate a one-week survey access code for your dealership.
@@ -819,6 +862,27 @@ export default function SurveysPage() {
                   >
                     {loadingCreate ? 'Creating code…' : 'Create 7-day access code'}
                   </button>
+
+                  <div className="flex items-center gap-3">
+                    <label className="text-sm" style={{ color: '#374151' }}>
+                      Batch size:
+                      <input
+                        type="number"
+                        min={1}
+                        max={50}
+                        value={batchCount}
+                        onChange={(e) => setBatchCount(e.target.value)}
+                        className="ml-2 w-20 px-2 py-1 rounded border border-gray-300 text-sm"
+                      />
+                    </label>
+                    <button
+                      onClick={handleGenerateBatch}
+                      disabled={loadingCreate}
+                      className="cursor-pointer inline-flex items-center rounded-lg px-4 py-2.5 text-sm font-semibold text-[#4D6DBE] bg-white border border-[#4D6DBE] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                      {loadingCreate ? 'Creating…' : 'Create batch of codes'}
+                    </button>
+                  </div>
 
                   {result && (
                     <div className="mt-2 space-y-1 text-sm">
