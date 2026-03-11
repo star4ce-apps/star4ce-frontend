@@ -532,7 +532,11 @@ export default function EmployeeRoleHistoryPage() {
                     paginatedEntries.map((entry, index) => {
                       return (
                         <tr 
-                          key={entry.audit_log_id != null ? `audit-${entry.audit_log_id}` : `entry-${entry.id ?? index}`} 
+                          key={
+                            entry.audit_log_id != null
+                              ? `audit-${entry.audit_log_id}-${entry.action}-${entry.timestamp}-${index}`
+                              : `entry-${entry.id ?? index}`
+                          } 
                           className="hover:bg-blue-50 transition-colors"
                           style={{ 
                             borderBottom: '1px solid #F3F4F6'
