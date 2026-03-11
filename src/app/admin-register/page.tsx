@@ -4,7 +4,7 @@ import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { API_BASE } from '@/lib/auth';
-import { formatPhoneInput, validatePhoneFormat, PHONE_FORMAT_HELP } from '@/lib/phone';
+import { formatPhoneInput, validatePhoneFormat, normalizePhone, PHONE_FORMAT_HELP } from '@/lib/phone';
 import toast from 'react-hot-toast';
 import Logo from '@/components/Logo';
 
@@ -286,6 +286,11 @@ function AdminRegisterPageContent() {
           setError(PHONE_FORMAT_HELP);
           return;
         }
+        const normalizedPhone = normalizePhone(phone);
+        if (!normalizedPhone) {
+          setError(PHONE_FORMAT_HELP);
+          return;
+        }
         // New registration - create the user account (include dealership info so backend can save for checkout)
         const registerRes = await fetch(`${API_BASE}/auth/register`, {
           method: 'POST',
@@ -295,7 +300,7 @@ function AdminRegisterPageContent() {
             password,
             first_name: firstName.trim(),
             last_name: lastName.trim(),
-            phone: phone.trim(),
+            phone: normalizedPhone,
             is_admin_registration: true,  // Flag for admin registration
             dealership_name: dealershipName.trim() || null,
             dealership_address: dealershipAddress.trim() || null,
