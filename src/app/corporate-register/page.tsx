@@ -1,15 +1,19 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { API_BASE } from '@/lib/auth';
 import { formatPhoneInput, validatePhoneFormat, PHONE_FORMAT_HELP } from '@/lib/phone';
 import toast from 'react-hot-toast';
 import Logo from '@/components/Logo';
 
-export default function CorporateRegisterPage() {
+function CorporateRegisterContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const verifiedTokenFromUrl = searchParams.get('verified_token');
+  const verifiedEmailFromUrl = searchParams.get('verified_email');
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -21,18 +25,94 @@ export default function CorporateRegisterPage() {
   const [joinCode, setJoinCode] = useState('');
   const [codeInfo, setCodeInfo] = useState<{ dealership_name: string } | null>(null);
   const [validatingCode, setValidatingCode] = useState(false);
-  const [currentStep, setCurrentStep] = useState(1);
+  const [currentStep, setCurrentStep] = useState(0);
+  const [verifiedToken, setVerifiedToken] = useState('');
+  const [verifiedEmail, setVerifiedEmail] = useState('');
+  const [verificationCode, setVerificationCode] = useState('');
+  const [sendingCode, setSendingCode] = useState(false);
+  const [verifyingCode, setVerifyingCode] = useState(false);
+
+  // If we have verified_token in URL, skip to account step
+  useEffect(() => {
+    if (verifiedTokenFromUrl && verifiedEmailFromUrl) {
+      setVerifiedToken(verifiedTokenFromUrl);
+      setVerifiedEmail(decodeURIComponent(verifiedEmailFromUrl));
+      setEmail(decodeURIComponent(verifiedEmailFromUrl));
+      setCurrentStep(2);
+    }
+  }, [verifiedTokenFromUrl, verifiedEmailFromUrl]);
 
   // Prevent body scrolling when corporate registration page is mounted
   useEffect(() => {
     document.body.style.overflow = 'hidden';
     document.documentElement.style.overflow = 'hidden';
-    
     return () => {
       document.body.style.overflow = '';
       document.documentElement.style.overflow = '';
     };
   }, []);
+
+  async function requestVerificationEmail(e: React.FormEvent) {
+    e.preventDefault();
+    setError('');
+    if (!email.trim()) {
+      setError('Please enter your email address');
+      return;
+    }
+    setSendingCode(true);
+    try {
+      const res = await fetch(`${API_BASE}/auth/request-invite-verification`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim().toLowerCase(), purpose: 'corporate' }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || 'Failed to send verification email');
+        toast.error(data.error || 'Failed to send');
+        return;
+      }
+      toast.success(data.message || 'Verification email sent. Check your inbox.');
+      setCurrentStep(1);
+    } catch (err) {
+      setError('Failed to send verification email');
+      toast.error('Failed to send');
+    } finally {
+      setSendingCode(false);
+    }
+  }
+
+  async function verifyEmailWithCode(e: React.FormEvent) {
+    e.preventDefault();
+    setError('');
+    if (!email.trim() || !verificationCode.trim()) {
+      setError('Please enter your email and the 6-digit code');
+      return;
+    }
+    setVerifyingCode(true);
+    try {
+      const res = await fetch(`${API_BASE}/auth/verify-invite-email`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim().toLowerCase(), code: verificationCode.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || 'Verification failed');
+        toast.error(data.error || 'Verification failed');
+        return;
+      }
+      toast.success('Email verified. Now enter your join code and account details.');
+      setVerifiedToken(data.verified_token);
+      setVerifiedEmail(data.email);
+      setCurrentStep(2);
+    } catch (err) {
+      setError('Verification failed');
+      toast.error('Verification failed');
+    } finally {
+      setVerifyingCode(false);
+    }
+  }
 
   async function validateJoinCode() {
     const code = joinCode.trim().toUpperCase();
@@ -100,12 +180,18 @@ export default function CorporateRegisterPage() {
       return;
     }
 
-    setCurrentStep(2);
+    setCurrentStep(3);
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError('');
+
+    if (!verifiedToken) {
+      setError('Email verification is required. Please complete the verification steps first.');
+      toast.error('Please verify your email first');
+      return;
+    }
 
     const code = joinCode.trim().toUpperCase();
     if (!code) {
@@ -128,11 +214,12 @@ export default function CorporateRegisterPage() {
     }
     setLoading(true);
     try {
-        // Register with join code (assigns to dealership)
+        // Register with join code (verified_token required - same logic as admin verify before subscription)
         const res = await fetch(`${API_BASE}/auth/register-corporate-with-code`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
+            verified_token: verifiedToken,
             code,
             email: email.trim().toLowerCase(),
             password,
@@ -227,7 +314,7 @@ export default function CorporateRegisterPage() {
                 Corporate Registration
               </p>
               <p className="text-gray-600 text-sm">
-                Create your corporate account to view multiple dealerships
+                Verify your email first (link + code), then enter your join code—same as admin: verify before subscription.
               </p>
             </div>
 
@@ -246,7 +333,7 @@ export default function CorporateRegisterPage() {
 
             {/* Progress Dots */}
             <div className="flex justify-center items-center gap-3 mb-6">
-              {[1, 2].map((step) => (
+              {(verifiedToken ? [2, 3] : [0, 1, 2, 3]).map((step) => (
                 <div
                   key={step}
                   className={`w-3 h-3 rounded-full transition-all ${
@@ -260,8 +347,58 @@ export default function CorporateRegisterPage() {
               ))}
             </div>
 
-            {/* Registration Form - like admin register */}
-            {currentStep === 1 ? (
+            {/* Step 0: Request verification */}
+            {currentStep === 0 ? (
+              <form onSubmit={requestVerificationEmail} className="space-y-4 flex-1 min-h-0">
+                <p className="text-sm text-gray-600 mb-4">
+                  Verify your email before entering your join code (same as admin: verify before subscription).
+                </p>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Email *</label>
+                  <input
+                    type="email"
+                    placeholder="you@example.com"
+                    autoComplete="email"
+                    className="w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#0B2E65] focus:border-transparent"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={sendingCode || !email.trim()}
+                  className="cursor-pointer w-full bg-[#0B2E65] text-white py-2.5 rounded-lg font-semibold hover:bg-[#2c5aa0] disabled:opacity-60"
+                >
+                  {sendingCode ? 'Sending...' : 'Send verification code'}
+                </button>
+              </form>
+            ) : currentStep === 1 ? (
+              <form onSubmit={verifyEmailWithCode} className="space-y-4 flex-1 min-h-0">
+                <p className="text-sm text-gray-600 mb-4">
+                  Enter the 6-digit code we sent to <strong>{email}</strong>, or use the link in the same email.
+                </p>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Verification code *</label>
+                  <input
+                    type="text"
+                    placeholder="000000"
+                    maxLength={6}
+                    value={verificationCode}
+                    onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    className="w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#0B2E65] tracking-widest text-center"
+                    required
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={verifyingCode || verificationCode.length !== 6}
+                  className="cursor-pointer w-full bg-[#0B2E65] text-white py-2.5 rounded-lg font-semibold hover:bg-[#2c5aa0] disabled:opacity-60"
+                >
+                  {verifyingCode ? 'Verifying...' : 'Verify email'}
+                </button>
+              </form>
+            ) : currentStep === 2 ? (
               <form onSubmit={handleNextStep} className="space-y-4 flex-1 min-h-0">
                 <div className="mb-4">
                   <h3 className="font-semibold text-gray-700 mb-3">Account Information</h3>
@@ -301,6 +438,8 @@ export default function CorporateRegisterPage() {
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       required
+                      readOnly
+                      disabled
                     />
                   </div>
                   <div className="mb-3">
@@ -352,7 +491,7 @@ export default function CorporateRegisterPage() {
                   Next
                 </button>
               </form>
-            ) : (
+            ) : currentStep === 3 ? (
               <form onSubmit={handleSubmit} className="space-y-4 flex-1 min-h-0">
                 <div className="mb-4">
                   <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-2">
@@ -412,7 +551,7 @@ export default function CorporateRegisterPage() {
                 <div className="flex gap-3">
                   <button
                     type="button"
-                    onClick={() => setCurrentStep(1)}
+                    onClick={() => setCurrentStep(2)}
                     className="cursor-pointer flex-1 bg-gray-200 text-gray-700 py-2.5 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
                   >
                     Back
@@ -426,7 +565,7 @@ export default function CorporateRegisterPage() {
                   </button>
                 </div>
               </form>
-            )}
+            ) : null}
 
             {/* Links */}
             <div className="text-center space-y-2 mt-4">
@@ -444,3 +583,14 @@ export default function CorporateRegisterPage() {
   );
 }
 
+export default function CorporateRegisterPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center">
+        <p className="text-gray-600">Loading...</p>
+      </div>
+    }>
+      <CorporateRegisterContent />
+    </Suspense>
+  );
+}

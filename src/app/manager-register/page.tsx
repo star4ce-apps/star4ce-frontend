@@ -19,6 +19,8 @@ function ManagerRegisterContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const inviteToken = searchParams.get('token');
+  const verifiedTokenFromUrl = searchParams.get('verified_token');
+  const verifiedEmailFromUrl = searchParams.get('verified_email');
   
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -33,7 +35,12 @@ function ManagerRegisterContent() {
   const [isInviteMode, setIsInviteMode] = useState(false);
   const [inviteCode, setInviteCode] = useState('');
   const [validatingCode, setValidatingCode] = useState(false);
-  const [currentStep, setCurrentStep] = useState(1);
+  const [currentStep, setCurrentStep] = useState(0);
+  const [verifiedToken, setVerifiedToken] = useState('');
+  const [verifiedEmail, setVerifiedEmail] = useState('');
+  const [verificationCode, setVerificationCode] = useState('');
+  const [sendingCode, setSendingCode] = useState(false);
+  const [verifyingCode, setVerifyingCode] = useState(false);
 
   // Prevent body scrolling when manager registration page is mounted
   useEffect(() => {
@@ -46,14 +53,83 @@ function ManagerRegisterContent() {
     };
   }, []);
 
+  // If we have verified_token in URL (from link or verify-invite-email page), skip to invite step
   useEffect(() => {
-    if (inviteToken) {
-      validateInviteToken();
-      setCurrentStep(1); // Start at step 1 even with token
-    } else {
+    if (verifiedTokenFromUrl && verifiedEmailFromUrl) {
+      setVerifiedToken(verifiedTokenFromUrl);
+      setVerifiedEmail(decodeURIComponent(verifiedEmailFromUrl));
+      setEmail(decodeURIComponent(verifiedEmailFromUrl));
       setCurrentStep(1);
     }
-  }, [inviteToken]);
+  }, [verifiedTokenFromUrl, verifiedEmailFromUrl]);
+
+  useEffect(() => {
+    if (inviteToken && currentStep >= 1) {
+      validateInviteToken();
+    }
+  }, [inviteToken, currentStep]);
+
+  async function requestVerificationEmail(e: React.FormEvent) {
+    e.preventDefault();
+    setError('');
+    if (!email.trim()) {
+      setError('Please enter your email address');
+      return;
+    }
+    setSendingCode(true);
+    try {
+      const res = await fetch(`${API_BASE}/auth/request-invite-verification`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim().toLowerCase(), purpose: 'manager' }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || 'Failed to send verification email');
+        toast.error(data.error || 'Failed to send');
+        return;
+      }
+      toast.success(data.message || 'Verification email sent. Check your inbox and the code we sent.');
+      setCurrentStep(1);
+    } catch (err) {
+      setError('Failed to send verification email');
+      toast.error('Failed to send');
+    } finally {
+      setSendingCode(false);
+    }
+  }
+
+  async function verifyEmailWithCode(e: React.FormEvent) {
+    e.preventDefault();
+    setError('');
+    if (!email.trim() || !verificationCode.trim()) {
+      setError('Please enter your email and the 6-digit code');
+      return;
+    }
+    setVerifyingCode(true);
+    try {
+      const res = await fetch(`${API_BASE}/auth/verify-invite-email`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim().toLowerCase(), code: verificationCode.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || 'Verification failed');
+        toast.error(data.error || 'Verification failed');
+        return;
+      }
+      toast.success('Email verified. Now enter your invite code and account details.');
+      setVerifiedToken(data.verified_token);
+      setVerifiedEmail(data.email);
+      setCurrentStep(2);
+    } catch (err) {
+      setError('Verification failed');
+      toast.error('Verification failed');
+    } finally {
+      setVerifyingCode(false);
+    }
+  }
 
   async function validateInviteCode() {
     const code = inviteCode.trim().toUpperCase();
@@ -161,15 +237,21 @@ function ManagerRegisterContent() {
       return;
     }
 
-    setCurrentStep(2);
+    setCurrentStep(3);
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError('');
 
-    // Validate dealership code for step 2 (only if no invite token)
-    if (!inviteToken && currentStep === 2) {
+    if (!verifiedToken) {
+      setError('Email verification is required. Please complete the verification steps first.');
+      toast.error('Please verify your email first');
+      return;
+    }
+
+    // Validate dealership code for step 3 (only if no invite token)
+    if (!inviteToken && currentStep === 3) {
       const code = inviteCode.trim().toUpperCase();
       if (!code) {
         setError('Dealership code is required');
@@ -192,8 +274,9 @@ function ManagerRegisterContent() {
       }
       setLoading(true);
     try {
-      // Register via invite token or code
+      // Register via invite token or code (verified_token required - same logic as admin verify before subscription)
       const body: Record<string, string> = {
+        verified_token: verifiedToken,
         password,
         first_name: firstName.trim(),
         last_name: lastName.trim(),
@@ -296,7 +379,7 @@ function ManagerRegisterContent() {
                 Manager Registration
               </p>
               <p className="text-gray-600 text-sm">
-                Use your invite code or link from User Management. After creating your account, you must verify your email with the code we send you.
+                Verify your email first (link + code), then enter your invite code or link—same as admin: verify before subscription.
               </p>
             </div>
 
@@ -307,9 +390,9 @@ function ManagerRegisterContent() {
               </div>
             )}
 
-            {/* Progress Dots */}
+            {/* Progress Dots: 4 steps when not verified (0,1,2,3), 2 steps when verified (2,3) */}
             <div className="flex justify-center items-center gap-3 mb-6">
-              {[1, 2].map((step) => (
+              {(verifiedToken ? [2, 3] : [0, 1, 2, 3]).map((step) => (
                 <div
                   key={step}
                   className={`w-3 h-3 rounded-full transition-all ${
@@ -331,7 +414,57 @@ function ManagerRegisterContent() {
             )}
 
             {/* Registration Form */}
-            {currentStep === 1 ? (
+            {currentStep === 0 ? (
+              <form onSubmit={requestVerificationEmail} className="space-y-4 flex-1 min-h-0">
+                <p className="text-sm text-gray-600 mb-4">
+                  Verify your email before entering your invite code. We’ll send you a code and a link (same as admin: verify before subscription).
+                </p>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Email *</label>
+                  <input
+                    type="email"
+                    placeholder="you@example.com"
+                    autoComplete="email"
+                    className="w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#0B2E65] focus:border-transparent"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={sendingCode || !email.trim()}
+                  className="cursor-pointer w-full bg-[#0B2E65] text-white py-2.5 rounded-lg font-semibold hover:bg-[#2c5aa0] disabled:opacity-60"
+                >
+                  {sendingCode ? 'Sending...' : 'Send verification code'}
+                </button>
+              </form>
+            ) : currentStep === 1 ? (
+              <form onSubmit={verifyEmailWithCode} className="space-y-4 flex-1 min-h-0">
+                <p className="text-sm text-gray-600 mb-4">
+                  Enter the 6-digit code we sent to <strong>{email}</strong>, or use the link in the same email.
+                </p>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Verification code *</label>
+                  <input
+                    type="text"
+                    placeholder="000000"
+                    maxLength={6}
+                    value={verificationCode}
+                    onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    className="w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#0B2E65] tracking-widest text-center"
+                    required
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={verifyingCode || verificationCode.length !== 6}
+                  className="cursor-pointer w-full bg-[#0B2E65] text-white py-2.5 rounded-lg font-semibold hover:bg-[#2c5aa0] disabled:opacity-60"
+                >
+                  {verifyingCode ? 'Verifying...' : 'Verify email'}
+                </button>
+              </form>
+            ) : currentStep === 2 ? (
               <form onSubmit={handleNextStep} className="space-y-4 flex-1 min-h-0">
                 {/* Account Information - like admin register */}
                 <div className="mb-4">
@@ -372,7 +505,8 @@ function ManagerRegisterContent() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
-                    disabled={isInviteMode && !!inviteToken}
+                    readOnly
+                    disabled
                   />
                   </div>
                   <div className="mb-3">
@@ -427,7 +561,7 @@ function ManagerRegisterContent() {
                   Next
                 </button>
               </form>
-            ) : (
+            ) : currentStep === 3 ? (
               <form onSubmit={handleSubmit} className="space-y-4 flex-1 min-h-0">
                 {/* Dealership code entry (required) - only show if no invite token */}
                 {!inviteToken ? (
@@ -506,7 +640,7 @@ function ManagerRegisterContent() {
                 <div className="flex gap-3">
                   <button
                     type="button"
-                    onClick={() => setCurrentStep(1)}
+                    onClick={() => setCurrentStep(2)}
                     className="cursor-pointer flex-1 bg-gray-200 text-gray-700 py-2.5 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
                   >
                     Back
@@ -520,7 +654,7 @@ function ManagerRegisterContent() {
                   </button>
                 </div>
               </form>
-            )}
+            ) : null}
 
             {/* Login Link */}
             <div className="text-center text-gray-700 mt-4">

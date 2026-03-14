@@ -55,6 +55,7 @@ export default function EmployeeRoleHistoryPage() {
   const [error, setError] = useState<string | null>(null);
   const [sortColumn, setSortColumn] = useState<string>('timestamp');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+  const [listRefreshKey, setListRefreshKey] = useState(0);
   const itemsPerPage = 10;
 
   // Load role history from API
@@ -88,12 +89,18 @@ export default function EmployeeRoleHistoryPage() {
       // Note: Action filter is handled on frontend after receiving all entries
       // because backend action names don't match frontend display names
       
-      // Use getJsonAuth to include X-Dealership-Id header for corporate users
-      const data = await getJsonAuth<{ ok: boolean; entries: HistoryEntry[] }>(`/role-history?${params.toString()}`);
+      // Use fetch with cache bust and no-store so refetch after revert returns fresh data
+      const url = `${API_BASE}/role-history?${params.toString()}`;
+      const headers: Record<string, string> = {
+        ...(getToken() ? { Authorization: `Bearer ${getToken()}` } : {}),
+      };
+      const dealershipId = getSelectedDealershipId();
+      if (dealershipId) headers['X-Dealership-Id'] = String(dealershipId);
+      const res = await fetch(url, { method: 'GET', cache: 'no-store', headers });
+      const data = await res.json().catch(() => ({}));
       let entries: HistoryEntry[] = [];
-      
-      if (data.ok && data.entries) {
-        entries = data.entries;
+      if (data.ok && data.entries && Array.isArray(data.entries)) {
+        entries = data.entries.map((e: HistoryEntry) => ({ ...e }));
       }
 
       // Also load terminations and merge them
@@ -156,13 +163,15 @@ export default function EmployeeRoleHistoryPage() {
           }, [] as HistoryEntry[]);
 
           setHistoryEntries(uniqueEntries);
+          if (forceRefresh) setListRefreshKey(k => k + 1);
         } else {
           setHistoryEntries(entries);
+          if (forceRefresh) setListRefreshKey(k => k + 1);
         }
       } catch (terminationErr) {
-        // If termination loading fails, just use role history
         console.error('Failed to load terminations:', terminationErr);
         setHistoryEntries(entries);
+        if (forceRefresh) setListRefreshKey(k => k + 1);
       }
     } catch (err) {
       console.error('Failed to load role history:', err);
@@ -560,7 +569,7 @@ export default function EmployeeRoleHistoryPage() {
                       <th className="text-right py-3 px-4"></th>
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody key={listRefreshKey}>
                     {paginatedEntries.length === 0 ? (
                       <tr>
                         <td colSpan={9} className="py-12 text-center text-sm" style={{ color: '#6B7280' }}>
@@ -572,9 +581,10 @@ export default function EmployeeRoleHistoryPage() {
                       return (
                         <tr 
                           key={
-                            entry.audit_log_id != null
-                              ? `audit-${entry.audit_log_id}-${entry.action}-${entry.timestamp}-${index}`
-                              : `entry-${entry.id ?? index}`
+                            (entry.audit_log_id != null
+                              ? `audit-${entry.audit_log_id}-${entry.action}-${entry.timestamp}`
+                              : `entry-${entry.id ?? index}`) +
+                            `-${entry.reverted ? 'reverted' : 'active'}-${index}`
                           } 
                           className="hover:bg-blue-50 transition-colors"
                           style={{ 
