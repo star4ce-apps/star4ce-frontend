@@ -41,6 +41,8 @@ type HistoryEntry = {
   reverted?: boolean; // Whether this entry has been reverted
   revertedBy?: string; // Who reverted it
   revertedAt?: string; // When it was reverted
+  revert_audit_log_id?: number; // ID of the revert log (for "Revert to original")
+  revertViaInfoOnly?: boolean; // Score Changed from same update as Info Changed – revert only via the Info row
 };
 
 export default function EmployeeRoleHistoryPage() {
@@ -54,6 +56,7 @@ export default function EmployeeRoleHistoryPage() {
   const [error, setError] = useState<string | null>(null);
   const [sortColumn, setSortColumn] = useState<string>('timestamp');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+  const [listRefreshKey, setListRefreshKey] = useState(0);
   const itemsPerPage = 10;
 
   // Load role history from API
@@ -87,12 +90,18 @@ export default function EmployeeRoleHistoryPage() {
       // Note: Action filter is handled on frontend after receiving all entries
       // because backend action names don't match frontend display names
       
-      // Use getJsonAuth to include X-Dealership-Id header for corporate users
-      const data = await getJsonAuth<{ ok: boolean; entries: HistoryEntry[] }>(`/role-history?${params.toString()}`);
+      // Use fetch with cache bust and no-store so refetch after revert returns fresh data
+      const url = `${API_BASE}/role-history?${params.toString()}`;
+      const headers: Record<string, string> = {
+        ...(getToken() ? { Authorization: `Bearer ${getToken()}` } : {}),
+      };
+      const dealershipId = getSelectedDealershipId();
+      if (dealershipId) headers['X-Dealership-Id'] = String(dealershipId);
+      const res = await fetch(url, { method: 'GET', cache: 'no-store', headers });
+      const data = await res.json().catch(() => ({}));
       let entries: HistoryEntry[] = [];
-      
-      if (data.ok && data.entries) {
-        entries = data.entries;
+      if (data.ok && data.entries && Array.isArray(data.entries)) {
+        entries = data.entries.map((e: HistoryEntry) => ({ ...e }));
       }
 
       // Also load terminations and merge them
@@ -155,13 +164,15 @@ export default function EmployeeRoleHistoryPage() {
           }, [] as HistoryEntry[]);
 
           setHistoryEntries(uniqueEntries);
+          if (forceRefresh) setListRefreshKey(k => k + 1);
         } else {
           setHistoryEntries(entries);
+          if (forceRefresh) setListRefreshKey(k => k + 1);
         }
       } catch (terminationErr) {
-        // If termination loading fails, just use role history
         console.error('Failed to load terminations:', terminationErr);
         setHistoryEntries(entries);
+        if (forceRefresh) setListRefreshKey(k => k + 1);
       }
     } catch (err) {
       console.error('Failed to load role history:', err);
@@ -323,6 +334,44 @@ export default function EmployeeRoleHistoryPage() {
       await loadRoleHistory(true);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to revert change';
+      toast.error(msg);
+    }
+  }
+
+  async function handleRevertToOriginal(entry: HistoryEntry) {
+    if (!entry.reverted || entry.revert_audit_log_id == null) {
+      toast.error('Cannot revert to original for this entry');
+      return;
+    }
+    if (!window.confirm(`Undo the revert for "${entry.action}" on ${entry.name}? This will restore the change that was reverted.`)) {
+      return;
+    }
+    try {
+      const token = getToken();
+      if (!token) {
+        toast.error('Not logged in');
+        return;
+      }
+      const headers: Record<string, string> = {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      };
+      const dealershipId = getSelectedDealershipId();
+      if (dealershipId) headers['X-Dealership-Id'] = String(dealershipId);
+
+      const res = await fetch(`${API_BASE}/role-history/revert-to-original`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ revert_audit_log_id: entry.revert_audit_log_id }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to revert to original');
+      }
+      toast.success(data.message || 'Revert undone; change restored.');
+      await loadRoleHistory(true);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to revert to original';
       toast.error(msg);
     }
   }
@@ -521,7 +570,7 @@ export default function EmployeeRoleHistoryPage() {
                       <th className="text-right py-3 px-4"></th>
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody key={listRefreshKey}>
                     {paginatedEntries.length === 0 ? (
                       <tr>
                         <td colSpan={9} className="py-12 text-center text-sm" style={{ color: '#6B7280' }}>
@@ -533,9 +582,10 @@ export default function EmployeeRoleHistoryPage() {
                       return (
                         <tr 
                           key={
-                            entry.audit_log_id != null
-                              ? `audit-${entry.audit_log_id}-${entry.action}-${entry.timestamp}-${index}`
-                              : `entry-${entry.id ?? index}`
+                            (entry.audit_log_id != null
+                              ? `audit-${entry.audit_log_id}-${entry.action}-${entry.timestamp}`
+                              : `entry-${entry.id ?? index}`) +
+                            `-${entry.reverted ? 'reverted' : 'active'}-${index}`
                           } 
                           className="hover:bg-blue-50 transition-colors"
                           style={{ 
@@ -590,18 +640,35 @@ export default function EmployeeRoleHistoryPage() {
                             {formatTimestamp(entry.timestamp)}
                           </td>
                           <td className="py-3 px-4 text-right">
-                            <div className="relative inline-block">
-                              <button
-                                onClick={() => handleRevert(entry)}
-                                disabled={entry.action === 'Candidate Created' || entry.action === 'Employee Created' || entry.action === 'Terminated' || (entry.action !== 'Employee Removed' && entry.action !== 'Candidate Deleted' && (!entry.previousValue || entry.previousValue === '—' || entry.previousValue === 'N/A')) || entry.reverted}
-                                className="p-1.5 rounded-md hover:bg-gray-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                                style={{ color: '#6B7280' }}
-                                title="Revert this change"
-                              >
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
-                                </svg>
-                              </button>
+                            <div className="relative inline-block flex items-center justify-end gap-1">
+                              {entry.reverted && entry.revert_audit_log_id != null && !(entry.action === 'Score Changed' && entry.revertViaInfoOnly) ? (
+                                <button
+                                  onClick={() => handleRevertToOriginal(entry)}
+                                  className="p-1.5 rounded-md hover:bg-amber-50 transition-colors"
+                                  style={{ color: '#92400E' }}
+                                  title="Revert to original (undo the revert)"
+                                >
+                                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                  </svg>
+                                </button>
+                              ) : entry.reverted && entry.revert_audit_log_id != null && entry.action === 'Score Changed' && entry.revertViaInfoOnly ? (
+                                <span className="text-xs" style={{ color: '#9CA3AF' }} title="Undo revert via the Info Changed row above">—</span>
+                              ) : entry.action === 'Score Changed' && entry.revertViaInfoOnly ? (
+                                <span className="text-xs" style={{ color: '#9CA3AF' }} title="Revert via the Info Changed row above">—</span>
+                              ) : (
+                                <button
+                                  onClick={() => handleRevert(entry)}
+                                  disabled={entry.action === 'Candidate Created' || entry.action === 'Employee Created' || entry.action === 'Terminated' || (entry.action !== 'Employee Removed' && entry.action !== 'Candidate Deleted' && (!entry.previousValue || entry.previousValue === '—' || entry.previousValue === 'N/A')) || entry.reverted}
+                                  className="p-1.5 rounded-md hover:bg-gray-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                  style={{ color: '#6B7280' }}
+                                  title="Revert this change"
+                                >
+                                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                                  </svg>
+                                </button>
+                              )}
                             </div>
                           </td>
                         </tr>
