@@ -1643,12 +1643,17 @@ export default function CandidateProfilePage() {
                       <p className="text-xs" style={{ color: '#6B7280' }}>Make a final decision for this candidate</p>
                     </div>
 
+                    {(() => {
+                      const stage = (candidate?.stage || '').trim();
+                      const isAccepted = stage === 'Hired';
+                      const isDenied = stage === 'Denied' || stage === 'Rejected';
+                      return (
                     <div className="grid grid-cols-2 gap-4">
                       {/* Accept Column */}
                       <div className="space-y-3">
                         <button
                           onClick={openBoardModal}
-                          disabled={saving}
+                          disabled={saving || isAccepted || isDenied}
                           className="cursor-pointer group relative overflow-hidden rounded-xl font-semibold transition-all disabled:opacity-60 disabled:cursor-not-allowed flex flex-col items-center justify-center gap-3 p-5 w-full"
                           style={{ 
                             backgroundColor: '#D1FAE5',
@@ -1656,19 +1661,43 @@ export default function CandidateProfilePage() {
                             border: '2px solid #A7F3D0',
                           }}
                           onMouseEnter={(e) => {
-                            if (!saving) {
+                            if (!saving && !isAccepted && !isDenied) {
                               e.currentTarget.style.backgroundColor = '#A7F3D0';
                               e.currentTarget.style.borderColor = '#6EE7B7';
                             }
                           }}
                           onMouseLeave={(e) => {
-                            if (!saving) {
+                            if (!saving && !isAccepted && !isDenied) {
                               e.currentTarget.style.backgroundColor = '#D1FAE5';
                               e.currentTarget.style.borderColor = '#A7F3D0';
                             }
                           }}
                         >
-                          {saving ? (
+                          {isAccepted ? (
+                            <>
+                              <div className="rounded-full p-3" style={{ backgroundColor: 'rgba(6, 95, 70, 0.1)' }}>
+                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                              </div>
+                              <div className="text-center">
+                                <div className="text-sm font-bold">Accepted</div>
+                                <div className="text-xs opacity-80 mt-0.5">Already hired</div>
+                              </div>
+                            </>
+                          ) : isDenied ? (
+                            <>
+                              <div className="rounded-full p-3" style={{ backgroundColor: 'rgba(6, 95, 70, 0.1)' }}>
+                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                              </div>
+                              <div className="text-center">
+                                <div className="text-sm font-bold">Accept</div>
+                                <div className="text-xs opacity-80 mt-0.5">Application denied</div>
+                              </div>
+                            </>
+                          ) : saving ? (
                             <>
                               <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
                                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
@@ -1692,8 +1721,11 @@ export default function CandidateProfilePage() {
                         </button>
                         {/* Accept Warning */}
                         <p className="text-xs leading-relaxed" style={{ color: '#16A34A' }}>
-                          Accepting this candidate will move their info to the employee list. Their resume will be removed after 7 days. 
-                          This action cannot be undone.
+                          {isAccepted
+                            ? 'This candidate has already been accepted and moved to the employee list.'
+                            : isDenied
+                              ? 'This application has been denied. Accept is no longer available.'
+                              : 'Accepting this candidate will move their info to the employee list. Their resume will be removed after 7 days. This action cannot be undone.'}
                         </p>
                       </div>
 
@@ -1701,7 +1733,7 @@ export default function CandidateProfilePage() {
                       <div className="space-y-3">
                         <button
                           onClick={handleDenyApplication}
-                          disabled={saving}
+                          disabled={saving || isDenied}
                           className="cursor-pointer group relative overflow-hidden rounded-xl font-semibold transition-all disabled:opacity-60 disabled:cursor-not-allowed flex flex-col items-center justify-center gap-3 p-5 w-full"
                           style={{ 
                             backgroundColor: '#FEE2E2',
@@ -1709,35 +1741,54 @@ export default function CandidateProfilePage() {
                             border: '2px solid #FECACA',
                           }}
                           onMouseEnter={(e) => {
-                            if (!saving) {
+                            if (!saving && !isDenied) {
                               e.currentTarget.style.backgroundColor = '#FECACA';
                               e.currentTarget.style.borderColor = '#FCA5A5';
                             }
                           }}
                           onMouseLeave={(e) => {
-                            if (!saving) {
+                            if (!saving && !isDenied) {
                               e.currentTarget.style.backgroundColor = '#FEE2E2';
                               e.currentTarget.style.borderColor = '#FECACA';
                             }
                           }}
                         >
-                          <div className="rounded-full p-3" style={{ backgroundColor: 'rgba(153, 27, 27, 0.1)' }}>
-                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                          </div>
-                          <div className="text-center">
-                            <div className="text-sm font-bold">Deny</div>
-                            <div className="text-xs opacity-80 mt-0.5">Reject application</div>
-                          </div>
+                          {isDenied ? (
+                            <>
+                              <div className="rounded-full p-3" style={{ backgroundColor: 'rgba(153, 27, 27, 0.1)' }}>
+                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                              </div>
+                              <div className="text-center">
+                                <div className="text-sm font-bold">Denied</div>
+                                <div className="text-xs opacity-80 mt-0.5">Already rejected</div>
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              <div className="rounded-full p-3" style={{ backgroundColor: 'rgba(153, 27, 27, 0.1)' }}>
+                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                              </div>
+                              <div className="text-center">
+                                <div className="text-sm font-bold">Deny</div>
+                                <div className="text-xs opacity-80 mt-0.5">Reject application</div>
+                              </div>
+                            </>
+                          )}
                         </button>
                         {/* Deny Warning */}
                         <p className="text-xs leading-relaxed" style={{ color: '#DC2626' }}>
-                          Denying this application will reject the candidate. Their resume will be kept for one year, then removed. 
-                          This action cannot be undone.
+                          {isDenied
+                            ? 'This application has already been denied.'
+                            : 'Denying this application will reject the candidate. Their resume will be kept for one year, then removed. This action cannot be undone.'}
                         </p>
                       </div>
                     </div>
+                      );
+                    })()}
                   </div>
                 </div>
               )}
