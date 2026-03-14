@@ -42,6 +42,7 @@ type HistoryEntry = {
   revertedBy?: string; // Who reverted it
   revertedAt?: string; // When it was reverted
   revert_audit_log_id?: number; // ID of the revert log (for "Revert to original")
+  revertViaInfoOnly?: boolean; // Score Changed from same update as Info Changed – revert only via the Info row
 };
 
 export default function EmployeeRoleHistoryPage() {
@@ -640,7 +641,7 @@ export default function EmployeeRoleHistoryPage() {
                           </td>
                           <td className="py-3 px-4 text-right">
                             <div className="relative inline-block flex items-center justify-end gap-1">
-                              {entry.reverted && entry.revert_audit_log_id != null ? (
+                              {entry.reverted && entry.revert_audit_log_id != null && !(entry.action === 'Score Changed' && entry.revertViaInfoOnly) ? (
                                 <button
                                   onClick={() => handleRevertToOriginal(entry)}
                                   className="p-1.5 rounded-md hover:bg-amber-50 transition-colors"
@@ -651,6 +652,10 @@ export default function EmployeeRoleHistoryPage() {
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                                   </svg>
                                 </button>
+                              ) : entry.reverted && entry.revert_audit_log_id != null && entry.action === 'Score Changed' && entry.revertViaInfoOnly ? (
+                                <span className="text-xs" style={{ color: '#9CA3AF' }} title="Undo revert via the Info Changed row above">—</span>
+                              ) : entry.action === 'Score Changed' && entry.revertViaInfoOnly ? (
+                                <span className="text-xs" style={{ color: '#9CA3AF' }} title="Revert via the Info Changed row above">—</span>
                               ) : (
                                 <button
                                   onClick={() => handleRevert(entry)}
