@@ -594,32 +594,19 @@ export default function EmployeeRoleHistoryPage() {
                           </td>
                           <td className="py-3 px-4 text-sm" style={{ color: '#374151' }}>{entry.name}</td>
                           <td className="py-3 px-4 text-sm" style={{ color: '#374151' }}>
-                            <div className="flex items-center gap-2 flex-wrap">
+                            <div className="flex items-center gap-2">
                               <span>{entry.action}</span>
                               {entry.reverted && (
-                                <>
-                                  <span 
-                                    className="text-xs font-semibold px-2 py-0.5 rounded-full"
-                                    style={{ 
-                                      backgroundColor: '#FEF3C7',
-                                      color: '#92400E'
-                                    }}
-                                    title={`Reverted by ${entry.revertedBy || 'Unknown'} on ${entry.revertedAt ? new Date(entry.revertedAt).toLocaleString() : ''}`}
-                                  >
-                                    Reverted
-                                  </span>
-                                  {entry.revert_audit_log_id != null && (
-                                    <button
-                                      type="button"
-                                      onClick={() => handleRevertToOriginal(entry)}
-                                      className="text-xs font-medium px-2 py-1 rounded border border-amber-300 hover:bg-amber-50 transition-colors"
-                                      style={{ color: '#92400E' }}
-                                      title="Undo the revert — restore the change"
-                                    >
-                                      Revert to original
-                                    </button>
-                                  )}
-                                </>
+                                <span 
+                                  className="text-xs font-semibold px-2 py-0.5 rounded-full"
+                                  style={{ 
+                                    backgroundColor: '#FEF3C7',
+                                    color: '#92400E'
+                                  }}
+                                  title={`Reverted by ${entry.revertedBy || 'Unknown'} on ${entry.revertedAt ? new Date(entry.revertedAt).toLocaleString() : ''}`}
+                                >
+                                  Reverted
+                                </span>
                               )}
                             </div>
                           </td>
