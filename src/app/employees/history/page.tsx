@@ -41,6 +41,7 @@ type HistoryEntry = {
   reverted?: boolean; // Whether this entry has been reverted
   revertedBy?: string; // Who reverted it
   revertedAt?: string; // When it was reverted
+  revert_audit_log_id?: number; // ID of the revert log (for "Revert to original")
 };
 
 export default function EmployeeRoleHistoryPage() {
@@ -327,6 +328,44 @@ export default function EmployeeRoleHistoryPage() {
     }
   }
 
+  async function handleRevertToOriginal(entry: HistoryEntry) {
+    if (!entry.reverted || entry.revert_audit_log_id == null) {
+      toast.error('Cannot revert to original for this entry');
+      return;
+    }
+    if (!window.confirm(`Undo the revert for "${entry.action}" on ${entry.name}? This will restore the change that was reverted.`)) {
+      return;
+    }
+    try {
+      const token = getToken();
+      if (!token) {
+        toast.error('Not logged in');
+        return;
+      }
+      const headers: Record<string, string> = {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      };
+      const dealershipId = getSelectedDealershipId();
+      if (dealershipId) headers['X-Dealership-Id'] = String(dealershipId);
+
+      const res = await fetch(`${API_BASE}/role-history/revert-to-original`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ revert_audit_log_id: entry.revert_audit_log_id }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to revert to original');
+      }
+      toast.success(data.message || 'Revert undone; change restored.');
+      await loadRoleHistory(true);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to revert to original';
+      toast.error(msg);
+    }
+  }
+
   return (
     <RequireAuth>
       <div className="flex min-h-screen" style={{ backgroundColor: COLORS.gray[50] }}>
@@ -555,19 +594,32 @@ export default function EmployeeRoleHistoryPage() {
                           </td>
                           <td className="py-3 px-4 text-sm" style={{ color: '#374151' }}>{entry.name}</td>
                           <td className="py-3 px-4 text-sm" style={{ color: '#374151' }}>
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
                               <span>{entry.action}</span>
                               {entry.reverted && (
-                                <span 
-                                  className="text-xs font-semibold px-2 py-0.5 rounded-full"
-                                  style={{ 
-                                    backgroundColor: '#FEF3C7',
-                                    color: '#92400E'
-                                  }}
-                                  title={`Reverted by ${entry.revertedBy || 'Unknown'} on ${entry.revertedAt ? new Date(entry.revertedAt).toLocaleString() : ''}`}
-                                >
-                                  Reverted
-                                </span>
+                                <>
+                                  <span 
+                                    className="text-xs font-semibold px-2 py-0.5 rounded-full"
+                                    style={{ 
+                                      backgroundColor: '#FEF3C7',
+                                      color: '#92400E'
+                                    }}
+                                    title={`Reverted by ${entry.revertedBy || 'Unknown'} on ${entry.revertedAt ? new Date(entry.revertedAt).toLocaleString() : ''}`}
+                                  >
+                                    Reverted
+                                  </span>
+                                  {entry.revert_audit_log_id != null && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRevertToOriginal(entry)}
+                                      className="text-xs font-medium px-2 py-1 rounded border border-amber-300 hover:bg-amber-50 transition-colors"
+                                      style={{ color: '#92400E' }}
+                                      title="Undo the revert — restore the change"
+                                    >
+                                      Revert to original
+                                    </button>
+                                  )}
+                                </>
                               )}
                             </div>
                           </td>
@@ -590,18 +642,31 @@ export default function EmployeeRoleHistoryPage() {
                             {formatTimestamp(entry.timestamp)}
                           </td>
                           <td className="py-3 px-4 text-right">
-                            <div className="relative inline-block">
-                              <button
-                                onClick={() => handleRevert(entry)}
-                                disabled={entry.action === 'Candidate Created' || entry.action === 'Employee Created' || entry.action === 'Terminated' || (entry.action !== 'Employee Removed' && entry.action !== 'Candidate Deleted' && (!entry.previousValue || entry.previousValue === '—' || entry.previousValue === 'N/A')) || entry.reverted}
-                                className="p-1.5 rounded-md hover:bg-gray-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                                style={{ color: '#6B7280' }}
-                                title="Revert this change"
-                              >
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
-                                </svg>
-                              </button>
+                            <div className="relative inline-block flex items-center justify-end gap-1">
+                              {entry.reverted && entry.revert_audit_log_id != null ? (
+                                <button
+                                  onClick={() => handleRevertToOriginal(entry)}
+                                  className="p-1.5 rounded-md hover:bg-amber-50 transition-colors"
+                                  style={{ color: '#92400E' }}
+                                  title="Revert to original (undo the revert)"
+                                >
+                                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                  </svg>
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => handleRevert(entry)}
+                                  disabled={entry.action === 'Candidate Created' || entry.action === 'Employee Created' || entry.action === 'Terminated' || (entry.action !== 'Employee Removed' && entry.action !== 'Candidate Deleted' && (!entry.previousValue || entry.previousValue === '—' || entry.previousValue === 'N/A')) || entry.reverted}
+                                  className="p-1.5 rounded-md hover:bg-gray-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                  style={{ color: '#6B7280' }}
+                                  title="Revert this change"
+                                >
+                                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                                  </svg>
+                                </button>
+                              )}
                             </div>
                           </td>
                         </tr>
