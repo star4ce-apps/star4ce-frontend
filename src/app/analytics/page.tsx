@@ -5,6 +5,7 @@ import HubSidebar from '@/components/sidebar/HubSidebar';
 import RequireAuth from '@/components/layout/RequireAuth';
 import { API_BASE, getToken, getSelectedDealershipId } from '@/lib/auth';
 import { getJsonAuth } from '@/lib/http';
+import { getUserPermissions } from '@/lib/permissions';
 import {
   PieChart,
   Pie,
@@ -115,6 +116,8 @@ export default function AnalyticsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'turnover' | 'demographics' | 'trends' | 'survey'>('turnover');
+  const [role, setRole] = useState<string | null>(null);
+  const [canViewAnalytics, setCanViewAnalytics] = useState<boolean | null>(null);
   
   // Date range state - matching surveys page
   const [startDate, setStartDate] = useState<string>(() => {
@@ -164,6 +167,28 @@ export default function AnalyticsPage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [surveyFeedback, setSurveyFeedback] = useState<{ name: string; value: number; color: string }[]>([]);
   const [turnoverTimeSeries, setTurnoverTimeSeries] = useState<{ month: string; value: number; retention_rate?: number | null }[]>([]);
+
+  useEffect(() => {
+    (async () => {
+      const token = getToken();
+      if (!token) return;
+      try {
+        const res = await fetch(`${API_BASE}/auth/me`, { headers: { Authorization: `Bearer ${token}` } });
+        if (res.ok) {
+          const data = await res.json().catch(() => ({}));
+          const userRole = data.user?.role || data.role;
+          setRole(userRole);
+          if (userRole === 'admin' || userRole === 'corporate') setCanViewAnalytics(true);
+          else if (userRole === 'manager' || userRole === 'hiring_manager') {
+            const perms = await getUserPermissions();
+            setCanViewAnalytics(perms.view_analytics === true);
+          } else setCanViewAnalytics(false);
+        }
+      } catch {
+        setCanViewAnalytics(false);
+      }
+    })();
+  }, []);
 
   useEffect(() => {
     loadAnalytics();
@@ -372,6 +397,34 @@ export default function AnalyticsPage() {
         satisfaction: item.satisfaction_avg,
       }))
     : [];
+
+  if ((role === 'manager' || role === 'hiring_manager') && canViewAnalytics === null) {
+    return (
+      <RequireAuth>
+        <div className="flex min-h-screen" style={{ backgroundColor: COLORS.gray[50] }}>
+          <HubSidebar />
+          <main className="ml-64 p-8 flex-1 flex items-center justify-center" style={{ maxWidth: 'calc(100vw - 256px)' }}>
+            <div className="text-sm" style={{ color: COLORS.gray[500] }}>Loading...</div>
+          </main>
+        </div>
+      </RequireAuth>
+    );
+  }
+
+  if (role != null && canViewAnalytics === false) {
+    return (
+      <RequireAuth>
+        <div className="flex min-h-screen" style={{ backgroundColor: COLORS.gray[50] }}>
+          <HubSidebar />
+          <main className="ml-64 p-8 flex-1" style={{ maxWidth: 'calc(100vw - 256px)' }}>
+            <div className="text-center py-12">
+              <div className="text-sm font-medium" style={{ color: COLORS.gray[500] }}>You do not have permission to view analytics. Please contact your administrator.</div>
+            </div>
+          </main>
+        </div>
+      </RequireAuth>
+    );
+  }
 
   if (loading) {
     return (

@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import RequireAuth from '@/components/layout/RequireAuth';
 import HubSidebar from '@/components/sidebar/HubSidebar';
 import { API_BASE, getToken } from '@/lib/auth';
+import { getUserPermissions } from '@/lib/permissions';
 import toast from 'react-hot-toast';
 
 /** Format Stripe-backed renewal date in user's local timezone. Optional addDays (e.g. 1 for "switch on" date). */
@@ -46,6 +47,7 @@ function SubscriptionPageContent() {
   const router = useRouter();
   const search = useSearchParams();
   const [userRole, setUserRole] = useState<string | null>(null);
+  const [canViewSubscription, setCanViewSubscription] = useState<boolean | null>(null);
   const [status, setStatus] = useState<SubscriptionStatus | null>(null);
   const [corporateSubscriptions, setCorporateSubscriptions] = useState<CorporateSubscription[]>([]);
   const [loading, setLoading] = useState(true);
@@ -96,6 +98,11 @@ function SubscriptionPageContent() {
         const role = data.user?.role || data.role;
         setUserRole(role);
         setSubscriptionActiveFromAuth(data.subscription_active !== false);
+        if (role === 'admin' || role === 'corporate') setCanViewSubscription(true);
+        else if (role === 'manager' || role === 'hiring_manager') {
+          const perms = await getUserPermissions();
+          setCanViewSubscription(perms.view_subscription === true);
+        } else setCanViewSubscription(false);
         if (role === 'corporate') {
           loadCorporateSubscriptions();
         } else {
@@ -372,6 +379,34 @@ function SubscriptionPageContent() {
     } finally {
       setUpgrading({ ...upgrading, [dealershipId || 0]: false });
     }
+  }
+
+  if ((userRole === 'manager' || userRole === 'hiring_manager') && canViewSubscription === null) {
+    return (
+      <RequireAuth>
+        <div className="flex min-h-screen" style={{ width: '100%', overflow: 'hidden', backgroundColor: '#F5F7FA' }}>
+          <HubSidebar />
+          <main className="ml-64 p-8 flex-1 flex items-center justify-center" style={{ overflowX: 'hidden', minWidth: 0 }}>
+            <div className="text-sm" style={{ color: '#64748B' }}>Loading...</div>
+          </main>
+        </div>
+      </RequireAuth>
+    );
+  }
+
+  if (userRole != null && canViewSubscription === false) {
+    return (
+      <RequireAuth>
+        <div className="flex min-h-screen" style={{ width: '100%', overflow: 'hidden', backgroundColor: '#F5F7FA' }}>
+          <HubSidebar />
+          <main className="ml-64 p-8 flex-1" style={{ overflowX: 'hidden', minWidth: 0 }}>
+            <div className="text-center py-12">
+              <div className="text-sm font-medium" style={{ color: '#64748B' }}>You do not have permission to view subscription. Please contact your administrator.</div>
+            </div>
+          </main>
+        </div>
+      </RequireAuth>
+    );
   }
 
   if (loading) {

@@ -6,6 +6,7 @@ import HubSidebar from '@/components/sidebar/HubSidebar';
 import RequireAuth from '@/components/layout/RequireAuth';
 import { API_BASE, getToken, getCurrentUser } from '@/lib/auth';
 import { getJsonAuth, putJsonAuth, deleteJsonAuth, postJsonAuth } from '@/lib/http';
+import { getUserPermissions } from '@/lib/permissions';
 import toast from 'react-hot-toast';
 
 type PerformanceReview = {
@@ -389,6 +390,7 @@ export default function EmployeeProfilePage() {
   const [editReferrals, setEditReferrals] = useState<Array<{ firstName: string; lastName: string; phone: string; email: string; relationship: string }>>([]);
   const [savingPersonal, setSavingPersonal] = useState(false);
   const [role, setRole] = useState<string | null>(null);
+  const [canViewEmployees, setCanViewEmployees] = useState<boolean | null>(null);
   const [reviewLogs, setReviewLogs] = useState<ReviewLogItem[]>([]);
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [ratings, setRatings] = useState({ jobKnowledge: 0, workQuality: 0, servicePerformance: 0, teamwork: 0, attendance: 0 });
@@ -403,15 +405,34 @@ export default function EmployeeProfilePage() {
   const [reviewDate, setReviewDate] = useState<string>('');
 
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      (async () => {
+        const token = getToken();
+        if (!token) return;
+        try {
+          const res = await fetch(`${API_BASE}/auth/me`, { headers: { Authorization: `Bearer ${token}` } });
+          if (res.ok) {
+            const data = await res.json().catch(() => ({}));
+            const userRole = data.user?.role || data.role;
+            setRole(userRole);
+            if (userRole === 'admin' || userRole === 'corporate') setCanViewEmployees(true);
+            else if (userRole === 'manager' || userRole === 'hiring_manager') {
+              const perms = await getUserPermissions();
+              setCanViewEmployees(perms.view_employees === true);
+            } else setCanViewEmployees(false);
+          }
+        } catch {
+          setCanViewEmployees(false);
+        }
+      })();
+    }
+  }, []);
+
+  useEffect(() => {
     if (isNaN(employeeId) || !employeeId) {
       setEmployee(null);
       setLoading(false);
       return;
-    }
-    // Get role from localStorage
-    if (typeof window !== 'undefined') {
-      const userRole = localStorage.getItem('userRole');
-      setRole(userRole);
     }
     loadEmployee();
   }, [employeeId]);
@@ -974,6 +995,34 @@ ${managerNotes.trim()}` : ''}`;
       router.push(`/employees/${allEmployeeIds[currentIndex + 1]}`);
     }
   };
+
+  if ((role === 'manager' || role === 'hiring_manager') && canViewEmployees === null) {
+    return (
+      <RequireAuth>
+        <div className="flex min-h-screen" style={{ width: '100%', overflow: 'hidden', backgroundColor: '#F5F7FA' }}>
+          <HubSidebar />
+          <main className="ml-64 p-8 flex-1 flex items-center justify-center" style={{ overflowX: 'hidden', minWidth: 0 }}>
+            <div className="text-sm" style={{ color: '#64748B' }}>Loading...</div>
+          </main>
+        </div>
+      </RequireAuth>
+    );
+  }
+
+  if (role != null && canViewEmployees === false) {
+    return (
+      <RequireAuth>
+        <div className="flex min-h-screen" style={{ width: '100%', overflow: 'hidden', backgroundColor: '#F5F7FA' }}>
+          <HubSidebar />
+          <main className="ml-64 p-8 flex-1" style={{ overflowX: 'hidden', minWidth: 0 }}>
+            <div className="text-center py-12">
+              <div className="text-sm font-medium" style={{ color: '#64748B' }}>You do not have permission to view this page. Please contact your administrator.</div>
+            </div>
+          </main>
+        </div>
+      </RequireAuth>
+    );
+  }
 
   if (loading) {
     return (

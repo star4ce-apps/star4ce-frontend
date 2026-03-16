@@ -6,6 +6,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import HubSidebar from '@/components/sidebar/HubSidebar';
 import RequireAuth from '@/components/layout/RequireAuth';
 import { API_BASE, getToken } from '@/lib/auth';
+import { getUserPermissions } from '@/lib/permissions';
 import { getJsonAuth, postJsonAuth } from '@/lib/http';
 import toast from 'react-hot-toast';
 
@@ -2570,6 +2571,8 @@ function ScoreCandidatePageContent() {
   const [candidateSearch, setCandidateSearch] = useState('');
   const [showCandidateDropdown, setShowCandidateDropdown] = useState(false);
   const [interviewerRecommendation, setInterviewerRecommendation] = useState('');
+  const [role, setRole] = useState<string | null>(null);
+  const [canViewCandidates, setCanViewCandidates] = useState<boolean | null>(null);
   const hasAppliedUrlRoleStage = useRef(false);
   const hasAppliedUrlCandidate = useRef(false);
   const currentUserIdRef = useRef<number | null>(null);
@@ -2578,6 +2581,28 @@ function ScoreCandidatePageContent() {
   const rawCriteria = criteriaDataRaw[selectedRole] || [];
   const currentCriteria = mapQuestionsToCriteria(selectedRole, rawCriteria);
   const selectedRoleData = roles.find(r => r.id === selectedRole);
+
+  useEffect(() => {
+    (async () => {
+      const token = getToken();
+      if (!token) return;
+      try {
+        const res = await fetch(`${API_BASE}/auth/me`, { headers: { Authorization: `Bearer ${token}` } });
+        if (res.ok) {
+          const data = await res.json().catch(() => ({}));
+          const userRole = data.user?.role || data.role;
+          setRole(userRole);
+          if (userRole === 'admin' || userRole === 'corporate') setCanViewCandidates(true);
+          else if (userRole === 'manager' || userRole === 'hiring_manager') {
+            const perms = await getUserPermissions();
+            setCanViewCandidates(perms.view_candidates === true);
+          } else setCanViewCandidates(false);
+        }
+      } catch {
+        setCanViewCandidates(false);
+      }
+    })();
+  }, []);
 
   // Load candidates and managers on mount
   useEffect(() => {
@@ -3008,6 +3033,34 @@ ${additionalNotes}` : ''}`;
       window.removeEventListener('afterprint', handleAfterPrint);
     };
   }, []);
+
+  if ((role === 'manager' || role === 'hiring_manager') && canViewCandidates === null) {
+    return (
+      <RequireAuth>
+        <div className="flex min-h-screen" style={{ backgroundColor: COLORS.gray[50] }}>
+          <HubSidebar />
+          <main className="ml-64 p-8 flex-1 flex items-center justify-center" style={{ maxWidth: 'calc(100vw - 256px)' }}>
+            <div className="text-sm" style={{ color: COLORS.gray[500] }}>Loading...</div>
+          </main>
+        </div>
+      </RequireAuth>
+    );
+  }
+
+  if (role != null && canViewCandidates === false) {
+    return (
+      <RequireAuth>
+        <div className="flex min-h-screen" style={{ backgroundColor: COLORS.gray[50] }}>
+          <HubSidebar />
+          <main className="ml-64 p-8 flex-1" style={{ maxWidth: 'calc(100vw - 256px)' }}>
+            <div className="text-center py-12">
+              <div className="text-sm font-medium" style={{ color: COLORS.gray[500] }}>You do not have permission to view the candidate list. Please contact your administrator.</div>
+            </div>
+          </main>
+        </div>
+      </RequireAuth>
+    );
+  }
 
   return (
     <RequireAuth>

@@ -6,6 +6,7 @@ import HubSidebar from '@/components/sidebar/HubSidebar';
 import RequireAuth from '@/components/layout/RequireAuth';
 import { API_BASE, getToken } from '@/lib/auth';
 import { getJsonAuth } from '@/lib/http';
+import { getUserPermissions } from '@/lib/permissions';
 import toast from 'react-hot-toast';
 import {
   PieChart,
@@ -85,6 +86,7 @@ function DashboardContent() {
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
   const [analyticsError, setAnalyticsError] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
+  const [canViewDashboard, setCanViewDashboard] = useState<boolean | null>(null);
   const [isApproved, setIsApproved] = useState<boolean | null>(null);
   
   // Date range state - matching surveys page
@@ -170,8 +172,14 @@ function DashboardContent() {
           const data = await res.json().catch(() => ({}));
           
           if (res.ok) {
-            setUserRole(data.user?.role || data.role);
+            const role = data.user?.role || data.role;
+            setUserRole(role);
             setIsApproved(data.user?.is_approved !== false && data.is_approved !== false);
+            if (role === 'admin' || role === 'corporate') setCanViewDashboard(true);
+            else if (role === 'manager' || role === 'hiring_manager') {
+              const perms = await getUserPermissions();
+              setCanViewDashboard(perms.view_dashboard === true);
+            } else setCanViewDashboard(false);
           } else {
             // Handle manager_not_approved error
             // If we get a 403, check if it's manager_not_approved
@@ -179,24 +187,26 @@ function DashboardContent() {
               if (data.error === 'manager_not_approved') {
                 setUserRole('manager');
                 setIsApproved(false);
+                setCanViewDashboard(false);
                 localStorage.setItem('role', 'manager');
               } else if (storedRole === 'manager') {
                 setUserRole('manager');
                 setIsApproved(false);
+                setCanViewDashboard(false);
               }
             } else if (storedRole === 'manager') {
-              // Other error but we're a manager - assume not approved
               setUserRole('manager');
               setIsApproved(false);
+              setCanViewDashboard(false);
             }
           }
         } catch (err) {
           console.error('Failed to check user status:', err);
-          // On error, check localStorage
           const storedRole = localStorage.getItem('role');
           if (storedRole === 'manager') {
             setUserRole('manager');
             setIsApproved(false);
+            setCanViewDashboard(false);
           }
         }
       }
@@ -573,11 +583,37 @@ function DashboardContent() {
     return 'Good Evening';
   };
 
+  if ((userRole === 'manager' || userRole === 'hiring_manager') && canViewDashboard === null) {
+    return (
+      <RequireAuth>
+        <div className="flex min-h-screen" style={{ backgroundColor: COLORS.gray[50] }}>
+          <HubSidebar />
+          <main className="ml-64 p-8 flex-1 flex items-center justify-center" style={{ maxWidth: 'calc(100vw - 16rem)' }}>
+            <div className="text-sm" style={{ color: COLORS.gray[500] }}>Loading...</div>
+          </main>
+        </div>
+      </RequireAuth>
+    );
+  }
+
+  if (userRole != null && canViewDashboard === false) {
+    return (
+      <RequireAuth>
+        <div className="flex min-h-screen" style={{ backgroundColor: COLORS.gray[50] }}>
+          <HubSidebar />
+          <main className="ml-64 p-8 flex-1" style={{ maxWidth: 'calc(100vw - 16rem)' }}>
+            <div className="text-center py-12">
+              <div className="text-sm font-medium" style={{ color: COLORS.gray[500] }}>You do not have permission to view the dashboard. Please contact your administrator.</div>
+            </div>
+          </main>
+        </div>
+      </RequireAuth>
+    );
+  }
+
   // Show waiting message for unapproved managers
-  // Check if manager role and either explicitly not approved, or check localStorage as fallback
   const storedRole = typeof window !== 'undefined' ? localStorage.getItem('role') : null;
   const isManager = userRole === 'manager' || storedRole === 'manager';
-  // Show message if: explicitly not approved, OR we're a manager and approval status is null/unknown
   const isNotApproved = isApproved === false || (isApproved === null && isManager);
 
   if (isManager && isNotApproved) {

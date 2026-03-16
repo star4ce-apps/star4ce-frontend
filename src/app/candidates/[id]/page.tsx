@@ -101,6 +101,7 @@ export default function CandidateProfilePage() {
   const [saving, setSaving] = useState(false);
   const [allCandidates, setAllCandidates] = useState<CandidateProfile[]>([]);
   const [role, setRole] = useState<string | null>(null);
+  const [canViewCandidates, setCanViewCandidates] = useState<boolean | null>(null);
   const [canViewInterviewScores, setCanViewInterviewScores] = useState(true);
   const notesTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const resumeBlobUrlRef = useRef<string | null>(null);
@@ -169,7 +170,13 @@ export default function CandidateProfilePage() {
         
         if (res.ok) {
           const data = await res.json();
-          setRole(data.user?.role || data.role || null);
+          const userRole = data.user?.role || data.role || null;
+          setRole(userRole);
+          if (userRole === 'admin' || userRole === 'corporate') setCanViewCandidates(true);
+          else if (userRole === 'manager' || userRole === 'hiring_manager') {
+            const perms = await getUserPermissions();
+            setCanViewCandidates(perms.view_candidates === true);
+          } else setCanViewCandidates(false);
         }
 
         const perms = await getUserPermissions();
@@ -337,12 +344,9 @@ export default function CandidateProfilePage() {
       }
     } catch (err: unknown) {
       const errorMsg = err instanceof Error ? err.message : 'Failed to load candidate';
-      // Check if it's a permission error
       if (errorMsg.includes('403') || errorMsg.includes('forbidden') || errorMsg.includes('insufficient role')) {
-        toast.error('You do not have permission to view this candidate');
-      } else if (errorMsg.includes('404') || errorMsg.includes('not found')) {
-        toast.error('Candidate not found');
-      } else {
+        setCanViewCandidates(false);
+      } else if (!errorMsg.includes('404') && !errorMsg.includes('not found')) {
         toast.error(errorMsg);
       }
       setCandidate(null);
@@ -1135,6 +1139,34 @@ export default function CandidateProfilePage() {
     
     return [...awaitingEvents, ...otherEvents];
   };
+
+  if ((role === 'manager' || role === 'hiring_manager') && canViewCandidates === null) {
+    return (
+      <RequireAuth>
+        <div className="flex min-h-screen" style={{ width: '100%', overflow: 'hidden', backgroundColor: '#F5F7FA' }}>
+          <HubSidebar />
+          <main className="ml-64 p-8 flex-1 flex items-center justify-center" style={{ overflowX: 'hidden', minWidth: 0 }}>
+            <div className="text-sm" style={{ color: '#64748B' }}>Loading...</div>
+          </main>
+        </div>
+      </RequireAuth>
+    );
+  }
+
+  if (role != null && canViewCandidates === false) {
+    return (
+      <RequireAuth>
+        <div className="flex min-h-screen" style={{ width: '100%', overflow: 'hidden', backgroundColor: '#F5F7FA' }}>
+          <HubSidebar />
+          <main className="ml-64 p-8 flex-1" style={{ overflowX: 'hidden', minWidth: 0 }}>
+            <div className="text-center py-12">
+              <div className="text-sm font-medium" style={{ color: '#64748B' }}>You do not have permission to view the candidate list. Please contact your administrator.</div>
+            </div>
+          </main>
+        </div>
+      </RequireAuth>
+    );
+  }
 
   if (loading) {
     return (

@@ -6,6 +6,7 @@ import HubSidebar from '@/components/sidebar/HubSidebar';
 import RequireAuth from '@/components/layout/RequireAuth';
 import { API_BASE, getToken, getSelectedDealershipId } from '@/lib/auth';
 import { getJsonAuth, deleteJsonAuth, postJsonAuth } from '@/lib/http';
+import { getUserPermissions } from '@/lib/permissions';
 import toast from 'react-hot-toast';
 
 // Modern color palette - matching surveys page
@@ -58,6 +59,30 @@ export default function EmployeeRoleHistoryPage() {
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [listRefreshKey, setListRefreshKey] = useState(0);
   const itemsPerPage = 10;
+  const [role, setRole] = useState<string | null>(null);
+  const [canViewEmployees, setCanViewEmployees] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      const token = getToken();
+      if (!token) return;
+      try {
+        const res = await fetch(`${API_BASE}/auth/me`, { headers: { Authorization: `Bearer ${token}` } });
+        if (res.ok) {
+          const data = await res.json().catch(() => ({}));
+          const userRole = data.user?.role || data.role;
+          setRole(userRole);
+          if (userRole === 'admin' || userRole === 'corporate') setCanViewEmployees(true);
+          else if (userRole === 'manager' || userRole === 'hiring_manager') {
+            const perms = await getUserPermissions();
+            setCanViewEmployees(perms.view_employees === true);
+          } else setCanViewEmployees(false);
+        }
+      } catch {
+        setCanViewEmployees(false);
+      }
+    })();
+  }, []);
 
   // Load role history from API
   useEffect(() => {
@@ -374,6 +399,34 @@ export default function EmployeeRoleHistoryPage() {
       const msg = err instanceof Error ? err.message : 'Failed to revert to original';
       toast.error(msg);
     }
+  }
+
+  if ((role === 'manager' || role === 'hiring_manager') && canViewEmployees === null) {
+    return (
+      <RequireAuth>
+        <div className="flex min-h-screen" style={{ backgroundColor: COLORS.gray[50] }}>
+          <HubSidebar />
+          <main className="ml-64 p-8 flex-1 flex items-center justify-center" style={{ maxWidth: 'calc(100vw - 256px)' }}>
+            <div className="text-sm" style={{ color: COLORS.gray[500] }}>Loading...</div>
+          </main>
+        </div>
+      </RequireAuth>
+    );
+  }
+
+  if (role != null && canViewEmployees === false) {
+    return (
+      <RequireAuth>
+        <div className="flex min-h-screen" style={{ backgroundColor: COLORS.gray[50] }}>
+          <HubSidebar />
+          <main className="ml-64 p-8 flex-1" style={{ maxWidth: 'calc(100vw - 256px)' }}>
+            <div className="text-center py-12">
+              <div className="text-sm font-medium" style={{ color: COLORS.gray[500] }}>You do not have permission to view this page. Please contact your administrator.</div>
+            </div>
+          </main>
+        </div>
+      </RequireAuth>
+    );
   }
 
   return (

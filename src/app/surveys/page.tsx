@@ -5,6 +5,7 @@ import HubSidebar from '@/components/sidebar/HubSidebar';
 import RequireAuth from '@/components/layout/RequireAuth';
 import { getJsonAuth, postJsonAuth, deleteJsonAuth } from '@/lib/http';
 import { getToken, API_BASE } from '@/lib/auth';
+import { getUserPermissions } from '@/lib/permissions';
 import {
   PieChart,
   Pie,
@@ -114,6 +115,7 @@ export default function SurveysPage() {
   
   // Access codes state
   const [role, setRole] = useState<string | null>(null);
+  const [canViewSurveys, setCanViewSurveys] = useState<boolean | null>(null);
   const [loadingCreate, setLoadingCreate] = useState(false);
   const [loadingList, setLoadingList] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -258,12 +260,29 @@ export default function SurveysPage() {
     fetchSurveyData();
   }, [startDate, endDate]);
 
-  // Read role from localStorage
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const storedRole = localStorage.getItem('role');
-      setRole(storedRole);
-    }
+    if (typeof window === 'undefined') return;
+    const storedRole = localStorage.getItem('role');
+    setRole(storedRole);
+    (async () => {
+      const token = getToken();
+      if (!token) return;
+      try {
+        const res = await fetch(`${API_BASE}/auth/me`, { headers: { Authorization: `Bearer ${token}` } });
+        if (res.ok) {
+          const data = await res.json().catch(() => ({}));
+          const userRole = data.user?.role || data.role;
+          setRole(userRole);
+          if (userRole === 'admin' || userRole === 'corporate') setCanViewSurveys(true);
+          else if (userRole === 'manager' || userRole === 'hiring_manager') {
+            const perms = await getUserPermissions();
+            setCanViewSurveys(perms.view_surveys === true);
+          } else setCanViewSurveys(false);
+        }
+      } catch {
+        setCanViewSurveys(false);
+      }
+    })();
   }, []);
 
   const frontendBase = typeof window !== 'undefined' ? window.location.origin : '';
@@ -388,6 +407,34 @@ export default function SurveysPage() {
 
   const isAdmin = role === 'admin';
   const canManageCodes = isAdmin || role === 'manager' || role === 'corporate';
+
+  if ((role === 'manager' || role === 'hiring_manager') && canViewSurveys === null) {
+    return (
+      <RequireAuth>
+        <div className="flex min-h-screen" style={{ backgroundColor: COLORS.gray[50] }}>
+          <HubSidebar />
+          <main className="ml-64 p-8 flex-1 flex items-center justify-center" style={{ maxWidth: 'calc(100vw - 256px)' }}>
+            <div className="text-sm" style={{ color: COLORS.gray[500] }}>Loading...</div>
+          </main>
+        </div>
+      </RequireAuth>
+    );
+  }
+
+  if (role != null && canViewSurveys === false) {
+    return (
+      <RequireAuth>
+        <div className="flex min-h-screen" style={{ backgroundColor: COLORS.gray[50] }}>
+          <HubSidebar />
+          <main className="ml-64 p-8 flex-1" style={{ maxWidth: 'calc(100vw - 256px)' }}>
+            <div className="text-center py-12">
+              <div className="text-sm font-medium" style={{ color: COLORS.gray[500] }}>You do not have permission to view surveys. Please contact your administrator.</div>
+            </div>
+          </main>
+        </div>
+      </RequireAuth>
+    );
+  }
 
   const getSentimentStyle = (sentiment: string) => {
     if (sentiment.includes('Positive')) return { bg: COLORS.gray[100], text: COLORS.gray[700] };
