@@ -612,7 +612,11 @@ function UserManagementPageContent() {
         return;
       }
 
-      const managerId = selectedManager.id;
+      const managerId = Number(selectedManager.id);
+      if (!Number.isInteger(managerId) || managerId <= 0) {
+        toast.error('Invalid manager. Please close and try again.');
+        return;
+      }
       const hasPendingChanges = pendingPermissions !== null || pendingRole !== null;
 
       if (!hasPendingChanges) {
@@ -646,23 +650,21 @@ function UserManagementPageContent() {
                 },
                 body: JSON.stringify({
                   permission_key: permissionKey,
-                  allowed: allowed,
+                  allowed: Boolean(allowed),
                 }),
               });
 
-
               if (!permRes.ok) {
-                const data = await permRes.json().catch(() => ({ error: 'Failed to update permission' }));
-                console.error('Permission update failed:', data);
-                toast.error(data.error || 'Failed to update permission');
+                const data = await permRes.json().catch(() => ({}));
+                const msg = data?.error || data?.message || `Permission update failed (${permRes.status})`;
+                console.error('Permission update failed:', permRes.status, data);
+                toast.error(msg);
                 return;
               }
             } catch (err) {
               console.error('Error updating permission:', err);
-              console.error('API_BASE:', API_BASE);
-              console.error('Manager ID:', managerId);
-              console.error('Permission Key:', permissionKey);
-              toast.error(`Network error: Failed to update permission. ${err instanceof Error ? err.message : 'Please check your connection.'}`);
+              const msg = err instanceof Error ? err.message : 'Please check your connection.';
+              toast.error(`Network error: ${msg}`);
               return;
             }
 
@@ -722,18 +724,19 @@ function UserManagementPageContent() {
                 },
                 body: JSON.stringify({
                   permission_key: permissionKey,
-                  allowed: allowed,
+                  allowed: Boolean(allowed),
                 }),
               });
 
               if (!res.ok) {
-                const data = await res.json().catch(() => ({ error: 'Failed to update permission' }));
-                toast.error(data.error || 'Failed to update permission');
+                const data = await res.json().catch(() => ({}));
+                const msg = data?.error || data?.message || `Permission update failed (${res.status})`;
+                toast.error(msg);
                 return;
               }
             } catch (err) {
               console.error('Error updating permission:', err);
-              toast.error(`Network error: Failed to update ${permissionKey}. Please check your connection.`);
+              toast.error(`Network error: ${err instanceof Error ? err.message : 'Please check your connection.'}`);
               return;
             }
 

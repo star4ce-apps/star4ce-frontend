@@ -274,6 +274,8 @@ export default function CandidatesPage() {
 
   const [canViewInterviewScores, setCanViewInterviewScores] = useState(true);
   const [canViewCandidates, setCanViewCandidates] = useState<boolean | null>(null);
+  const [canCreateCandidate, setCanCreateCandidate] = useState(false);
+  const [canManageCandidate, setCanManageCandidate] = useState(false);
 
   useEffect(() => {
     // Check user approval status and permissions
@@ -310,6 +312,8 @@ export default function CandidatesPage() {
 
         const perms = await getUserPermissions();
         setCanViewInterviewScores(perms.view_interview_scores === true);
+        setCanCreateCandidate(perms.create_candidate === true);
+        setCanManageCandidate(perms.modify_candidate === true || perms.manage_candidate === true);
       } catch (err) {
         console.error('Failed to check user status:', err);
       }
@@ -693,7 +697,7 @@ export default function CandidatesPage() {
                   Manage and review candidate applications
                 </p>
               </div>
-              {role !== 'corporate' && (
+              {role !== 'corporate' && canCreateCandidate && (
                 <div className="flex gap-3">
                   <button
                     type="button"
