@@ -239,10 +239,8 @@ function CorporateRegisterContent() {
         }
         const data = await res.json().catch(() => ({}));
         if (data.ok) {
-          const verificationCode = data?.verification_code;
-          toast.success(data.message || 'Registration successful! Please check your email for the verification code.');
-          const verifyUrl = `/verify?email=${encodeURIComponent(email)}${verificationCode ? `&code=${encodeURIComponent(verificationCode)}` : ''}`;
-          router.push(verifyUrl);
+          toast.success(data.message || 'Account created successfully. You can now sign in.');
+          router.push('/login');
         }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to register. Please try again.';
@@ -314,8 +312,7 @@ function CorporateRegisterContent() {
                 Corporate Registration
               </p>
               <p className="text-gray-600 text-sm">
-                Verify your email first (link + code), then enter your join code—same as admin: verify before subscription.
-              </p>
+              Verify your email before entering your invite code.              </p>
             </div>
 
             {/* Error Messages */}
@@ -350,9 +347,6 @@ function CorporateRegisterContent() {
             {/* Step 0: Request verification */}
             {currentStep === 0 ? (
               <form onSubmit={requestVerificationEmail} className="space-y-4 flex-1 min-h-0">
-                <p className="text-sm text-gray-600 mb-4">
-                  Verify your email before entering your join code (same as admin: verify before subscription).
-                </p>
                 <div className="mb-4">
                   <label className="block text-sm font-medium text-gray-700 mb-1">Email *</label>
                   <input

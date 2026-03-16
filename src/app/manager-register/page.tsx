@@ -379,7 +379,7 @@ function ManagerRegisterContent() {
                 Manager Registration
               </p>
               <p className="text-gray-600 text-sm">
-                Verify your email first (link + code), then enter your invite code or link—same as admin: verify before subscription.
+              Verify your email before entering your invite code.
               </p>
             </div>
 
@@ -416,9 +416,6 @@ function ManagerRegisterContent() {
             {/* Registration Form */}
             {currentStep === 0 ? (
               <form onSubmit={requestVerificationEmail} className="space-y-4 flex-1 min-h-0">
-                <p className="text-sm text-gray-600 mb-4">
-                  Verify your email before entering your invite code. We’ll send you a code and a link (same as admin: verify before subscription).
-                </p>
                 <div className="mb-4">
                   <label className="block text-sm font-medium text-gray-700 mb-1">Email *</label>
                   <input
