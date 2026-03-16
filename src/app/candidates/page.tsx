@@ -605,8 +605,8 @@ export default function CandidatesPage() {
     );
   };
 
-  // Resolving view_candidates permission for manager/hiring_manager
-  if ((role === 'manager' || role === 'hiring_manager') && canViewCandidates === null) {
+  // Resolving view_candidates permission / waiting for role
+  if (role === null || ((role === 'manager' || role === 'hiring_manager') && canViewCandidates === null)) {
     return (
       <RequireAuth>
         <div className="flex min-h-screen" style={{ backgroundColor: COLORS.gray[50] }}>

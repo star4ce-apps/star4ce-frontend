@@ -583,7 +583,7 @@ function DashboardContent() {
     return 'Good Evening';
   };
 
-  if ((userRole === 'manager' || userRole === 'hiring_manager') && canViewDashboard === null) {
+  if (userRole === null || ((userRole === 'manager' || userRole === 'hiring_manager') && canViewDashboard === null)) {
     return (
       <RequireAuth>
         <div className="flex min-h-screen" style={{ backgroundColor: COLORS.gray[50] }}>

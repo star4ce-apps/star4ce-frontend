@@ -491,7 +491,7 @@ ${managerNotes.trim()}` : ''}`;
     }
   }
 
-  if ((role === 'manager' || role === 'hiring_manager') && canViewEmployees === null) {
+  if (role === null || ((role === 'manager' || role === 'hiring_manager') && canViewEmployees === null)) {
     return (
       <RequireAuth>
         <div className="flex min-h-screen" style={{ backgroundColor: COLORS.gray[50] }}>

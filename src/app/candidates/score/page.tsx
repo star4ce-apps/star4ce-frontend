@@ -3034,7 +3034,7 @@ ${additionalNotes}` : ''}`;
     };
   }, []);
 
-  if ((role === 'manager' || role === 'hiring_manager') && canViewCandidates === null) {
+  if (role === null || ((role === 'manager' || role === 'hiring_manager') && canViewCandidates === null)) {
     return (
       <RequireAuth>
         <div className="flex min-h-screen" style={{ backgroundColor: COLORS.gray[50] }}>

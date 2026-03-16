@@ -1140,7 +1140,7 @@ export default function CandidateProfilePage() {
     return [...awaitingEvents, ...otherEvents];
   };
 
-  if ((role === 'manager' || role === 'hiring_manager') && canViewCandidates === null) {
+  if (role === null || ((role === 'manager' || role === 'hiring_manager') && canViewCandidates === null)) {
     return (
       <RequireAuth>
         <div className="flex min-h-screen" style={{ width: '100%', overflow: 'hidden', backgroundColor: '#F5F7FA' }}>
