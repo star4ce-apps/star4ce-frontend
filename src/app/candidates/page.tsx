@@ -273,6 +273,9 @@ export default function CandidatesPage() {
   };
 
   const [canViewInterviewScores, setCanViewInterviewScores] = useState(true);
+  const [canViewCandidates, setCanViewCandidates] = useState<boolean | null>(null);
+  const [canCreateCandidate, setCanCreateCandidate] = useState(false);
+  const [canManageCandidate, setCanManageCandidate] = useState(false);
 
   useEffect(() => {
     // Check user approval status and permissions
@@ -287,18 +290,30 @@ export default function CandidatesPage() {
         
         if (res.ok) {
           const data = await res.json();
-          setRole(data.user?.role || data.role);
+          const userRole = data.user?.role || data.role;
+          setRole(userRole);
           setIsApproved(data.user?.is_approved !== false && data.is_approved !== false);
+          if (userRole === 'admin' || userRole === 'corporate') {
+            setCanViewCandidates(true);
+          } else if (userRole === 'manager' || userRole === 'hiring_manager') {
+            const perms = await getUserPermissions();
+            setCanViewCandidates(perms.view_candidates === true);
+          } else {
+            setCanViewCandidates(false);
+          }
         } else {
           const data = await res.json();
           if (data.error === 'manager_not_approved') {
             setRole('manager');
             setIsApproved(false);
+            setCanViewCandidates(false);
           }
         }
 
         const perms = await getUserPermissions();
         setCanViewInterviewScores(perms.view_interview_scores === true);
+        setCanCreateCandidate(perms.create_candidate === true);
+        setCanManageCandidate(perms.modify_candidate === true || perms.manage_candidate === true);
       } catch (err) {
         console.error('Failed to check user status:', err);
       }
@@ -325,8 +340,11 @@ export default function CandidatesPage() {
       const data = await getJsonAuth<{ ok: boolean; items: any[] }>('/candidates');
       setCandidates(data.items || []);
     } catch (err) {
-      setError('Failed to load candidates');
-      console.error(err);
+      const msg = err instanceof Error ? err.message : String(err);
+      const isPermissionError = msg.toLowerCase().includes('permission') || msg.toLowerCase().includes('view candidates');
+      if (isPermissionError) setCanViewCandidates(false);
+      setError(isPermissionError ? 'You do not have permission to view candidates.' : 'Failed to load candidates');
+      if (!isPermissionError) console.error(err);
     } finally {
       setLoading(false);
     }
@@ -591,6 +609,36 @@ export default function CandidatesPage() {
     );
   };
 
+  // Resolving view_candidates permission / waiting for role
+  if (role === null || ((role === 'manager' || role === 'hiring_manager') && canViewCandidates === null)) {
+    return (
+      <RequireAuth>
+        <div className="flex min-h-screen" style={{ backgroundColor: COLORS.gray[50] }}>
+          <HubSidebar />
+          <main className="ml-64 p-8 flex-1 flex items-center justify-center" style={{ maxWidth: 'calc(100vw - 256px)' }}>
+            <div className="text-sm" style={{ color: COLORS.gray[500] }}>Loading...</div>
+          </main>
+        </div>
+      </RequireAuth>
+    );
+  }
+
+  // Block access when user does not have permission to view candidates (same design as employee list page)
+  if (role != null && canViewCandidates === false) {
+    return (
+      <RequireAuth>
+        <div className="flex min-h-screen" style={{ backgroundColor: COLORS.gray[50] }}>
+          <HubSidebar />
+          <main className="ml-64 p-8 flex-1" style={{ maxWidth: 'calc(100vw - 256px)' }}>
+            <div className="text-center py-12">
+              <div className="text-sm font-medium" style={{ color: COLORS.gray[500] }}>You do not have permission to view the candidate list. Please contact your administrator.</div>
+            </div>
+          </main>
+        </div>
+      </RequireAuth>
+    );
+  }
+
   // Block unapproved managers
   if (role === 'manager' && isApproved === false) {
     return (
@@ -649,7 +697,7 @@ export default function CandidatesPage() {
                   Manage and review candidate applications
                 </p>
               </div>
-              {role !== 'corporate' && (
+              {role !== 'corporate' && canCreateCandidate && (
                 <div className="flex gap-3">
                   <button
                     type="button"

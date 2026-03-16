@@ -101,6 +101,8 @@ export default function CandidateProfilePage() {
   const [saving, setSaving] = useState(false);
   const [allCandidates, setAllCandidates] = useState<CandidateProfile[]>([]);
   const [role, setRole] = useState<string | null>(null);
+  const [canViewCandidates, setCanViewCandidates] = useState<boolean | null>(null);
+  const [canManageCandidate, setCanManageCandidate] = useState(false);
   const [canViewInterviewScores, setCanViewInterviewScores] = useState(true);
   const notesTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const resumeBlobUrlRef = useRef<string | null>(null);
@@ -169,11 +171,18 @@ export default function CandidateProfilePage() {
         
         if (res.ok) {
           const data = await res.json();
-          setRole(data.user?.role || data.role || null);
+          const userRole = data.user?.role || data.role || null;
+          setRole(userRole);
+          if (userRole === 'admin' || userRole === 'corporate') setCanViewCandidates(true);
+          else if (userRole === 'manager' || userRole === 'hiring_manager') {
+            const perms = await getUserPermissions();
+            setCanViewCandidates(perms.view_candidates === true);
+          } else setCanViewCandidates(false);
         }
 
         const perms = await getUserPermissions();
         setCanViewInterviewScores(perms.view_interview_scores === true);
+        setCanManageCandidate(perms.modify_candidate === true || perms.manage_candidate === true);
       } catch (err) {
         // Silently fail - role will remain null
       }
@@ -337,12 +346,9 @@ export default function CandidateProfilePage() {
       }
     } catch (err: unknown) {
       const errorMsg = err instanceof Error ? err.message : 'Failed to load candidate';
-      // Check if it's a permission error
       if (errorMsg.includes('403') || errorMsg.includes('forbidden') || errorMsg.includes('insufficient role')) {
-        toast.error('You do not have permission to view this candidate');
-      } else if (errorMsg.includes('404') || errorMsg.includes('not found')) {
-        toast.error('Candidate not found');
-      } else {
+        setCanViewCandidates(false);
+      } else if (!errorMsg.includes('404') && !errorMsg.includes('not found')) {
         toast.error(errorMsg);
       }
       setCandidate(null);
@@ -353,6 +359,11 @@ export default function CandidateProfilePage() {
 
   async function updateCandidate(data: Partial<any>) {
     if (!candidate) return;
+
+    if (!canManageCandidate) {
+      toast.error('You do not have permission to edit candidates. Please contact your administrator.');
+      return;
+    }
     
     // Block corporate users from updating
     if (role === 'corporate') {
@@ -1136,6 +1147,34 @@ export default function CandidateProfilePage() {
     return [...awaitingEvents, ...otherEvents];
   };
 
+  if (role === null || ((role === 'manager' || role === 'hiring_manager') && canViewCandidates === null)) {
+    return (
+      <RequireAuth>
+        <div className="flex min-h-screen" style={{ width: '100%', overflow: 'hidden', backgroundColor: '#F5F7FA' }}>
+          <HubSidebar />
+          <main className="ml-64 p-8 flex-1 flex items-center justify-center" style={{ overflowX: 'hidden', minWidth: 0 }}>
+            <div className="text-sm" style={{ color: '#64748B' }}>Loading...</div>
+          </main>
+        </div>
+      </RequireAuth>
+    );
+  }
+
+  if (role != null && canViewCandidates === false) {
+    return (
+      <RequireAuth>
+        <div className="flex min-h-screen" style={{ width: '100%', overflow: 'hidden', backgroundColor: '#F5F7FA' }}>
+          <HubSidebar />
+          <main className="ml-64 p-8 flex-1" style={{ overflowX: 'hidden', minWidth: 0 }}>
+            <div className="text-center py-12">
+              <div className="text-sm font-medium" style={{ color: '#64748B' }}>You do not have permission to view the candidate list. Please contact your administrator.</div>
+            </div>
+          </main>
+        </div>
+      </RequireAuth>
+    );
+  }
+
   if (loading) {
     return (
       <RequireAuth>
@@ -1635,7 +1674,7 @@ export default function CandidateProfilePage() {
                 </div>
               )}
 
-              {activeTab === 'hiring-decision' && (role === 'admin' || role === 'hiring_manager') && (
+              {activeTab === 'hiring-decision' && (role === 'admin' || role === 'hiring_manager') && canManageCandidate && (
                 <div className="space-y-6">
                   <div className="rounded-xl p-6" style={{ backgroundColor: '#FFFFFF', border: '1px solid #E5E7EB', boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05)' }}>
                     <div className="mb-6">
@@ -1800,7 +1839,7 @@ export default function CandidateProfilePage() {
               <div className="rounded-xl p-5" style={{ backgroundColor: '#FFFFFF', border: '1px solid #E5E7EB' }}>
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-sm font-bold" style={{ color: '#232E40' }}>Information</h3>
-                  {(role === 'admin' || role === 'manager' || role === 'hiring_manager') && (
+                  {(role === 'admin' || role === 'manager' || role === 'hiring_manager') && canManageCandidate && (
                     <button
                       type="button"
                       onClick={openEditPersonal}
@@ -2204,7 +2243,8 @@ export default function CandidateProfilePage() {
                         </div>
                       </div>
 
-                      {/* Danger Zone */}
+                      {/* Danger Zone - only when user can manage candidates */}
+                      {canManageCandidate && (
                       <div className="pt-6 mt-6 border-t" style={{ borderColor: '#FEE2E2' }}>
                         <div className="p-4 rounded-lg" style={{ backgroundColor: '#FEF2F2', border: '1px solid #FEE2E2' }}>
                           <h4 className="text-xs font-semibold mb-2" style={{ color: '#991B1B' }}>Danger Zone</h4>
@@ -2226,6 +2266,7 @@ export default function CandidateProfilePage() {
                           </button>
                         </div>
                       </div>
+                      )}
                     </div>
                     <div className="flex gap-2 mt-4 pt-4 border-t px-5 pb-5" style={{ borderColor: '#E5E7EB' }}>
                       <button
