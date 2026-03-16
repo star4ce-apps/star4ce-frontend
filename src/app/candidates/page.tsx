@@ -325,8 +325,10 @@ export default function CandidatesPage() {
       const data = await getJsonAuth<{ ok: boolean; items: any[] }>('/candidates');
       setCandidates(data.items || []);
     } catch (err) {
-      setError('Failed to load candidates');
-      console.error(err);
+      const msg = err instanceof Error ? err.message : String(err);
+      const isPermissionError = msg.toLowerCase().includes('permission') || msg.toLowerCase().includes('view candidates');
+      setError(isPermissionError ? 'You do not have permission to view candidates.' : 'Failed to load candidates');
+      if (!isPermissionError) console.error(err);
     } finally {
       setLoading(false);
     }

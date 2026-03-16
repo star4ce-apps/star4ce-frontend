@@ -511,14 +511,18 @@ function DashboardContent() {
             setCandidatesData([]);
           }
         } catch (err) {
-          console.error('Failed to load candidates:', err);
+          const msg = err instanceof Error ? err.message : String(err);
+          if (!msg.toLowerCase().includes('permission') && !msg.toLowerCase().includes('view candidates')) {
+            console.error('Failed to load candidates:', err);
+          }
           setCandidatesData([]);
         }
       } catch (err: unknown) {
         // Only set error for non-permission related errors
         const errorMsg = err instanceof Error ? err.message : 'Failed to load analytics';
-        // Don't show error for permission issues - they're handled gracefully above
-        if (!errorMsg.includes('403') && !errorMsg.includes('forbidden') && !errorMsg.includes('insufficient role')) {
+        const lower = errorMsg.toLowerCase();
+        const isPermissionError = lower.includes('403') || lower.includes('forbidden') || lower.includes('insufficient role') || lower.includes('permission') || lower.includes('view candidates');
+        if (!isPermissionError) {
           setAnalyticsError(errorMsg);
         }
       } finally {
