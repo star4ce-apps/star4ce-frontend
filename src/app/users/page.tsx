@@ -693,16 +693,7 @@ function UserManagementPageContent() {
         if (permissionKey === 'process_interviews') {
           const newRole = allowed ? 'hiring_manager' : 'manager';
           try {
-            const permRes = await fetch(`${API_BASE}/admin/managers/${managerId}/permissions`, {
-              method: 'POST',
-              headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-              body: JSON.stringify({ permission_key: permissionKey, allowed }),
-            });
-            if (!permRes.ok) {
-              const data = await permRes.json().catch(() => ({}));
-              toast.error(data?.error || data?.message || 'Permission update failed');
-              return;
-            }
+            // Only update role when switching manager/hiring_manager; do not change individual permission overrides
             let roleRes = await fetch(`${API_BASE}/admin/managers/${managerId}`, {
               method: 'PATCH',
               headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -1006,7 +997,7 @@ function UserManagementPageContent() {
                                   : (permissionKey.includes('survey') && permissionKey !== 'view_surveys') ? 'view_surveys'
                                   : getViewKeyForPermission(permissionKey);
                                 const viewAllowed = viewKeyForRole ? (permissions[role]?.[viewKeyForRole] ?? false) : true;
-                                const isDisabled = viewKeyForRole && !viewAllowed;
+                                const isDisabled = Boolean(viewKeyForRole && !viewAllowed);
                                 return (
                                   <td key={role} className="py-4 px-6">
                                     <div className="flex items-center justify-center">
@@ -1587,16 +1578,12 @@ function UserManagementPageContent() {
                           const isHiringManager = pendingRole === 'hiring_manager' || (!pendingRole && selectedManager.role === 'hiring_manager');
                           const newRole = isHiringManager ? 'manager' : 'hiring_manager';
                           setPendingRole(newRole);
-                          
-                          // Also update pending permissions for process_interviews
-                          let updatedPermissions: { [key: string]: boolean };
-                          if (pendingPermissions) {
-                            updatedPermissions = { ...pendingPermissions };
-                          } else {
-                            updatedPermissions = { ...(selectedManager.permissions || {}) };
-                          }
-                          updatedPermissions['process_interviews'] = !isHiringManager;
-                          setPendingPermissions(updatedPermissions);
+                          // Only touch process_interviews in pending state; leave all other permissions as-is (do not overwrite with effective booleans)
+                          setPendingPermissions(prev => {
+                            const next = prev ? { ...prev } : {};
+                            next['process_interviews'] = !isHiringManager;
+                            return next;
+                          });
                         }}
                         className={`w-14 h-8 rounded-full flex items-center transition-colors ${
                           (pendingRole === 'hiring_manager' || (!pendingRole && selectedManager.role === 'hiring_manager'))
@@ -1643,7 +1630,8 @@ function UserManagementPageContent() {
                             const isModify = permissionKey.startsWith('modify_') || permissionKey.startsWith('manage_');
                             const viewKey = getViewKeyForPermission(permissionKey);
                             const viewState = viewKey ? getPermissionState(viewKey) : null;
-                            const viewAllowed = viewState === true || (viewState === 'inherit' && (permissions[selectedManager.role]?.[viewKey] ?? false));
+                            const roleDefaultForView = viewKey != null ? (permissions[selectedManager.role]?.[viewKey] ?? false) : false;
+                            const viewAllowed = viewState === true || (viewState === 'inherit' && roleDefaultForView);
                             // When view is denied, make all other permissions in that category unclickable (not just modify/manage)
                             const viewDeniedForEmployee = !isViewAllowedForCategory('Employee Management');
                             const viewDeniedForCandidate = !isViewAllowedForCategory('Candidate Management');

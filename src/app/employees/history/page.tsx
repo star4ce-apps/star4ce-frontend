@@ -27,7 +27,7 @@ const COLORS = {
 
 type HistoryEntry = {
   id: number | string;
-  type: 'employee' | 'candidate';
+  type: 'employee' | 'candidate' | 'user';
   name: string;
   action: string;
   previousValue?: string;
@@ -105,10 +105,11 @@ export default function EmployeeRoleHistoryPage() {
       params.append('limit', '500'); // Get enough entries
       if (forceRefresh) params.append('_t', String(Date.now()));
       if (selectedType !== 'All Types') {
-        // Map "Employee" -> "employee", "Candidate" -> "candidate"
+        // Map "Employee" -> "employee", "Candidate" -> "candidate", "User" -> "user"
         const typeMap: { [key: string]: string } = {
           'Employee': 'employee',
-          'Candidate': 'candidate'
+          'Candidate': 'candidate',
+          'User': 'user'
         };
         params.append('type', typeMap[selectedType] || selectedType.toLowerCase());
       }
@@ -219,7 +220,8 @@ export default function EmployeeRoleHistoryPage() {
     
     const matchesType = selectedType === 'All Types' || 
       (selectedType === 'Employee' && entry.type === 'employee') ||
-      (selectedType === 'Candidate' && entry.type === 'candidate');
+      (selectedType === 'Candidate' && entry.type === 'candidate') ||
+      (selectedType === 'User' && entry.type === 'user');
     
     const matchesAction = selectedAction === 'All Actions' || entry.action === selectedAction;
 
@@ -295,7 +297,11 @@ export default function EmployeeRoleHistoryPage() {
   const actions = Array.from(new Set(entriesToFilter.map(entry => entry.action)));
 
   async function handleRevert(entry: HistoryEntry) {
-    
+    // Permission/role changes (type user) are not revertable
+    if (entry.type === 'user') {
+      toast.error('Permission and role changes cannot be reverted from here. Change them again in Users.');
+      return;
+    }
     // Cannot revert candidate creation, employee creation, or termination
     if (entry.action === 'Candidate Created' || entry.action === 'Employee Created' || entry.action === 'Terminated') {
       toast.error(`Cannot revert ${entry.action}`);
@@ -488,6 +494,7 @@ export default function EmployeeRoleHistoryPage() {
                 <option>All Types</option>
                 <option>Employee</option>
                 <option>Candidate</option>
+                <option>User</option>
               </select>
               <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: '#6B7280' }}>
@@ -649,11 +656,11 @@ export default function EmployeeRoleHistoryPage() {
                             <span 
                               className="text-xs font-semibold px-2.5 py-1 rounded-full inline-block"
                               style={{ 
-                                backgroundColor: entry.type === 'employee' ? '#DBEAFE' : '#FEF3C7',
-                                color: entry.type === 'employee' ? '#1E40AF' : '#92400E'
+                                backgroundColor: entry.type === 'employee' ? '#DBEAFE' : entry.type === 'user' ? '#E5E7EB' : '#FEF3C7',
+                                color: entry.type === 'employee' ? '#1E40AF' : entry.type === 'user' ? '#374151' : '#92400E'
                               }}
                             >
-                              {entry.type === 'employee' ? 'Employee' : 'Candidate'}
+                              {entry.type === 'employee' ? 'Employee' : entry.type === 'user' ? 'User' : 'Candidate'}
                             </span>
                           </td>
                           <td className="py-3 px-4 text-sm" style={{ color: '#374151' }}>{entry.name}</td>
@@ -712,10 +719,10 @@ export default function EmployeeRoleHistoryPage() {
                               ) : (
                                 <button
                                   onClick={() => handleRevert(entry)}
-                                  disabled={entry.action === 'Candidate Created' || entry.action === 'Employee Created' || entry.action === 'Terminated' || (entry.action !== 'Employee Removed' && entry.action !== 'Candidate Deleted' && (!entry.previousValue || entry.previousValue === '—' || entry.previousValue === 'N/A')) || entry.reverted}
+                                  disabled={entry.type === 'user' || entry.action === 'Candidate Created' || entry.action === 'Employee Created' || entry.action === 'Terminated' || (entry.action !== 'Employee Removed' && entry.action !== 'Candidate Deleted' && (!entry.previousValue || entry.previousValue === '—' || entry.previousValue === 'N/A')) || entry.reverted}
                                   className="p-1.5 rounded-md hover:bg-gray-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                                   style={{ color: '#6B7280' }}
-                                  title="Revert this change"
+                                  title={entry.type === 'user' ? 'Permission/role changes cannot be reverted' : 'Revert this change'}
                                 >
                                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
