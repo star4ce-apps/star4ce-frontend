@@ -800,7 +800,9 @@ function UserManagementPageContent() {
             return;
           }
         } catch (err) {
-          console.error('Error updating role:', err);
+          if (process.env.NODE_ENV === 'development') {
+            console.warn('[handleSaveAndExit] Role update failed:', err);
+          }
           toast.error(getNetworkErrorMessage(err, 'Failed to update role. Please check your connection.'));
           return;
         }
@@ -815,8 +817,11 @@ function UserManagementPageContent() {
       setPendingPermissions(null);
       setPendingRole(null);
     } catch (err) {
-      toast.error(getNetworkErrorMessage(err, 'Failed to save permissions'));
-      console.error(err);
+      const message = getNetworkErrorMessage(err, 'Failed to save permissions');
+      toast.error(message);
+      if (process.env.NODE_ENV === 'development') {
+        console.warn('[handleSaveAndExit]', message, err);
+      }
     }
   }
 
