@@ -566,6 +566,16 @@ function UserManagementPageContent() {
     return permissionKey.replace('modify_', 'view_').replace('manage_', 'view_');
   }
 
+  /** True if the view permission for this category is effectively allowed (so sub-permissions can be edited). */
+  function isViewAllowedForCategory(category: string): boolean {
+    if (!selectedManager) return true;
+    const viewKey = category === 'Employee Management' ? 'view_employees' : category === 'Candidate Management' ? 'view_candidates' : category === 'Survey Management' ? 'view_surveys' : null;
+    if (!viewKey) return true;
+    const viewState = getPermissionState(viewKey);
+    const roleDefault = permissions[selectedManager.role]?.[viewKey] ?? false;
+    return viewState === true || (viewState === 'inherit' && roleDefault);
+  }
+
   // Check if a modify/manage permission should be disabled based on view permission
   function shouldDisableModify(permissionKey: string, permissions: { [key: string]: boolean } | undefined): boolean {
     const viewKey = getViewKeyForPermission(permissionKey);
@@ -582,10 +592,29 @@ function UserManagementPageContent() {
     return 'inherit';
   }
 
+  /** User-friendly message for network/fetch errors. */
+  function getNetworkErrorMessage(err: unknown, fallback: string = 'Network error'): string {
+    const msg = err instanceof Error ? err.message : '';
+    if (msg === 'Failed to fetch' || msg.includes('fetch')) {
+      return 'Could not reach the server. Make sure the backend is running and try again.';
+    }
+    return msg || fallback;
+  }
+
   /** Set permission to a specific state: Default (inherit), Allow (true), or Deny (false). */
   function handleSetManagerPermission(managerId: number, permissionKey: string, value: boolean | 'inherit') {
     if (!selectedManager || selectedManager.id !== managerId) return;
     const updated = { ...(pendingPermissions || {}), [permissionKey]: value };
+    // When view is set to Deny, automatically set dependent permissions to Default (inherit) so they're not left as overrides
+    if (value === false) {
+      if (permissionKey === 'view_employees') {
+        ['create_employee', 'modify_employee', 'manage_employee'].forEach(k => { updated[k] = 'inherit'; });
+      } else if (permissionKey === 'view_candidates') {
+        ['view_interview_scores', 'create_candidate', 'modify_candidate', 'manage_candidate'].forEach(k => { updated[k] = 'inherit'; });
+      } else if (permissionKey === 'view_surveys') {
+        ['create_survey', 'manage_survey'].forEach(k => { updated[k] = 'inherit'; });
+      }
+    }
     if (permissionKey === 'process_interviews') setPendingRole(value === true ? 'hiring_manager' : value === false ? 'manager' : null);
     setPendingPermissions(updated);
   }
@@ -650,7 +679,7 @@ function UserManagementPageContent() {
               return;
             }
           } catch (err) {
-            toast.error(`Network error: ${err instanceof Error ? err.message : 'Please check your connection.'}`);
+            toast.error(getNetworkErrorMessage(err, 'Failed to clear override. Please check your connection.'));
             return;
           }
           if (permissionKey === 'process_interviews') setPendingRole(null);
@@ -691,7 +720,7 @@ function UserManagementPageContent() {
               return;
             }
           } catch (err) {
-            toast.error(err instanceof Error ? err.message : 'Network error');
+            toast.error(getNetworkErrorMessage(err));
             return;
           }
           continue;
@@ -709,7 +738,7 @@ function UserManagementPageContent() {
             return;
           }
         } catch (err) {
-          toast.error(err instanceof Error ? err.message : 'Network error');
+          toast.error(getNetworkErrorMessage(err));
           return;
         }
 
@@ -772,7 +801,7 @@ function UserManagementPageContent() {
           }
         } catch (err) {
           console.error('Error updating role:', err);
-          toast.error('Network error: Failed to update role. Please check your connection.');
+          toast.error(getNetworkErrorMessage(err, 'Failed to update role. Please check your connection.'));
           return;
         }
       }
@@ -786,7 +815,7 @@ function UserManagementPageContent() {
       setPendingPermissions(null);
       setPendingRole(null);
     } catch (err) {
-      toast.error('Failed to save permissions');
+      toast.error(getNetworkErrorMessage(err, 'Failed to save permissions'));
       console.error(err);
     }
   }
@@ -966,10 +995,13 @@ function UserManagementPageContent() {
                               </td>
                               {roles.filter(r => r !== 'admin' && r !== 'corporate').map(role => {
                                 const isAllowed = permissions[role]?.[permissionKey] ?? false;
-                                const isModify = permissionKey.startsWith('modify_') || permissionKey.startsWith('manage_');
-                                const viewKey = getViewKeyForPermission(permissionKey);
-                                const viewAllowed = viewKey ? (permissions[role]?.[viewKey] ?? false) : true;
-                                const isDisabled = isModify && !viewAllowed;
+                                const viewKeyForRole =
+                                  (permissionKey.includes('employee') && permissionKey !== 'view_employees') ? 'view_employees'
+                                  : (permissionKey.includes('candidate') && permissionKey !== 'view_candidates') || permissionKey === 'view_interview_scores' ? 'view_candidates'
+                                  : (permissionKey.includes('survey') && permissionKey !== 'view_surveys') ? 'view_surveys'
+                                  : getViewKeyForPermission(permissionKey);
+                                const viewAllowed = viewKeyForRole ? (permissions[role]?.[viewKeyForRole] ?? false) : true;
+                                const isDisabled = viewKeyForRole && !viewAllowed;
                                 return (
                                   <td key={role} className="py-4 px-6">
                                     <div className="flex items-center justify-center">
@@ -1607,7 +1639,15 @@ function UserManagementPageContent() {
                             const viewKey = getViewKeyForPermission(permissionKey);
                             const viewState = viewKey ? getPermissionState(viewKey) : null;
                             const viewAllowed = viewState === true || (viewState === 'inherit' && (permissions[selectedManager.role]?.[viewKey] ?? false));
-                            const isDisabled = isModify && !viewAllowed;
+                            // When view is denied, make all other permissions in that category unclickable (not just modify/manage)
+                            const viewDeniedForEmployee = !isViewAllowedForCategory('Employee Management');
+                            const viewDeniedForCandidate = !isViewAllowedForCategory('Candidate Management');
+                            const viewDeniedForSurvey = !isViewAllowedForCategory('Survey Management');
+                            const isCandidateSubPermission = permissionKey === 'create_candidate' || permissionKey === 'modify_candidate' || permissionKey === 'manage_candidate';
+                            const isDisabled =
+                              (permissionKey.includes('employee') && permissionKey !== 'view_employees' && viewDeniedForEmployee) ||
+                              ((permissionKey.includes('candidate') && permissionKey !== 'view_candidates') || permissionKey === 'view_interview_scores') && viewDeniedForCandidate ||
+                              (permissionKey.includes('survey') && permissionKey !== 'view_surveys' && viewDeniedForSurvey);
                             const isProcessInterviews = permissionKey === 'process_interviews';
 
                             return (
@@ -1624,7 +1664,9 @@ function UserManagementPageContent() {
                                       </span>
                                     )}
                                     {isDisabled && !isProcessInterviews && (
-                                      <span className="text-xs ml-2" style={{ color: '#9CA3AF' }}>(view permission must be enabled first)</span>
+                                      <span className="text-xs ml-2" style={{ color: '#9CA3AF' }}>
+                                        ({(isCandidateSubPermission || permissionKey === 'view_interview_scores') ? 'View Candidates' : 'view permission'} must be enabled first)
+                                      </span>
                                     )}
                                   </div>
                                 </td>
