@@ -127,6 +127,8 @@ export default function EmployeesPage() {
   const pathname = usePathname();
   const [role, setRole] = useState<string | null>(null);
   const [canViewEmployees, setCanViewEmployees] = useState<boolean | null>(null);
+  const [canCreateEmployee, setCanCreateEmployee] = useState(false);
+  const [canManageEmployee, setCanManageEmployee] = useState(false);
   const [isApproved, setIsApproved] = useState<boolean | null>(null);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(false);
@@ -198,6 +200,9 @@ export default function EmployeesPage() {
             } else {
               setCanViewEmployees(false);
             }
+            const perms = await getUserPermissions();
+            setCanCreateEmployee(perms.create_employee === true);
+            setCanManageEmployee(perms.modify_employee === true || perms.manage_employee === true);
           } else {
             const data = await res.json();
             if (data.error === 'manager_not_approved') {
@@ -722,7 +727,7 @@ export default function EmployeesPage() {
                   Overview of all current and past employees, roles, statuses, and departmental assignments.
                 </p>
               </div>
-              {role !== 'corporate' ? (
+              {role !== 'corporate' && canCreateEmployee ? (
                 <span className="text-sm">
                   <span style={{ color: COLORS.gray[600] }}>Have an existing employee? </span>
                   <button
@@ -734,11 +739,11 @@ export default function EmployeesPage() {
                     Add them here
                   </button>
                 </span>
-              ) : (
+              ) : role === 'corporate' ? (
                 <div className="px-3 py-2 rounded-lg text-xs font-medium" style={{ backgroundColor: '#F3F4F6', color: '#6B7280' }}>
                   View-Only Mode
                 </div>
-              )}
+              ) : null}
             </div>
           </div>
 
@@ -1278,6 +1283,7 @@ export default function EmployeesPage() {
                     >
                       Close
                     </button>
+                    {canManageEmployee && (
                     <button
                       type="button"
                       onClick={() => {
@@ -1289,6 +1295,7 @@ export default function EmployeesPage() {
                     >
                       Edit Employee
                     </button>
+                    )}
                   </div>
                 </div>
               </div>

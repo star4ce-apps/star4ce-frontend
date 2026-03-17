@@ -391,6 +391,7 @@ export default function EmployeeProfilePage() {
   const [savingPersonal, setSavingPersonal] = useState(false);
   const [role, setRole] = useState<string | null>(null);
   const [canViewEmployees, setCanViewEmployees] = useState<boolean | null>(null);
+  const [canManageEmployee, setCanManageEmployee] = useState(false);
   const [reviewLogs, setReviewLogs] = useState<ReviewLogItem[]>([]);
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [ratings, setRatings] = useState({ jobKnowledge: 0, workQuality: 0, servicePerformance: 0, teamwork: 0, attendance: 0 });
@@ -420,6 +421,8 @@ export default function EmployeeProfilePage() {
               const perms = await getUserPermissions();
               setCanViewEmployees(perms.view_employees === true);
             } else setCanViewEmployees(false);
+            const perms = await getUserPermissions();
+            setCanManageEmployee(perms.modify_employee === true || perms.manage_employee === true);
           }
         } catch {
           setCanViewEmployees(false);
@@ -1213,7 +1216,8 @@ ${managerNotes.trim()}` : ''}`;
             <div className="col-span-2 space-y-4" style={{ overflow: 'visible' }}>
               {activeTab === 'performance-reviews' && (
                 <>
-                  {/* Add New Performance Review */}
+                  {/* Add New Performance Review - only when user can manage employees */}
+                  {canManageEmployee && role !== 'corporate' && (
                   <button
                     onClick={openReviewModal}
                     className="cursor-pointer w-full rounded-xl p-5 border-2 border-dashed transition-all hover:border-solid hover:bg-gray-50"
@@ -1226,6 +1230,7 @@ ${managerNotes.trim()}` : ''}`;
                       <span className="text-sm font-semibold">Add New Performance Review</span>
                     </div>
                   </button>
+                  )}
                   
                   {/* Performance Review History */}
                   <div className="space-y-4" style={{ overflow: 'visible' }}>
@@ -1426,15 +1431,16 @@ ${managerNotes.trim()}` : ''}`;
               <div className="rounded-xl p-5" style={{ backgroundColor: '#FFFFFF', border: '1px solid #E5E7EB' }}>
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-sm font-bold" style={{ color: '#232E40' }}>Information</h3>
+                  {canManageEmployee && role !== 'corporate' && (
                   <button
                     type="button"
                     onClick={openEditPersonal}
-                    disabled={role === 'corporate'}
-                    className="text-xs font-medium cursor-pointer hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="text-xs font-medium cursor-pointer hover:underline"
                     style={{ color: '#4D6DBE' }}
                   >
                     Edit
                   </button>
+                  )}
                 </div>
                 
                 {/* Contact Section */}
@@ -1894,7 +1900,8 @@ ${managerNotes.trim()}` : ''}`;
                           </div>
                         </div>
 
-                        {/* Danger Zone */}
+                        {/* Danger Zone - only when user can manage employees */}
+                        {canManageEmployee && role !== 'corporate' && (
                         <div className="pt-6 mt-6 border-t" style={{ borderColor: '#FEE2E2' }}>
                           <div className="p-4 rounded-lg" style={{ backgroundColor: '#FEF2F2', border: '1px solid #FEE2E2' }}>
                             <h4 className="text-xs font-semibold mb-2" style={{ color: '#991B1B' }}>Danger Zone</h4>
@@ -1904,7 +1911,7 @@ ${managerNotes.trim()}` : ''}`;
                             <button
                               type="button"
                               onClick={handleDeleteEmployee}
-                              disabled={savingPersonal || role === 'corporate'}
+                              disabled={savingPersonal}
                               className="px-4 py-2 text-sm font-medium rounded-lg cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:opacity-90"
                               style={{ 
                                 backgroundColor: '#FFFFFF', 
@@ -1916,6 +1923,7 @@ ${managerNotes.trim()}` : ''}`;
                             </button>
                           </div>
                         </div>
+                        )}
                       </div>
                     </div>
                     <div className="flex gap-2 mt-4 pt-4 border-t px-5 pb-5" style={{ borderColor: '#E5E7EB' }}>
