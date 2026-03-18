@@ -94,6 +94,31 @@ const US_STATES = [
   'Rhode Island', 'South Carolina', 'South Dakota', 'Tennessee', 'Texas', 'Utah', 'Vermont',
   'Virginia', 'Washington', 'West Virginia', 'Wisconsin', 'Wyoming',
 ];
+/** Map state abbreviation (e.g. AR) to full name (e.g. Arkansas) so dropdown pre-fills from API/parsed data */
+const STATE_ABBR_TO_FULL: Record<string, string> = {
+  AL: 'Alabama', AK: 'Alaska', AZ: 'Arizona', AR: 'Arkansas', CA: 'California', CO: 'Colorado',
+  CT: 'Connecticut', DE: 'Delaware', FL: 'Florida', GA: 'Georgia', HI: 'Hawaii', ID: 'Idaho',
+  IL: 'Illinois', IN: 'Indiana', IA: 'Iowa', KS: 'Kansas', KY: 'Kentucky', LA: 'Louisiana',
+  ME: 'Maine', MD: 'Maryland', MA: 'Massachusetts', MI: 'Michigan', MN: 'Minnesota', MS: 'Mississippi',
+  MO: 'Missouri', MT: 'Montana', NE: 'Nebraska', NV: 'Nevada', NH: 'New Hampshire', NJ: 'New Jersey',
+  NM: 'New Mexico', NY: 'New York', NC: 'North Carolina', ND: 'North Dakota', OH: 'Ohio',
+  OK: 'Oklahoma', OR: 'Oregon', PA: 'Pennsylvania', RI: 'Rhode Island', SC: 'South Carolina',
+  SD: 'South Dakota', TN: 'Tennessee', TX: 'Texas', UT: 'Utah', VT: 'Vermont', VA: 'Virginia',
+  WA: 'Washington', WV: 'West Virginia', WI: 'Wisconsin', WY: 'Wyoming',
+};
+function stateForDropdown(state: string | null | undefined): string {
+  if (!state || !state.trim()) return '';
+  const s = state.trim();
+  if (s.length === 2) return STATE_ABBR_TO_FULL[s.toUpperCase()] || s;
+  return US_STATES.includes(s) ? s : '';
+}
+/** Display state as full name (e.g. AR -> Arkansas) so it's consistent with the edit form. */
+function stateForDisplay(state: string | null | undefined): string {
+  if (!state || !state.trim()) return '';
+  const s = state.trim();
+  if (s.length === 2) return STATE_ABBR_TO_FULL[s.toUpperCase()] || s;
+  return s;
+}
 
 // Job roles dropdown options
 const JOB_ROLES = [
@@ -803,7 +828,7 @@ ${managerNotes.trim()}` : ''}`;
     setEditPhone(employee.phone || '');
     setEditStreet(employee.street || '');
     setEditCity(employee.city || '');
-    setEditState(employee.state || '');
+    setEditState(stateForDropdown(employee.state));
     setEditZipCode(employee.zip_code || '');
     setEditDateOfBirth(employee.date_of_birth || '');
     setEditUniversity(employee.university || '');
@@ -1519,7 +1544,7 @@ ${managerNotes.trim()}` : ''}`;
                             <div className="flex-1 min-w-0">
                               <span className="text-xs font-medium block mb-0.5" style={{ color: '#9CA3AF' }}>City, State, Zip</span>
                               <span className="text-sm break-words" style={{ color: '#374151' }}>
-                                {[employee.city, employee.state, employee.zip_code].filter(Boolean).join(', ')}
+                                {[employee.city, stateForDisplay(employee.state), employee.zip_code].filter(Boolean).join(', ')}
                               </span>
                             </div>
                           </div>

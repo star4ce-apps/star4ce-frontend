@@ -75,6 +75,21 @@ function formatBirthday(dateStr: string): string {
   return d.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
+/** Parse a single-line address like "24162 Twig St, Lake Forest, AR 92630" into street, city, state, zip. */
+function parseAddressLine(line: string): { street: string; city: string; state: string; zip: string } {
+  const trimmed = (line || '').trim();
+  if (!trimmed) return { street: '', city: '', state: '', zip: '' };
+  const parts = trimmed.split(',').map((p) => p.trim()).filter(Boolean);
+  const street = parts[0] || '';
+  const city = parts[1] || '';
+  const last = parts[2] || '';
+  // Last part often "ST 12345" or "State 12345" — zip is trailing 5 or 5+4 digits
+  const zipMatch = last.match(/\b(\d{5}(?:-\d{4})?)\s*$/);
+  const zip = zipMatch ? zipMatch[1] : '';
+  const state = zipMatch ? last.slice(0, zipMatch.index).trim() : last;
+  return { street, city, state, zip };
+}
+
 // Board employee: job titles, departments, statuses (match employees page)
 const BOARD_DEPARTMENTS = [
   'Sales Department', 'Service Department', 'Parts Department', 'Administration Department',
@@ -92,6 +107,31 @@ const US_STATES = [
   'Rhode Island', 'South Carolina', 'South Dakota', 'Tennessee', 'Texas', 'Utah', 'Vermont',
   'Virginia', 'Washington', 'West Virginia', 'Wisconsin', 'Wyoming',
 ];
+/** Map state abbreviation (e.g. AR) to full name (e.g. Arkansas) so dropdown pre-fills from parsed/API data */
+const STATE_ABBR_TO_FULL: Record<string, string> = {
+  AL: 'Alabama', AK: 'Alaska', AZ: 'Arizona', AR: 'Arkansas', CA: 'California', CO: 'Colorado',
+  CT: 'Connecticut', DE: 'Delaware', FL: 'Florida', GA: 'Georgia', HI: 'Hawaii', ID: 'Idaho',
+  IL: 'Illinois', IN: 'Indiana', IA: 'Iowa', KS: 'Kansas', KY: 'Kentucky', LA: 'Louisiana',
+  ME: 'Maine', MD: 'Maryland', MA: 'Massachusetts', MI: 'Michigan', MN: 'Minnesota', MS: 'Mississippi',
+  MO: 'Missouri', MT: 'Montana', NE: 'Nebraska', NV: 'Nevada', NH: 'New Hampshire', NJ: 'New Jersey',
+  NM: 'New Mexico', NY: 'New York', NC: 'North Carolina', ND: 'North Dakota', OH: 'Ohio',
+  OK: 'Oklahoma', OR: 'Oregon', PA: 'Pennsylvania', RI: 'Rhode Island', SC: 'South Carolina',
+  SD: 'South Dakota', TN: 'Tennessee', TX: 'Texas', UT: 'Utah', VT: 'Vermont', VA: 'Virginia',
+  WA: 'Washington', WV: 'West Virginia', WI: 'Wisconsin', WY: 'Wyoming',
+};
+function stateForDropdown(state: string | null | undefined): string {
+  if (!state || !state.trim()) return '';
+  const s = state.trim();
+  if (s.length === 2) return STATE_ABBR_TO_FULL[s.toUpperCase()] || s;
+  return US_STATES.includes(s) ? s : '';
+}
+/** Display state as full name (e.g. AR -> Arkansas) so it's consistent with the edit form. */
+function stateForDisplay(state: string | null | undefined): string {
+  if (!state || !state.trim()) return '';
+  const s = state.trim();
+  if (s.length === 2) return STATE_ABBR_TO_FULL[s.toUpperCase()] || s;
+  return s;
+}
 const BOARD_JOB_TITLES = [
   'Body Shop Manager', 'Body Shop Technician', 'Business Manager', 'Business Office Support',
   'C-Level Executives', 'Platform Manager', 'Controller', 'Finance Manager', 'Finance Director',
@@ -635,10 +675,25 @@ export default function CandidateProfilePage() {
     setEditLastName(nameParts.slice(1).join(' ') || '');
     setEditEmail(candidate.email || '');
     setEditPhone(candidate.phone || '');
-    setEditStreet(candidate.street || '');
-    setEditCity(candidate.city || '');
-    setEditState(candidate.state || '');
-    setEditZipCode(candidate.zip_code || '');
+    // Use separate fields if set; otherwise parse legacy single-line address so edit form isn't empty
+    const hasSeparate = candidate.street || candidate.city || candidate.state || candidate.zip_code;
+    if (hasSeparate) {
+      setEditStreet(candidate.street || '');
+      setEditCity(candidate.city || '');
+      setEditState(stateForDropdown(candidate.state));
+      setEditZipCode(candidate.zip_code || '');
+    } else if (candidate.address && candidate.address !== 'Not Provided') {
+      const parsed = parseAddressLine(candidate.address);
+      setEditStreet(parsed.street);
+      setEditCity(parsed.city);
+      setEditState(stateForDropdown(parsed.state));
+      setEditZipCode(parsed.zip);
+    } else {
+      setEditStreet('');
+      setEditCity('');
+      setEditState('');
+      setEditZipCode('');
+    }
     setEditGender(candidate.gender === 'Not Provided' ? '' : candidate.gender);
     setEditDateOfBirth(candidate.dateOfBirthRaw || '');
     
@@ -1934,7 +1989,7 @@ export default function CandidateProfilePage() {
                               <>
                                 <span className="text-xs font-medium block mb-0.5 mt-1" style={{ color: '#9CA3AF' }}>City, State, Zip</span>
                                 <span className="text-sm break-words" style={{ color: '#374151' }}>
-                                  {[candidate.city, candidate.state, candidate.zip_code].filter(Boolean).join(', ')}
+                                  {[candidate.city, stateForDisplay(candidate.state), candidate.zip_code].filter(Boolean).join(', ')}
                                 </span>
                               </>
                             )}
