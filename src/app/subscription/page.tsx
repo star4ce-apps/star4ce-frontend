@@ -8,6 +8,13 @@ import { API_BASE, getToken } from '@/lib/auth';
 import { getUserPermissions } from '@/lib/permissions';
 import toast from 'react-hot-toast';
 
+const COLORS = {
+  gray: {
+    50: '#F8FAFC',
+    500: '#64748B',
+  },
+};
+
 /** Format Stripe-backed renewal date in user's local timezone. Optional addDays (e.g. 1 for "switch on" date). */
 function formatRenewalOrInvoiceDate(isoEndsAt: string | null | undefined, addDays: number = 0): string {
   if (!isoEndsAt) return '';
@@ -98,19 +105,27 @@ function SubscriptionPageContent() {
         const role = data.user?.role || data.role;
         setUserRole(role);
         setSubscriptionActiveFromAuth(data.subscription_active !== false);
-        if (role === 'admin' || role === 'corporate') setCanViewSubscription(true);
-        else if (role === 'manager' || role === 'hiring_manager') {
+        if (role === 'admin' || role === 'corporate') {
+          setCanViewSubscription(true);
+          if (role === 'corporate') {
+            loadCorporateSubscriptions();
+          } else {
+            loadSubscriptionStatus();
+          }
+        } else if (role === 'manager' || role === 'hiring_manager') {
           const perms = await getUserPermissions();
-          setCanViewSubscription(perms.view_subscription === true);
-        } else setCanViewSubscription(false);
-        if (role === 'corporate') {
-          loadCorporateSubscriptions();
+          const canView = perms.view_subscription === true;
+          setCanViewSubscription(canView);
+          if (canView) loadSubscriptionStatus();
+          else setLoading(false);
         } else {
-          loadSubscriptionStatus();
+          setCanViewSubscription(false);
+          setLoading(false);
         }
       }
     } catch (err) {
       console.error('Failed to load user role:', err);
+      setLoading(false);
     }
   }
 
@@ -397,11 +412,11 @@ function SubscriptionPageContent() {
   if (userRole != null && canViewSubscription === false) {
     return (
       <RequireAuth>
-        <div className="flex min-h-screen" style={{ width: '100%', overflow: 'hidden', backgroundColor: '#F5F7FA' }}>
+        <div className="flex min-h-screen" style={{ backgroundColor: COLORS.gray[50] }}>
           <HubSidebar />
-          <main className="ml-64 p-8 flex-1" style={{ overflowX: 'hidden', minWidth: 0 }}>
+          <main className="ml-64 p-8 flex-1" style={{ maxWidth: 'calc(100vw - 256px)' }}>
             <div className="text-center py-12">
-              <div className="text-sm font-medium" style={{ color: '#64748B' }}>You do not have permission to view subscription. Please contact your administrator.</div>
+              <div className="text-sm font-medium" style={{ color: COLORS.gray[500] }}>You do not have permission to view the employee list. Please contact your administrator.</div>
             </div>
           </main>
         </div>
