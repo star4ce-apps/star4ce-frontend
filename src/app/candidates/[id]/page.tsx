@@ -49,6 +49,10 @@ type CandidateProfile = {
   gender: string;
   birthday: string;
   address: string;
+  street?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zip_code?: string | null;
   overallScore: number;
   stage: string;
   origin: string;
@@ -71,6 +75,21 @@ function formatBirthday(dateStr: string): string {
   return d.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
+/** Parse a single-line address like "24162 Twig St, Lake Forest, AR 92630" into street, city, state, zip. */
+function parseAddressLine(line: string): { street: string; city: string; state: string; zip: string } {
+  const trimmed = (line || '').trim();
+  if (!trimmed) return { street: '', city: '', state: '', zip: '' };
+  const parts = trimmed.split(',').map((p) => p.trim()).filter(Boolean);
+  const street = parts[0] || '';
+  const city = parts[1] || '';
+  const last = parts[2] || '';
+  // Last part often "ST 12345" or "State 12345" — zip is trailing 5 or 5+4 digits
+  const zipMatch = last.match(/\b(\d{5}(?:-\d{4})?)\s*$/);
+  const zip = zipMatch ? zipMatch[1] : '';
+  const state = zipMatch ? last.slice(0, zipMatch.index).trim() : last;
+  return { street, city, state, zip };
+}
+
 // Board employee: job titles, departments, statuses (match employees page)
 const BOARD_DEPARTMENTS = [
   'Sales Department', 'Service Department', 'Parts Department', 'Administration Department',
@@ -79,6 +98,40 @@ const BOARD_DEPARTMENTS = [
   'Training and Development', 'Others',
 ];
 const BOARD_STATUSES = ['Full-Time', 'Part-time', 'Intern'];
+const US_STATES = [
+  'Alabama', 'Alaska', 'Arizona', 'Arkansas', 'California', 'Colorado', 'Connecticut', 'Delaware',
+  'Florida', 'Georgia', 'Hawaii', 'Idaho', 'Illinois', 'Indiana', 'Iowa', 'Kansas', 'Kentucky',
+  'Louisiana', 'Maine', 'Maryland', 'Massachusetts', 'Michigan', 'Minnesota', 'Mississippi',
+  'Missouri', 'Montana', 'Nebraska', 'Nevada', 'New Hampshire', 'New Jersey', 'New Mexico',
+  'New York', 'North Carolina', 'North Dakota', 'Ohio', 'Oklahoma', 'Oregon', 'Pennsylvania',
+  'Rhode Island', 'South Carolina', 'South Dakota', 'Tennessee', 'Texas', 'Utah', 'Vermont',
+  'Virginia', 'Washington', 'West Virginia', 'Wisconsin', 'Wyoming',
+];
+/** Map state abbreviation (e.g. AR) to full name (e.g. Arkansas) so dropdown pre-fills from parsed/API data */
+const STATE_ABBR_TO_FULL: Record<string, string> = {
+  AL: 'Alabama', AK: 'Alaska', AZ: 'Arizona', AR: 'Arkansas', CA: 'California', CO: 'Colorado',
+  CT: 'Connecticut', DE: 'Delaware', FL: 'Florida', GA: 'Georgia', HI: 'Hawaii', ID: 'Idaho',
+  IL: 'Illinois', IN: 'Indiana', IA: 'Iowa', KS: 'Kansas', KY: 'Kentucky', LA: 'Louisiana',
+  ME: 'Maine', MD: 'Maryland', MA: 'Massachusetts', MI: 'Michigan', MN: 'Minnesota', MS: 'Mississippi',
+  MO: 'Missouri', MT: 'Montana', NE: 'Nebraska', NV: 'Nevada', NH: 'New Hampshire', NJ: 'New Jersey',
+  NM: 'New Mexico', NY: 'New York', NC: 'North Carolina', ND: 'North Dakota', OH: 'Ohio',
+  OK: 'Oklahoma', OR: 'Oregon', PA: 'Pennsylvania', RI: 'Rhode Island', SC: 'South Carolina',
+  SD: 'South Dakota', TN: 'Tennessee', TX: 'Texas', UT: 'Utah', VT: 'Vermont', VA: 'Virginia',
+  WA: 'Washington', WV: 'West Virginia', WI: 'Wisconsin', WY: 'Wyoming',
+};
+function stateForDropdown(state: string | null | undefined): string {
+  if (!state || !state.trim()) return '';
+  const s = state.trim();
+  if (s.length === 2) return STATE_ABBR_TO_FULL[s.toUpperCase()] || s;
+  return US_STATES.includes(s) ? s : '';
+}
+/** Display state as full name (e.g. AR -> Arkansas) so it's consistent with the edit form. */
+function stateForDisplay(state: string | null | undefined): string {
+  if (!state || !state.trim()) return '';
+  const s = state.trim();
+  if (s.length === 2) return STATE_ABBR_TO_FULL[s.toUpperCase()] || s;
+  return s;
+}
 const BOARD_JOB_TITLES = [
   'Body Shop Manager', 'Body Shop Technician', 'Business Manager', 'Business Office Support',
   'C-Level Executives', 'Platform Manager', 'Controller', 'Finance Manager', 'Finance Director',
@@ -115,7 +168,10 @@ export default function CandidateProfilePage() {
   const [editLastName, setEditLastName] = useState('');
   const [editEmail, setEditEmail] = useState('');
   const [editPhone, setEditPhone] = useState('');
-  const [editAddress, setEditAddress] = useState('');
+  const [editStreet, setEditStreet] = useState('');
+  const [editCity, setEditCity] = useState('');
+  const [editState, setEditState] = useState('');
+  const [editZipCode, setEditZipCode] = useState('');
   const [editGender, setEditGender] = useState('');
   const [editDateOfBirth, setEditDateOfBirth] = useState('');
   const [editUniversity, setEditUniversity] = useState('');
@@ -323,6 +379,10 @@ export default function CandidateProfilePage() {
           gender: c.gender?.trim() || 'Not Provided',
           birthday: c.date_of_birth ? formatBirthday(c.date_of_birth) : 'Not Provided',
           address: c.address?.trim() || 'Not Provided',
+          street: c.street ?? undefined,
+          city: c.city ?? undefined,
+          state: c.state ?? undefined,
+          zip_code: c.zip_code ?? undefined,
           overallScore: c.score !== null && c.score !== undefined ? c.score / 10 : 0,
           stage: c.status || 'Awaiting',
           origin: 'Career Site',
@@ -511,7 +571,8 @@ export default function CandidateProfilePage() {
       const today = `${year}-${month}-${day}`;
 
       // Create employee data from candidate (move candidate info into employee list)
-      const hasAddress = candidate.address && candidate.address !== 'Not Provided';
+      const hasStreet = candidate.street && candidate.street.trim() !== '';
+      const hasLegacyAddress = candidate.address && candidate.address !== 'Not Provided';
       const hasGender = candidate.gender && candidate.gender !== 'Not Provided';
       const hasDob = candidate.dateOfBirthRaw && candidate.dateOfBirthRaw.trim() !== '';
       const hasUniversity = candidate.university && candidate.university !== 'Not Provided';
@@ -526,10 +587,10 @@ export default function CandidateProfilePage() {
         employee_id: useForm.employeeId.trim(),
         hired_date: today,
         status: useForm.status,
-        street: hasAddress ? candidate.address : null,
-        city: null,
-        state: null,
-        zip_code: null,
+        street: hasStreet ? candidate.street : (hasLegacyAddress ? candidate.address : null),
+        city: candidate.city || null,
+        state: candidate.state || null,
+        zip_code: candidate.zip_code || null,
         date_of_birth: hasDob ? candidate.dateOfBirthRaw : null,
         gender: hasGender ? candidate.gender : null,
         university: hasUniversity ? candidate.university : null,
@@ -614,7 +675,25 @@ export default function CandidateProfilePage() {
     setEditLastName(nameParts.slice(1).join(' ') || '');
     setEditEmail(candidate.email || '');
     setEditPhone(candidate.phone || '');
-    setEditAddress(candidate.address === 'Not Provided' ? '' : (candidate.address || ''));
+    // Use separate fields if set; otherwise parse legacy single-line address so edit form isn't empty
+    const hasSeparate = candidate.street || candidate.city || candidate.state || candidate.zip_code;
+    if (hasSeparate) {
+      setEditStreet(candidate.street || '');
+      setEditCity(candidate.city || '');
+      setEditState(stateForDropdown(candidate.state));
+      setEditZipCode(candidate.zip_code || '');
+    } else if (candidate.address && candidate.address !== 'Not Provided') {
+      const parsed = parseAddressLine(candidate.address);
+      setEditStreet(parsed.street);
+      setEditCity(parsed.city);
+      setEditState(stateForDropdown(parsed.state));
+      setEditZipCode(parsed.zip);
+    } else {
+      setEditStreet('');
+      setEditCity('');
+      setEditState('');
+      setEditZipCode('');
+    }
     setEditGender(candidate.gender === 'Not Provided' ? '' : candidate.gender);
     setEditDateOfBirth(candidate.dateOfBirthRaw || '');
     
@@ -695,7 +774,10 @@ export default function CandidateProfilePage() {
         name?: string;
         email?: string;
         phone?: string;
-        address?: string | null;
+        street?: string | null;
+        city?: string | null;
+        state?: string | null;
+        zip_code?: string | null;
         gender?: string | null; 
         date_of_birth?: string | null;
         university?: string | null;
@@ -705,7 +787,10 @@ export default function CandidateProfilePage() {
         name: newName || undefined,
         email: editEmail.trim() || undefined,
         phone: editPhone.trim() || undefined,
-        address: editAddress.trim() || null,
+        street: editStreet.trim() || null,
+        city: editCity.trim() || null,
+        state: editState.trim() || null,
+        zip_code: editZipCode.trim() || null,
         gender: editGender.trim() || null,
         date_of_birth: editDateOfBirth.trim() || null,
         university: editUniversity.trim() || null,
@@ -721,6 +806,10 @@ export default function CandidateProfilePage() {
           email: c.email || candidate.email,
           phone: c.phone || candidate.phone,
           address: c.address?.trim() || 'Not Provided',
+          street: c.street ?? candidate.street,
+          city: c.city ?? candidate.city,
+          state: c.state ?? candidate.state,
+          zip_code: c.zip_code ?? candidate.zip_code,
           gender: c.gender?.trim() || 'Not Provided',
           birthday: c.date_of_birth ? formatBirthday(c.date_of_birth) : 'Not Provided',
           dateOfBirthRaw: c.date_of_birth ?? undefined,
@@ -1888,10 +1977,35 @@ export default function CandidateProfilePage() {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                       </svg>
                       <div className="flex-1 min-w-0">
-                        <span className="text-xs font-medium block mb-0.5" style={{ color: '#9CA3AF' }}>Location</span>
-                        <span className={`text-sm break-words ${candidate.address && candidate.address !== 'Not Provided' ? '' : 'italic'}`} style={{ color: candidate.address && candidate.address !== 'Not Provided' ? '#374151' : '#9CA3AF' }}>
-                          {candidate.address && candidate.address !== 'Not Provided' ? candidate.address : 'No data'}
-                        </span>
+                        {(candidate.street || candidate.city || candidate.state || candidate.zip_code || (candidate.address && candidate.address !== 'Not Provided')) ? (
+                          <>
+                            {candidate.street && (
+                              <>
+                                <span className="text-xs font-medium block mb-0.5" style={{ color: '#9CA3AF' }}>Street</span>
+                                <span className="text-sm break-words" style={{ color: '#374151' }}>{candidate.street}</span>
+                              </>
+                            )}
+                            {(candidate.city || candidate.state || candidate.zip_code) && (
+                              <>
+                                <span className="text-xs font-medium block mb-0.5 mt-1" style={{ color: '#9CA3AF' }}>City, State, Zip</span>
+                                <span className="text-sm break-words" style={{ color: '#374151' }}>
+                                  {[candidate.city, stateForDisplay(candidate.state), candidate.zip_code].filter(Boolean).join(', ')}
+                                </span>
+                              </>
+                            )}
+                            {!candidate.street && !candidate.city && !candidate.state && !candidate.zip_code && candidate.address && candidate.address !== 'Not Provided' && (
+                              <>
+                                <span className="text-xs font-medium block mb-0.5" style={{ color: '#9CA3AF' }}>Location</span>
+                                <span className="text-sm break-words" style={{ color: '#374151' }}>{candidate.address}</span>
+                              </>
+                            )}
+                          </>
+                        ) : (
+                          <>
+                            <span className="text-xs font-medium block mb-0.5" style={{ color: '#9CA3AF' }}>Location</span>
+                            <span className="text-sm italic" style={{ color: '#9CA3AF' }}>No data</span>
+                          </>
+                        )}
                       </div>
                     </div>
                     <div className="flex items-start gap-2.5 text-sm">
@@ -2053,12 +2167,50 @@ export default function CandidateProfilePage() {
                         <h4 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: '#6B7280' }}>Personal</h4>
                         <div className="space-y-3">
                           <div>
-                            <label className="block text-xs font-medium mb-1" style={{ color: '#6B7280' }}>Location</label>
+                            <label className="block text-xs font-medium mb-1" style={{ color: '#6B7280' }}>Street</label>
                             <input
                               type="text"
-                              value={editAddress}
-                              onChange={(e) => setEditAddress(e.target.value)}
-                              placeholder="Address"
+                              value={editStreet}
+                              onChange={(e) => setEditStreet(e.target.value)}
+                              placeholder="Street address"
+                              className="w-full px-3 py-2 text-sm rounded-lg border"
+                              style={{ borderColor: '#D1D5DB', color: '#374151' }}
+                            />
+                          </div>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-xs font-medium mb-1" style={{ color: '#6B7280' }}>City</label>
+                              <input
+                                type="text"
+                                value={editCity}
+                                onChange={(e) => setEditCity(e.target.value)}
+                                placeholder="City"
+                                className="w-full px-3 py-2 text-sm rounded-lg border"
+                                style={{ borderColor: '#D1D5DB', color: '#374151' }}
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium mb-1" style={{ color: '#6B7280' }}>State</label>
+                              <select
+                                value={editState}
+                                onChange={(e) => setEditState(e.target.value)}
+                                className="w-full px-3 py-2 text-sm rounded-lg border"
+                                style={{ borderColor: '#D1D5DB', color: '#374151' }}
+                              >
+                                <option value="">Select state</option>
+                                {US_STATES.map((s) => (
+                                  <option key={s} value={s}>{s}</option>
+                                ))}
+                              </select>
+                            </div>
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium mb-1" style={{ color: '#6B7280' }}>Zip code</label>
+                            <input
+                              type="text"
+                              value={editZipCode}
+                              onChange={(e) => setEditZipCode(e.target.value)}
+                              placeholder="Zip code"
                               className="w-full px-3 py-2 text-sm rounded-lg border"
                               style={{ borderColor: '#D1D5DB', color: '#374151' }}
                             />

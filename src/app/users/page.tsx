@@ -18,6 +18,8 @@ type Manager = {
   dealership_id: number;
   created_at: string;
   permissions?: { [key: string]: boolean };
+  /** Only keys that have an explicit override (true/false). Missing key = use role default. */
+  permission_override?: { [key: string]: boolean };
 };
 
 type PermissionMatrix = {
@@ -73,7 +75,8 @@ function UserManagementPageContent() {
     return 'Corporate';
   }
   const modalContentRef = useRef<HTMLDivElement>(null);
-  const [pendingPermissions, setPendingPermissions] = useState<{ [key: string]: boolean } | null>(null);
+  /** Pending permission state per key: true = allow, false = deny, 'inherit' = use role default. Only keys that were changed from initial. */
+  const [pendingPermissions, setPendingPermissions] = useState<{ [key: string]: boolean | 'inherit' } | null>(null);
   const [pendingRole, setPendingRole] = useState<string | null>(null);
 
   useEffect(() => {
@@ -563,6 +566,16 @@ function UserManagementPageContent() {
     return permissionKey.replace('modify_', 'view_').replace('manage_', 'view_');
   }
 
+  /** True if the view permission for this category is effectively allowed (so sub-permissions can be edited). */
+  function isViewAllowedForCategory(category: string): boolean {
+    if (!selectedManager) return true;
+    const viewKey = category === 'Employee Management' ? 'view_employees' : category === 'Candidate Management' ? 'view_candidates' : category === 'Survey Management' ? 'view_surveys' : null;
+    if (!viewKey) return true;
+    const viewState = getPermissionState(viewKey);
+    const roleDefault = permissions[selectedManager.role]?.[viewKey] ?? false;
+    return viewState === true || (viewState === 'inherit' && roleDefault);
+  }
+
   // Check if a modify/manage permission should be disabled based on view permission
   function shouldDisableModify(permissionKey: string, permissions: { [key: string]: boolean } | undefined): boolean {
     const viewKey = getViewKeyForPermission(permissionKey);
@@ -571,29 +584,39 @@ function UserManagementPageContent() {
     return !viewValue; // Disable modify/manage if view is false
   }
 
-  function handleToggleManagerPermission(managerId: number, permissionKey: string, currentValue: boolean) {
-    if (!selectedManager || selectedManager.id !== managerId) return;
+  /** Get effective state for a permission: 'inherit' = use role default, true = allow, false = deny. */
+  function getPermissionState(permissionKey: string): boolean | 'inherit' {
+    if (pendingPermissions && permissionKey in pendingPermissions) return pendingPermissions[permissionKey];
+    const over = selectedManager?.permission_override;
+    if (over && permissionKey in over) return over[permissionKey];
+    return 'inherit';
+  }
 
-    const newValue = !currentValue;
-    
-    // Store pending changes instead of saving immediately
-    let updatedPermissions: { [key: string]: boolean };
-    if (pendingPermissions) {
-      updatedPermissions = { ...pendingPermissions };
-    } else {
-      // Initialize with current permissions
-      updatedPermissions = { ...(selectedManager.permissions || {}) };
+  /** User-friendly message for network/fetch errors. */
+  function getNetworkErrorMessage(err: unknown, fallback: string = 'Network error'): string {
+    const msg = err instanceof Error ? err.message : '';
+    if (msg === 'Failed to fetch' || msg.includes('fetch')) {
+      return 'Could not reach the server. Make sure the backend is running and try again.';
     }
-    
-    if (permissionKey === 'process_interviews') {
-      // Update pending role
-      setPendingRole(newValue ? 'hiring_manager' : 'manager');
-      updatedPermissions[permissionKey] = newValue;
-    } else {
-      updatedPermissions[permissionKey] = newValue;
+    return msg || fallback;
+  }
+
+  /** Set permission to a specific state: Default (inherit), Allow (true), or Deny (false). */
+  function handleSetManagerPermission(managerId: number, permissionKey: string, value: boolean | 'inherit') {
+    if (!selectedManager || selectedManager.id !== managerId) return;
+    const updated = { ...(pendingPermissions || {}), [permissionKey]: value };
+    // When view is set to Deny, automatically set dependent permissions to Default (inherit) so they're not left as overrides
+    if (value === false) {
+      if (permissionKey === 'view_employees') {
+        ['create_employee', 'modify_employee', 'manage_employee'].forEach(k => { updated[k] = 'inherit'; });
+      } else if (permissionKey === 'view_candidates') {
+        ['view_interview_scores', 'create_candidate', 'modify_candidate', 'manage_candidate'].forEach(k => { updated[k] = 'inherit'; });
+      } else if (permissionKey === 'view_surveys') {
+        ['create_survey', 'manage_survey'].forEach(k => { updated[k] = 'inherit'; });
+      }
     }
-    
-    setPendingPermissions(updatedPermissions);
+    if (permissionKey === 'process_interviews') setPendingRole(value === true ? 'hiring_manager' : value === false ? 'manager' : null);
+    setPendingPermissions(updated);
   }
 
   async function handleSaveAndExit() {
@@ -617,7 +640,14 @@ function UserManagementPageContent() {
         toast.error('Invalid manager. Please close and try again.');
         return;
       }
-      const hasPendingChanges = pendingPermissions !== null || pendingRole !== null;
+      const over = selectedManager.permission_override || {};
+      const hasPendingChanges =
+        pendingRole !== null ||
+        (pendingPermissions !== null && permissionKeys.some((k) => {
+          const desired = getPermissionState(k);
+          const saved: boolean | 'inherit' = k in over ? over[k] : 'inherit';
+          return desired !== saved;
+        }));
 
       if (!hasPendingChanges) {
         // No changes to save, just close
@@ -631,176 +661,98 @@ function UserManagementPageContent() {
       // Save scroll position
       const scrollPosition = modalContentRef.current?.scrollTop || 0;
 
-      // Save pending permissions
-      if (pendingPermissions) {
-        for (const [permissionKey, allowed] of Object.entries(pendingPermissions)) {
-          // Special handling for process_interviews
-          if (permissionKey === 'process_interviews') {
-            const newRole = allowed ? 'hiring_manager' : 'manager';
-            
-            try {
-              // Update permission
-              const url = `${API_BASE}/admin/managers/${managerId}/permissions`;
-              
-              const permRes = await fetch(url, {
-                method: 'POST',
-                headers: {
-                  Authorization: `Bearer ${token}`,
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                  permission_key: permissionKey,
-                  allowed: Boolean(allowed),
-                }),
-              });
+      // Save each permission: inherit = DELETE override, true = POST true, false = POST false
+      for (const permissionKey of permissionKeys) {
+        const desired = getPermissionState(permissionKey);
+        const hasOverride = permissionKey in over;
 
-              if (!permRes.ok) {
-                const data = await permRes.json().catch(() => ({}));
-                const msg = data?.error || data?.message || `Permission update failed (${permRes.status})`;
-                console.error('Permission update failed:', permRes.status, data);
-                toast.error(msg);
-                return;
-              }
-            } catch (err) {
-              console.error('Error updating permission:', err);
-              const msg = err instanceof Error ? err.message : 'Please check your connection.';
-              toast.error(`Network error: ${msg}`);
+        if (desired === 'inherit') {
+          if (!hasOverride) continue;
+          try {
+            const delRes = await fetch(`${API_BASE}/admin/managers/${managerId}/permissions/${encodeURIComponent(permissionKey)}`, {
+              method: 'DELETE',
+              headers: { Authorization: `Bearer ${token}` },
+            });
+            if (!delRes.ok) {
+              const data = await delRes.json().catch(() => ({}));
+              toast.error(data?.error || data?.message || `Failed to clear override for ${permissionKey}`);
               return;
             }
+          } catch (err) {
+            toast.error(getNetworkErrorMessage(err, 'Failed to clear override. Please check your connection.'));
+            return;
+          }
+          if (permissionKey === 'process_interviews') setPendingRole(null);
+          continue;
+        }
 
-            try {
-              // Update role
-              let roleRes = await fetch(`${API_BASE}/admin/managers/${managerId}`, {
-                method: 'PATCH',
-                headers: {
-                  Authorization: `Bearer ${token}`,
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ role: newRole }),
-              });
+        const allowed = desired === true;
+        const needsPost = !hasOverride || over[permissionKey] !== allowed;
+        if (!needsPost) continue;
 
-              if (!roleRes.ok && roleRes.status === 405) {
-                roleRes = await fetch(`${API_BASE}/admin/managers/${managerId}`, {
-                  method: 'PUT',
-                  headers: {
-                    Authorization: `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                  },
-                  body: JSON.stringify({ role: newRole }),
-                });
-              }
+        if (permissionKey === 'process_interviews') {
+          const newRole = allowed ? 'hiring_manager' : 'manager';
+          try {
+            // Only update role when switching manager/hiring_manager; do not change individual permission overrides
+            let roleRes = await fetch(`${API_BASE}/admin/managers/${managerId}`, {
+              method: 'PATCH',
+              headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+              body: JSON.stringify({ role: newRole }),
+            });
+            if (!roleRes.ok && roleRes.status === 405) {
+              roleRes = await fetch(`${API_BASE}/admin/managers/${managerId}`, { method: 'PUT', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ role: newRole }) });
+            }
+            if (!roleRes.ok) {
+              roleRes = await fetch(`${API_BASE}/admin/managers/${managerId}/role`, { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ role: newRole }) });
+            }
+            if (!roleRes.ok) {
+              const data = await roleRes.json().catch(() => ({}));
+              toast.error(data?.error || 'Failed to update role');
+              return;
+            }
+          } catch (err) {
+            toast.error(getNetworkErrorMessage(err));
+            return;
+          }
+          continue;
+        }
 
-              if (!roleRes.ok) {
-                roleRes = await fetch(`${API_BASE}/admin/managers/${managerId}/role`, {
+        try {
+          const res = await fetch(`${API_BASE}/admin/managers/${managerId}/permissions`, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ permission_key: permissionKey, allowed }),
+          });
+          if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            toast.error(data?.error || data?.message || `Permission update failed (${res.status})`);
+            return;
+          }
+        } catch (err) {
+          toast.error(getNetworkErrorMessage(err));
+          return;
+        }
+
+        if (permissionKey.startsWith('view_') && !allowed) {
+          const modifyKey = permissionKey.replace('view_', 'modify_');
+          const manageKey = permissionKey.replace('view_', 'manage_');
+          for (const key of [modifyKey, manageKey]) {
+            if (!permissionKeys.includes(key)) continue;
+            const effective = getPermissionState(key);
+            if (effective === true) {
+              try {
+                await fetch(`${API_BASE}/admin/managers/${managerId}/permissions`, {
                   method: 'POST',
-                  headers: {
-                    Authorization: `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                  },
-                  body: JSON.stringify({ role: newRole }),
+                  headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ permission_key: key, allowed: false }),
                 });
-              }
-
-              if (roleRes.ok) {
-                toast.success(`Permission updated and role set to ${newRole === 'hiring_manager' ? 'Hiring Manager' : 'Manager'}`);
-              } else {
-                const data = await roleRes.json().catch(() => ({ error: 'Failed to update role' }));
-                toast.error(data.error || 'Failed to update role');
-                return;
-              }
-            } catch (err) {
-              console.error('Error updating role:', err);
-              toast.error('Network error: Failed to update role. Please check your connection.');
-              return;
-            }
-          } else {
-            // Regular permission update
-            try {
-              const res = await fetch(`${API_BASE}/admin/managers/${managerId}/permissions`, {
-                method: 'POST',
-                headers: {
-                  Authorization: `Bearer ${token}`,
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                  permission_key: permissionKey,
-                  allowed: Boolean(allowed),
-                }),
-              });
-
-              if (!res.ok) {
-                const data = await res.json().catch(() => ({}));
-                const msg = data?.error || data?.message || `Permission update failed (${res.status})`;
-                toast.error(msg);
-                return;
-              }
-            } catch (err) {
-              console.error('Error updating permission:', err);
-              toast.error(`Network error: ${err instanceof Error ? err.message : 'Please check your connection.'}`);
-              return;
-            }
-
-            // If disabling a view permission, also disable corresponding modify/manage permissions
-            if (permissionKey.startsWith('view_') && !allowed) {
-              const modifyKey = permissionKey.replace('view_', 'modify_');
-              const manageKey = permissionKey.replace('view_', 'manage_');
-              
-              // Check if these permissions exist in pending or current permissions
-              const hasModify = pendingPermissions?.[modifyKey] !== undefined || selectedManager.permissions?.[modifyKey] !== undefined;
-              const hasManage = pendingPermissions?.[manageKey] !== undefined || selectedManager.permissions?.[manageKey] !== undefined;
-              
-              // Disable modify permission if it exists and is enabled
-              if (hasModify) {
-                const modifyValue = pendingPermissions?.[modifyKey] ?? selectedManager.permissions?.[modifyKey];
-                if (modifyValue) {
-                  try {
-                    await fetch(`${API_BASE}/admin/managers/${managerId}/permissions`, {
-                      method: 'POST',
-                      headers: {
-                        Authorization: `Bearer ${token}`,
-                        'Content-Type': 'application/json',
-                      },
-                      body: JSON.stringify({
-                        permission_key: modifyKey,
-                        allowed: false,
-                      }),
-                    });
-                  } catch (err) {
-                    console.error('Error disabling modify permission:', err);
-                    // Continue with other permissions even if this fails
-                  }
-                }
-              }
-              
-              // Disable manage permission if it exists and is enabled
-              if (hasManage) {
-                const manageValue = pendingPermissions?.[manageKey] ?? selectedManager.permissions?.[manageKey];
-                if (manageValue) {
-                  try {
-                    await fetch(`${API_BASE}/admin/managers/${managerId}/permissions`, {
-                      method: 'POST',
-                      headers: {
-                        Authorization: `Bearer ${token}`,
-                        'Content-Type': 'application/json',
-                      },
-                      body: JSON.stringify({
-                        permission_key: manageKey,
-                        allowed: false,
-                      }),
-                    });
-                  } catch (err) {
-                    console.error('Error disabling manage permission:', err);
-                    // Continue with other permissions even if this fails
-                  }
-                }
-              }
+              } catch { /* continue */ }
             }
           }
         }
       }
 
-      // If pendingRole is set but process_interviews wasn't in pendingPermissions, update role separately
-      if (pendingRole && (!pendingPermissions || !pendingPermissions['process_interviews'])) {
+      if (pendingRole !== null && !(permissionKeys.includes('process_interviews') && getPermissionState('process_interviews') !== 'inherit')) {
         try {
           let roleRes = await fetch(`${API_BASE}/admin/managers/${managerId}`, {
             method: 'PATCH',
@@ -839,8 +791,10 @@ function UserManagementPageContent() {
             return;
           }
         } catch (err) {
-          console.error('Error updating role:', err);
-          toast.error('Network error: Failed to update role. Please check your connection.');
+          if (process.env.NODE_ENV === 'development') {
+            console.warn('[handleSaveAndExit] Role update failed:', err);
+          }
+          toast.error(getNetworkErrorMessage(err, 'Failed to update role. Please check your connection.'));
           return;
         }
       }
@@ -854,8 +808,11 @@ function UserManagementPageContent() {
       setPendingPermissions(null);
       setPendingRole(null);
     } catch (err) {
-      toast.error('Failed to save permissions');
-      console.error(err);
+      const message = getNetworkErrorMessage(err, 'Failed to save permissions');
+      toast.error(message);
+      if (process.env.NODE_ENV === 'development') {
+        console.warn('[handleSaveAndExit]', message, err);
+      }
     }
   }
 
@@ -1034,10 +991,13 @@ function UserManagementPageContent() {
                               </td>
                               {roles.filter(r => r !== 'admin' && r !== 'corporate').map(role => {
                                 const isAllowed = permissions[role]?.[permissionKey] ?? false;
-                                const isModify = permissionKey.startsWith('modify_') || permissionKey.startsWith('manage_');
-                                const viewKey = getViewKeyForPermission(permissionKey);
-                                const viewAllowed = viewKey ? (permissions[role]?.[viewKey] ?? false) : true;
-                                const isDisabled = isModify && !viewAllowed;
+                                const viewKeyForRole =
+                                  (permissionKey.includes('employee') && permissionKey !== 'view_employees') ? 'view_employees'
+                                  : (permissionKey.includes('candidate') && permissionKey !== 'view_candidates') || permissionKey === 'view_interview_scores' ? 'view_candidates'
+                                  : (permissionKey.includes('survey') && permissionKey !== 'view_surveys') ? 'view_surveys'
+                                  : getViewKeyForPermission(permissionKey);
+                                const viewAllowed = viewKeyForRole ? (permissions[role]?.[viewKeyForRole] ?? false) : true;
+                                const isDisabled = Boolean(viewKeyForRole && !viewAllowed);
                                 return (
                                   <td key={role} className="py-4 px-6">
                                     <div className="flex items-center justify-center">
@@ -1618,16 +1578,12 @@ function UserManagementPageContent() {
                           const isHiringManager = pendingRole === 'hiring_manager' || (!pendingRole && selectedManager.role === 'hiring_manager');
                           const newRole = isHiringManager ? 'manager' : 'hiring_manager';
                           setPendingRole(newRole);
-                          
-                          // Also update pending permissions for process_interviews
-                          let updatedPermissions: { [key: string]: boolean };
-                          if (pendingPermissions) {
-                            updatedPermissions = { ...pendingPermissions };
-                          } else {
-                            updatedPermissions = { ...(selectedManager.permissions || {}) };
-                          }
-                          updatedPermissions['process_interviews'] = !isHiringManager;
-                          setPendingPermissions(updatedPermissions);
+                          // Only touch process_interviews in pending state; leave all other permissions as-is (do not overwrite with effective booleans)
+                          setPendingPermissions(prev => {
+                            const next = prev ? { ...prev } : {};
+                            next['process_interviews'] = !isHiringManager;
+                            return next;
+                          });
                         }}
                         className={`w-14 h-8 rounded-full flex items-center transition-colors ${
                           (pendingRole === 'hiring_manager' || (!pendingRole && selectedManager.role === 'hiring_manager'))
@@ -1648,7 +1604,7 @@ function UserManagementPageContent() {
                 
                   <div className="mb-6 p-4 rounded-lg" style={{ backgroundColor: '#F9FAFB', border: '1px solid #E5E7EB' }}>
                     <p className="text-sm" style={{ color: '#6B7280' }}>
-                      <strong style={{ color: '#232E40' }}>Note:</strong> Individual permissions override role-based permissions. Unchecking a permission will use the role default.
+                      <strong style={{ color: '#232E40' }}>Default</strong> = use the role setting (when you change the general permission for the role, this user follows it). <strong>Allow</strong> / <strong>Deny</strong> = override the role for this person only.
                     </p>
                   </div>
 
@@ -1669,83 +1625,84 @@ function UserManagementPageContent() {
                             </td>
                           </tr>
                           {group.permissions.map((permissionKey) => {
-                            // Use pending changes if available, otherwise use current values
-                            let currentValue: boolean;
-                            if (permissionKey === 'process_interviews') {
-                              // Check pending role first, then current role
-                              if (pendingRole !== null) {
-                                currentValue = pendingRole === 'hiring_manager';
-                              } else if (pendingPermissions && pendingPermissions[permissionKey] !== undefined) {
-                                currentValue = pendingPermissions[permissionKey];
-                              } else {
-                                currentValue = selectedManager.role === 'hiring_manager';
-                              }
-                            } else {
-                              // Check pending permissions first, then current permissions
-                              if (pendingPermissions && pendingPermissions[permissionKey] !== undefined) {
-                                currentValue = pendingPermissions[permissionKey];
-                              } else {
-                                currentValue = selectedManager.permissions?.[permissionKey] ?? false;
-                              }
-                            }
-                            
+                            const state = getPermissionState(permissionKey);
+                            const roleDefault = permissions[selectedManager.role]?.[permissionKey] ?? false;
                             const isModify = permissionKey.startsWith('modify_') || permissionKey.startsWith('manage_');
                             const viewKey = getViewKeyForPermission(permissionKey);
-                            // Check if view permission is enabled (check pending first, then current permissions, then role permissions)
-                            let viewValue: boolean | undefined;
-                            if (viewKey) {
-                              if (pendingPermissions && pendingPermissions[viewKey] !== undefined) {
-                                viewValue = pendingPermissions[viewKey];
-                              } else {
-                                viewValue = selectedManager.permissions?.[viewKey];
-                              }
-                            }
-                            // Need to check role permissions if view is not explicitly set
-                            const roleViewValue = viewKey ? (permissions[selectedManager.role]?.[viewKey] ?? false) : true;
-                            const viewAllowed = viewValue !== undefined ? viewValue : roleViewValue;
-                            const isDisabled = isModify && !viewAllowed;
-                            
-                            // Special note for process_interviews
+                            const viewState = viewKey ? getPermissionState(viewKey) : null;
+                            const roleDefaultForView = viewKey != null ? (permissions[selectedManager.role]?.[viewKey] ?? false) : false;
+                            const viewAllowed = viewState === true || (viewState === 'inherit' && roleDefaultForView);
+                            // When view is denied, make all other permissions in that category unclickable (not just modify/manage)
+                            const viewDeniedForEmployee = !isViewAllowedForCategory('Employee Management');
+                            const viewDeniedForCandidate = !isViewAllowedForCategory('Candidate Management');
+                            const viewDeniedForSurvey = !isViewAllowedForCategory('Survey Management');
+                            const isCandidateSubPermission = permissionKey === 'create_candidate' || permissionKey === 'modify_candidate' || permissionKey === 'manage_candidate';
+                            const isDisabled =
+                              (permissionKey.includes('employee') && permissionKey !== 'view_employees' && viewDeniedForEmployee) ||
+                              ((permissionKey.includes('candidate') && permissionKey !== 'view_candidates') || permissionKey === 'view_interview_scores') && viewDeniedForCandidate ||
+                              (permissionKey.includes('survey') && permissionKey !== 'view_surveys' && viewDeniedForSurvey);
                             const isProcessInterviews = permissionKey === 'process_interviews';
-                            
+
                             return (
                               <tr key={permissionKey} style={{ borderTop: '1px solid #E5E7EB' }}>
                                 <td className="py-3 px-4">
                                   <div className="flex flex-col">
                                     <span className="text-sm" style={{ color: isDisabled ? '#9CA3AF' : '#232E40' }}>{getPermissionLabel(permissionKey)}</span>
+                                    <span className="text-xs mt-0.5" style={{ color: '#9CA3AF' }}>
+                                      {state === 'inherit' ? `Default: ${roleDefault ? 'Allow' : 'Deny'}` : 'Overrides role'}
+                                    </span>
                                     {isProcessInterviews && (
                                       <span className="text-xs mt-1" style={{ color: '#6B7280' }}>
-                                        (Enabling this will set the user as Hiring Manager)
+                                        (Allow = Hiring Manager, Deny = Manager)
                                       </span>
                                     )}
                                     {isDisabled && !isProcessInterviews && (
-                                      <span className="text-xs ml-2" style={{ color: '#9CA3AF' }}>(view permission must be enabled first)</span>
+                                      <span className="text-xs ml-2" style={{ color: '#9CA3AF' }}>
+                                        ({(isCandidateSubPermission || permissionKey === 'view_interview_scores') ? 'View Candidates' : 'view permission'} must be enabled first)
+                                      </span>
                                     )}
                                   </div>
                                 </td>
                                 <td className="py-3 px-4">
-                                  <div className="flex items-center justify-center">
+                                  <div className="flex items-center justify-center gap-1">
                                     <button
-                                      onClick={async () => {
-                                        if (!isDisabled) {
-                                          await handleToggleManagerPermission(selectedManager.id, permissionKey, currentValue);
-                                        }
-                                      }}
+                                      type="button"
+                                      onClick={() => !isDisabled && handleSetManagerPermission(selectedManager.id, permissionKey, 'inherit')}
                                       disabled={isDisabled}
-                                      className={`w-6 h-6 rounded border-2 flex items-center justify-center transition-colors ${
-                                        isDisabled 
-                                          ? 'bg-gray-100 border-gray-300 cursor-not-allowed opacity-50'
-                                          : currentValue 
-                                            ? 'bg-[#0B2E65] border-[#0B2E65] cursor-pointer' 
-                                            : 'bg-white border-gray-300 cursor-pointer'
+                                      className={`px-2.5 py-1 rounded border text-xs font-medium transition-colors ${
+                                        isDisabled ? 'bg-gray-100 border-gray-300 cursor-not-allowed opacity-50 text-gray-400' : state === 'inherit'
+                                          ? 'bg-amber-100 border-amber-400 text-amber-900 ring-1 ring-amber-400'
+                                          : 'bg-white border-gray-300 text-gray-600 hover:bg-amber-50'
                                       }`}
-                                      title={isDisabled ? 'View permission must be enabled first' : isProcessInterviews ? 'Toggle Process Interviews permission (will update role)' : ''}
+                                      title="Use role default"
                                     >
-                                      {currentValue && !isDisabled && (
-                                        <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                                        </svg>
-                                      )}
+                                      Default
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => !isDisabled && handleSetManagerPermission(selectedManager.id, permissionKey, true)}
+                                      disabled={isDisabled}
+                                      className={`px-2.5 py-1 rounded border text-xs font-medium transition-colors ${
+                                        isDisabled ? 'bg-gray-100 border-gray-300 cursor-not-allowed opacity-50 text-gray-400' : state === true
+                                          ? 'bg-[#0B2E65] border-[#0B2E65] text-white ring-1 ring-[#0B2E65]'
+                                          : 'bg-white border-gray-300 text-gray-600 hover:bg-blue-50'
+                                      }`}
+                                      title="Override: allow"
+                                    >
+                                      Allow
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => !isDisabled && handleSetManagerPermission(selectedManager.id, permissionKey, false)}
+                                      disabled={isDisabled}
+                                      className={`px-2.5 py-1 rounded border text-xs font-medium transition-colors ${
+                                        isDisabled ? 'bg-gray-100 border-gray-300 cursor-not-allowed opacity-50 text-gray-400' : state === false
+                                          ? 'bg-red-100 border-red-400 text-red-800 ring-1 ring-red-400'
+                                          : 'bg-white border-gray-300 text-gray-600 hover:bg-red-50'
+                                      }`}
+                                      title="Override: deny"
+                                    >
+                                      Deny
                                     </button>
                                   </div>
                                 </td>

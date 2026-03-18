@@ -5,7 +5,7 @@ import type { NextRequest } from "next/server";
  * Redirect bare domain (star4ce.com) to www (https://www.star4ce.com)
  * so everyone lands on the canonical HTTPS www URL.
  */
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const host = request.headers.get("host") ?? "";
   const url = request.nextUrl;
 
