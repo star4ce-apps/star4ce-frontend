@@ -85,6 +85,16 @@ function employeeLocation(emp: EmployeeProfile | null): string | undefined {
   return parts.length > 0 ? parts.join(', ') : undefined;
 }
 
+const US_STATES = [
+  'Alabama', 'Alaska', 'Arizona', 'Arkansas', 'California', 'Colorado', 'Connecticut', 'Delaware',
+  'Florida', 'Georgia', 'Hawaii', 'Idaho', 'Illinois', 'Indiana', 'Iowa', 'Kansas', 'Kentucky',
+  'Louisiana', 'Maine', 'Maryland', 'Massachusetts', 'Michigan', 'Minnesota', 'Mississippi',
+  'Missouri', 'Montana', 'Nebraska', 'Nevada', 'New Hampshire', 'New Jersey', 'New Mexico',
+  'New York', 'North Carolina', 'North Dakota', 'Ohio', 'Oklahoma', 'Oregon', 'Pennsylvania',
+  'Rhode Island', 'South Carolina', 'South Dakota', 'Tennessee', 'Texas', 'Utah', 'Vermont',
+  'Virginia', 'Washington', 'West Virginia', 'Wisconsin', 'Wyoming',
+];
+
 // Job roles dropdown options
 const JOB_ROLES = [
   'Body Shop Manager',
@@ -378,7 +388,10 @@ export default function EmployeeProfilePage() {
   const [editLastName, setEditLastName] = useState('');
   const [editEmail, setEditEmail] = useState('');
   const [editPhone, setEditPhone] = useState('');
-  const [editAddress, setEditAddress] = useState('');
+  const [editStreet, setEditStreet] = useState('');
+  const [editCity, setEditCity] = useState('');
+  const [editState, setEditState] = useState('');
+  const [editZipCode, setEditZipCode] = useState('');
   const [editDateOfBirth, setEditDateOfBirth] = useState('');
   const [editUniversity, setEditUniversity] = useState('');
   const [editDegree, setEditDegree] = useState('');
@@ -788,7 +801,10 @@ ${managerNotes.trim()}` : ''}`;
     
     setEditEmail(employee.email || '');
     setEditPhone(employee.phone || '');
-    setEditAddress(employeeLocation(employee) || employee.address || '');
+    setEditStreet(employee.street || '');
+    setEditCity(employee.city || '');
+    setEditState(employee.state || '');
+    setEditZipCode(employee.zip_code || '');
     setEditDateOfBirth(employee.date_of_birth || '');
     setEditUniversity(employee.university || '');
     setEditDegree(employee.degree || '');
@@ -853,7 +869,10 @@ ${managerNotes.trim()}` : ''}`;
         name?: string;
         email?: string;
         phone?: string;
-        address?: string | null;
+        street?: string | null;
+        city?: string | null;
+        state?: string | null;
+        zip_code?: string | null;
         date_of_birth?: string | null;
         university?: string | null;
         degree?: string | null;
@@ -867,7 +886,10 @@ ${managerNotes.trim()}` : ''}`;
         name: fullName || undefined,
         email: editEmail.trim() || undefined,
         phone: editPhone.trim() || undefined,
-        address: editAddress.trim() || null,
+        street: editStreet.trim() || null,
+        city: editCity.trim() || null,
+        state: editState.trim() || null,
+        zip_code: editZipCode.trim() || null,
         date_of_birth: editDateOfBirth.trim() || null,
         university: editUniversity.trim() || null,
         degree: editDegree.trim() || null,
@@ -891,6 +913,10 @@ ${managerNotes.trim()}` : ''}`;
           name: emp.name || employee.name,
           email: emp.email || employee.email,
           phone: emp.phone || employee.phone,
+          street: emp.street ?? employee.street,
+          city: emp.city ?? employee.city,
+          state: emp.state ?? employee.state,
+          zip_code: emp.zip_code ?? employee.zip_code,
           address: emp.address?.trim() || undefined,
           date_of_birth: emp.date_of_birth || undefined,
           university: emp.university?.trim() || undefined,
@@ -1474,18 +1500,53 @@ ${managerNotes.trim()}` : ''}`;
                 <div className="mb-6">
                   <h4 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: '#6B7280' }}>Personal</h4>
                   <div className="space-y-2.5">
-                    <div className="flex items-start gap-2.5 text-sm">
-                      <svg className="w-4 h-4 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: '#6B7280' }}>
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                      </svg>
-                      <div className="flex-1 min-w-0">
-                        <span className="text-xs font-medium block mb-0.5" style={{ color: '#9CA3AF' }}>Location</span>
-                        <span className={`text-sm break-words ${employeeLocation(employee) ? '' : 'italic'}`} style={{ color: employeeLocation(employee) ? '#374151' : '#9CA3AF' }}>
-                          {employeeLocation(employee) || 'No data'}
-                        </span>
+                    {(employee.street || employee.city || employee.state || employee.zip_code || employeeLocation(employee)) ? (
+                      <>
+                        {employee.street && (
+                          <div className="flex items-start gap-2.5 text-sm">
+                            <svg className="w-4 h-4 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: '#6B7280' }}>
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                            </svg>
+                            <div className="flex-1 min-w-0">
+                              <span className="text-xs font-medium block mb-0.5" style={{ color: '#9CA3AF' }}>Street</span>
+                              <span className="text-sm break-words" style={{ color: '#374151' }}>{employee.street}</span>
+                            </div>
+                          </div>
+                        )}
+                        {(employee.city || employee.state || employee.zip_code) && (
+                          <div className="flex items-start gap-2.5 text-sm">
+                            <svg className="w-4 h-4 mt-0.5 flex-shrink-0 opacity-0" aria-hidden fill="none" stroke="currentColor" viewBox="0 0 24 24" />
+                            <div className="flex-1 min-w-0">
+                              <span className="text-xs font-medium block mb-0.5" style={{ color: '#9CA3AF' }}>City, State, Zip</span>
+                              <span className="text-sm break-words" style={{ color: '#374151' }}>
+                                {[employee.city, employee.state, employee.zip_code].filter(Boolean).join(', ')}
+                              </span>
+                            </div>
+                          </div>
+                        )}
+                        {!employee.street && !employee.city && !employee.state && !employee.zip_code && employeeLocation(employee) && (
+                          <div className="flex items-start gap-2.5 text-sm">
+                            <svg className="w-4 h-4 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: '#6B7280' }}>
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                            </svg>
+                            <div className="flex-1 min-w-0">
+                              <span className="text-xs font-medium block mb-0.5" style={{ color: '#9CA3AF' }}>Location</span>
+                              <span className="text-sm break-words" style={{ color: '#374151' }}>{employeeLocation(employee)}</span>
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <div className="flex items-start gap-2.5 text-sm">
+                        <svg className="w-4 h-4 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: '#6B7280' }}>
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                        </svg>
+                        <div className="flex-1 min-w-0">
+                          <span className="text-xs font-medium block mb-0.5" style={{ color: '#9CA3AF' }}>Location</span>
+                          <span className="text-sm italic" style={{ color: '#9CA3AF' }}>No data</span>
+                        </div>
                       </div>
-                    </div>
+                    )}
                     <div className="flex items-start gap-2.5 text-sm">
                       <svg className="w-4 h-4 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: '#6B7280' }}>
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
@@ -1746,12 +1807,50 @@ ${managerNotes.trim()}` : ''}`;
                           <h4 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: '#6B7280' }}>Personal</h4>
                           <div className="space-y-3">
                             <div>
-                              <label className="block text-xs font-medium mb-1" style={{ color: '#6B7280' }}>Location</label>
+                              <label className="block text-xs font-medium mb-1" style={{ color: '#6B7280' }}>Street</label>
                               <input
                                 type="text"
-                                value={editAddress}
-                                onChange={(e) => setEditAddress(e.target.value)}
-                                placeholder="Address"
+                                value={editStreet}
+                                onChange={(e) => setEditStreet(e.target.value)}
+                                placeholder="Street address"
+                                className="w-full px-3 py-2 text-sm rounded-lg border"
+                                style={{ borderColor: '#D1D5DB', color: '#374151' }}
+                              />
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                              <div>
+                                <label className="block text-xs font-medium mb-1" style={{ color: '#6B7280' }}>City</label>
+                                <input
+                                  type="text"
+                                  value={editCity}
+                                  onChange={(e) => setEditCity(e.target.value)}
+                                  placeholder="City"
+                                  className="w-full px-3 py-2 text-sm rounded-lg border"
+                                  style={{ borderColor: '#D1D5DB', color: '#374151' }}
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs font-medium mb-1" style={{ color: '#6B7280' }}>State</label>
+                                <select
+                                  value={editState}
+                                  onChange={(e) => setEditState(e.target.value)}
+                                  className="w-full px-3 py-2 text-sm rounded-lg border"
+                                  style={{ borderColor: '#D1D5DB', color: '#374151' }}
+                                >
+                                  <option value="">Select state</option>
+                                  {US_STATES.map((s) => (
+                                    <option key={s} value={s}>{s}</option>
+                                  ))}
+                                </select>
+                              </div>
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium mb-1" style={{ color: '#6B7280' }}>Zip code</label>
+                              <input
+                                type="text"
+                                value={editZipCode}
+                                onChange={(e) => setEditZipCode(e.target.value)}
+                                placeholder="Zip code"
                                 className="w-full px-3 py-2 text-sm rounded-lg border"
                                 style={{ borderColor: '#D1D5DB', color: '#374151' }}
                               />
