@@ -420,6 +420,13 @@ export default function CandidateProfilePage() {
   async function updateCandidate(data: Partial<any>) {
     if (!candidate) return;
 
+    const currentStage = (candidate.stage || '').trim();
+    const isLocked = currentStage === 'Hired' || currentStage === 'Denied' || currentStage === 'Rejected';
+    if (isLocked) {
+      toast.error('This candidate can no longer be modified.');
+      return;
+    }
+
     if (!canManageCandidate) {
       toast.error('You do not have permission to edit candidates. Please contact your administrator.');
       return;
@@ -460,6 +467,12 @@ export default function CandidateProfilePage() {
 
   async function handleDenyApplication() {
     if (!candidate) return;
+
+    const s = (candidate.stage || '').trim();
+    if (s === 'Hired' || s === 'Denied' || s === 'Rejected') {
+      toast.error('This candidate cannot be denied.');
+      return;
+    }
     
     // Only admin and hiring_manager can deny (reject) applications
     if (role !== 'admin' && role !== 'hiring_manager') {
@@ -487,6 +500,11 @@ export default function CandidateProfilePage() {
 
   async function handleDeleteCandidate() {
     if (!candidate) return;
+    const s = (candidate.stage || '').trim();
+    if (s === 'Hired' || s === 'Denied' || s === 'Rejected') {
+      toast.error('This candidate cannot be deleted.');
+      return;
+    }
     if (role !== 'admin' && role !== 'hiring_manager') {
       toast.error('Only admin and hiring manager can delete candidates.');
       return;
@@ -670,6 +688,11 @@ export default function CandidateProfilePage() {
 
   function openEditPersonal() {
     if (!candidate) return;
+    const s = (candidate.stage || '').trim();
+    if (s === 'Hired' || s === 'Denied' || s === 'Rejected') {
+      toast.error('This candidate cannot be edited.');
+      return;
+    }
     const nameParts = (candidate.name || '').trim().split(/\s+/).filter(Boolean);
     setEditFirstName(nameParts[0] || '');
     setEditLastName(nameParts.slice(1).join(' ') || '');
@@ -1861,7 +1884,7 @@ export default function CandidateProfilePage() {
                       <div className="space-y-3">
                         <button
                           onClick={handleDenyApplication}
-                          disabled={saving || isDenied}
+                          disabled={saving || isDenied || isAccepted}
                           className="cursor-pointer group relative overflow-hidden rounded-xl font-semibold transition-all disabled:opacity-60 disabled:cursor-not-allowed flex flex-col items-center justify-center gap-3 p-5 w-full"
                           style={{ 
                             backgroundColor: '#FEE2E2',
@@ -1869,13 +1892,13 @@ export default function CandidateProfilePage() {
                             border: '2px solid #FECACA',
                           }}
                           onMouseEnter={(e) => {
-                            if (!saving && !isDenied) {
+                            if (!saving && !isDenied && !isAccepted) {
                               e.currentTarget.style.backgroundColor = '#FECACA';
                               e.currentTarget.style.borderColor = '#FCA5A5';
                             }
                           }}
                           onMouseLeave={(e) => {
-                            if (!saving && !isDenied) {
+                            if (!saving && !isDenied && !isAccepted) {
                               e.currentTarget.style.backgroundColor = '#FEE2E2';
                               e.currentTarget.style.borderColor = '#FECACA';
                             }
@@ -1909,7 +1932,9 @@ export default function CandidateProfilePage() {
                         </button>
                         {/* Deny Warning */}
                         <p className="text-xs leading-relaxed" style={{ color: '#DC2626' }}>
-                          {isDenied
+                          {isAccepted
+                            ? 'This candidate has already been accepted and moved to the employee list.'
+                            : isDenied
                             ? 'This application has already been denied.'
                             : 'Denying this application will reject the candidate. Their resume will be kept for one year, then removed. This action cannot be undone.'}
                         </p>
@@ -1928,7 +1953,7 @@ export default function CandidateProfilePage() {
               <div className="rounded-xl p-5" style={{ backgroundColor: '#FFFFFF', border: '1px solid #E5E7EB' }}>
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-sm font-bold" style={{ color: '#232E40' }}>Information</h3>
-                  {(role === 'admin' || role === 'manager' || role === 'hiring_manager') && canManageCandidate && (
+                  {(role === 'admin' || role === 'manager' || role === 'hiring_manager') && canManageCandidate && !(['Hired','Denied','Rejected'].includes((candidate.stage || '').trim())) && (
                     <button
                       type="button"
                       onClick={openEditPersonal}
@@ -2406,7 +2431,7 @@ export default function CandidateProfilePage() {
                           <button
                             type="button"
                             onClick={handleDeleteCandidate}
-                            disabled={savingPersonal || role === 'corporate'}
+                            disabled={savingPersonal || role === 'corporate' || ['Hired','Denied','Rejected'].includes((candidate?.stage || '').trim())}
                             className="px-4 py-2 text-sm font-medium rounded-lg cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:opacity-90"
                             style={{ 
                               backgroundColor: '#FFFFFF', 
