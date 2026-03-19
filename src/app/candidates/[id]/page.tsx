@@ -119,6 +119,33 @@ const STATE_ABBR_TO_FULL: Record<string, string> = {
   SD: 'South Dakota', TN: 'Tennessee', TX: 'Texas', UT: 'Utah', VT: 'Vermont', VA: 'Virginia',
   WA: 'Washington', WV: 'West Virginia', WI: 'Wisconsin', WY: 'Wyoming',
 };
+
+const STATE_FULL_TO_ABBR: Record<string, string> = Object.entries(STATE_ABBR_TO_FULL).reduce(
+  (acc, [abbr, full]) => {
+    acc[full.toUpperCase()] = abbr;
+    return acc;
+  },
+  {} as Record<string, string>
+);
+
+/**
+ * Convert the UI state value back into backend/storage format.
+ * If the original stored value was a 2-letter abbreviation, return an abbreviation.
+ */
+function stateForBackendSave(
+  originalBackendState: string | null | undefined,
+  uiStateValue: string
+): string | null {
+  const s = uiStateValue.trim();
+  if (!s) return null;
+  const orig = (originalBackendState ?? '').trim();
+  if (orig && orig.length === 2) {
+    if (s.length === 2) return s.toUpperCase();
+    return STATE_FULL_TO_ABBR[s.toUpperCase()] || s;
+  }
+  return s;
+}
+
 function stateForDropdown(state: string | null | undefined): string {
   if (!state || !state.trim()) return '';
   const s = state.trim();
@@ -179,6 +206,11 @@ export default function CandidateProfilePage() {
   const [editMajor, setEditMajor] = useState('');
   const [editReferrals, setEditReferrals] = useState<Array<{ firstName: string; lastName: string; phone: string; email: string; relationship: string }>>([]);
   const [savingPersonal, setSavingPersonal] = useState(false);
+  const editStreetInitialRef = useRef<string>('');
+  const editCityInitialRef = useRef<string>('');
+  const editStateInitialRef = useRef<string>('');
+  const editZipCodeInitialRef = useRef<string>('');
+  const originalBackendStateRef = useRef<string | null | undefined>(null);
   const [showBoardModal, setShowBoardModal] = useState(false);
   const [boardForm, setBoardForm] = useState({
     jobTitle: '',
@@ -703,19 +735,36 @@ export default function CandidateProfilePage() {
     if (hasSeparate) {
       setEditStreet(candidate.street || '');
       setEditCity(candidate.city || '');
-      setEditState(stateForDropdown(candidate.state));
+      const uiState = stateForDropdown(candidate.state);
+      setEditState(uiState);
       setEditZipCode(candidate.zip_code || '');
+      editStreetInitialRef.current = candidate.street || '';
+      editCityInitialRef.current = candidate.city || '';
+      editStateInitialRef.current = uiState;
+      editZipCodeInitialRef.current = candidate.zip_code || '';
+      originalBackendStateRef.current = candidate.state;
     } else if (candidate.address && candidate.address !== 'Not Provided') {
       const parsed = parseAddressLine(candidate.address);
       setEditStreet(parsed.street);
       setEditCity(parsed.city);
-      setEditState(stateForDropdown(parsed.state));
+      const uiState = stateForDropdown(parsed.state);
+      setEditState(uiState);
       setEditZipCode(parsed.zip);
+      editStreetInitialRef.current = parsed.street;
+      editCityInitialRef.current = parsed.city;
+      editStateInitialRef.current = uiState;
+      editZipCodeInitialRef.current = parsed.zip;
+      originalBackendStateRef.current = parsed.state;
     } else {
       setEditStreet('');
       setEditCity('');
       setEditState('');
       setEditZipCode('');
+      editStreetInitialRef.current = '';
+      editCityInitialRef.current = '';
+      editStateInitialRef.current = '';
+      editZipCodeInitialRef.current = '';
+      originalBackendStateRef.current = candidate.state;
     }
     setEditGender(candidate.gender === 'Not Provided' ? '' : candidate.gender);
     setEditDateOfBirth(candidate.dateOfBirthRaw || '');
@@ -810,10 +859,16 @@ export default function CandidateProfilePage() {
         name: newName || undefined,
         email: editEmail.trim() || undefined,
         phone: editPhone.trim() || undefined,
-        street: editStreet.trim() || null,
-        city: editCity.trim() || null,
-        state: editState.trim() || null,
-        zip_code: editZipCode.trim() || null,
+
+        ...(editStreet.trim() !== editStreetInitialRef.current.trim() ? { street: editStreet.trim() || null } : {}),
+        ...(editCity.trim() !== editCityInitialRef.current.trim() ? { city: editCity.trim() || null } : {}),
+        ...(editState.trim() !== editStateInitialRef.current.trim()
+          ? { state: stateForBackendSave(originalBackendStateRef.current, editState) }
+          : {}),
+        ...(editZipCode.trim() !== editZipCodeInitialRef.current.trim()
+          ? { zip_code: editZipCode.trim() || null }
+          : {}),
+
         gender: editGender.trim() || null,
         date_of_birth: editDateOfBirth.trim() || null,
         university: editUniversity.trim() || null,
