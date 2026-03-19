@@ -58,9 +58,41 @@ export default function EmployeeRoleHistoryPage() {
   const [sortColumn, setSortColumn] = useState<string>('timestamp');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [listRefreshKey, setListRefreshKey] = useState(0);
+  const [expandedValueByKey, setExpandedValueByKey] = useState<Record<string, boolean>>({});
   const itemsPerPage = 10;
   const [role, setRole] = useState<string | null>(null);
   const [canViewEmployees, setCanViewEmployees] = useState<boolean | null>(null);
+
+  function getEntryUiKey(entry: HistoryEntry, index: number): string {
+    if (entry.audit_log_id != null) return `audit-${entry.audit_log_id}-${entry.action}-${entry.timestamp}`;
+    return `entry-${String(entry.id ?? index)}-${entry.action}-${entry.timestamp}`;
+  }
+
+  function renderExpandableValue(value: string | undefined, entryKey: string) {
+    const text = (value || '—').toString();
+    const normalized = text.trim();
+    const isLong = normalized.length > 180 || normalized.includes('\n');
+    if (!isLong) return <span>{text || '—'}</span>;
+
+    const expanded = expandedValueByKey[entryKey] === true;
+    const preview = normalized.length > 180 ? `${normalized.slice(0, 180)}…` : normalized.split('\n').slice(0, 2).join('\n') + '…';
+
+    return (
+      <div>
+        <div style={{ whiteSpace: expanded ? 'pre-wrap' : 'normal', wordBreak: 'break-word' }}>
+          {expanded ? text : preview}
+        </div>
+        <button
+          type="button"
+          className="mt-1 text-xs font-medium hover:underline"
+          style={{ color: '#4D6DBE' }}
+          onClick={() => setExpandedValueByKey((prev) => ({ ...prev, [entryKey]: !expanded }))}
+        >
+          {expanded ? 'View less' : 'View more'}
+        </button>
+      </div>
+    );
+  }
 
   useEffect(() => {
     (async () => {
@@ -639,6 +671,7 @@ export default function EmployeeRoleHistoryPage() {
                       </tr>
                     ) : (
                     paginatedEntries.map((entry, index) => {
+                      const entryUiKey = getEntryUiKey(entry, index);
                       return (
                         <tr 
                           key={
@@ -685,7 +718,7 @@ export default function EmployeeRoleHistoryPage() {
                             {entry.previousValue || '—'}
                           </td>
                           <td className="py-3 px-4 text-sm" style={{ color: '#374151' }}>
-                            {entry.newValue || '—'}
+                            {renderExpandableValue(entry.newValue, entryUiKey)}
                             {entry.reason && entry.action === 'Terminated' && (
                               <div className="text-xs mt-1" style={{ color: '#6B7280', fontStyle: 'italic' }}>
                                 Reason: {entry.reason}
