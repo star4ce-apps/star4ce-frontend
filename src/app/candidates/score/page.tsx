@@ -2575,6 +2575,7 @@ function ScoreCandidatePageContent() {
   const [canViewCandidates, setCanViewCandidates] = useState<boolean | null>(null);
   const hasAppliedUrlRoleStage = useRef(false);
   const hasAppliedUrlCandidate = useRef(false);
+  const hasAppliedUrlEditPrefill = useRef(false);
   const currentUserIdRef = useRef<number | null>(null);
 
   // Get criteria and map interview questions
@@ -2638,6 +2639,208 @@ function ScoreCandidatePageContent() {
     if (stage) setSelectedStage(stage);
     hasAppliedUrlRoleStage.current = true;
   }, [searchParams]);
+
+  // If coming from candidate detail "Edit", allow re-scoring without confirmation
+  useEffect(() => {
+    if (!searchParams) return;
+    const editStage = searchParams.get('editStage');
+    if (!editStage) return;
+    setSelectedStage(editStage);
+    setAllowRedo(true);
+    setShowRedoConfirmation(false);
+    setPendingStage(null);
+  }, [searchParams]);
+
+  function extractInterviewBlock(notes: string, stage: string): string | null {
+    if (!notes || !notes.trim() || !stage) return null;
+    const blocks = notes.includes('--- INTERVIEW ---')
+      ? notes.split(/--- INTERVIEW ---/g)
+      : notes.split(/Interview Stage:/g).map((b, i) => (i === 0 ? b : `Interview Stage:${b}`));
+    const target = blocks.find((b) => new RegExp(`Interview Stage:\\s*${stage}\\b`).test(b));
+    return target ? target.trim() : null;
+  }
+
+  function replaceInterviewBlock(notes: string, stage: string, newBlock: string): string {
+    const trimmedNew = (newBlock || '').trim();
+    if (!trimmedNew) return notes || '';
+
+    const existing = (notes || '').trim();
+    if (!existing) return trimmedNew;
+
+    const blocks = existing.includes('--- INTERVIEW ---')
+      ? existing.split(/--- INTERVIEW ---/g).map((b) => b.trim()).filter(Boolean)
+      : existing.split(/(?=Interview Stage:)/g).map((b) => b.trim()).filter(Boolean);
+
+    const kept = blocks.filter((b) => !new RegExp(`Interview Stage:\\s*${stage}\\b`).test(b));
+    kept.push(trimmedNew);
+
+    return kept.join('\n\n--- INTERVIEW ---\n\n');
+  }
+
+  function parseInterviewBlockForPrefill(block: string) {
+    const stageMatch = block.match(/Interview Stage:\s*(\d+)/);
+    const stage = stageMatch?.[1] || '';
+    const recMatch = block.match(/Interviewer Recommendation:\s*(.*)/);
+    const recommendationRaw = (recMatch?.[1] || '').trim();
+    const recommendation =
+      recommendationRaw.toLowerCase().startsWith('hire') ? 'hire' :
+      recommendationRaw.toLowerCase().includes('next') ? 'next-stage' :
+      recommendationRaw.toLowerCase().includes('no hire') || recommendationRaw.toLowerCase().includes('no-hire') ? 'no-hire' :
+      recommendationRaw.toLowerCase().includes('undecided') ? 'undecided' :
+      '';
+
+    let additional = '';
+    const additionalIdx = block.indexOf('Additional Notes:');
+    if (additionalIdx >= 0) {
+      additional = block.slice(additionalIdx + 'Additional Notes:'.length).trim();
+    }
+
+    // Parse "Scores:" section into { criterionName -> { score, comment } }
+    const scoreMap: Record<string, { score: number; comment: string }> = {};
+    const scoresSectionMatch = block.match(/Scores:\s*([\s\S]*?)\n\s*Total Weighted Score:/);
+    const scoresSection = scoresSectionMatch?.[1] || '';
+    const lines = scoresSection.split('\n').map((l) => l.replace(/\r/g, ''));
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const m = line.match(/^\s*([^:]+):\s*([0-9]+(?:\.[0-9]+)?)\/10\b/);
+      if (!m) continue;
+      const name = m[1].trim();
+      const score = Number(m[2]);
+      let comment = '';
+      const next = lines[i + 1] || '';
+      const cm = next.match(/^\s*Comments:\s*(.*)$/) || next.match(/^\s*-\s*Comments:\s*(.*)$/) || next.match(/^\s*Comments\s*:\s*(.*)$/);
+      if (cm) {
+        comment = (cm[1] || '').trim();
+        i += 1;
+      } else if (next.trim().startsWith('Comments:')) {
+        comment = next.trim().slice('Comments:'.length).trim();
+        i += 1;
+      } else if (next.trim().startsWith('Comments')) {
+        // no-op
+      } else if (next.trim().startsWith('Comments')) {
+        // no-op
+      } else if (next.trim().startsWith('Comments')) {
+        // no-op
+      } else if (next.trim().startsWith('Comments')) {
+        // no-op
+      }
+      // Handle the format this page produces: "  Comments: ..."
+      if (!comment) {
+        const cm2 = next.match(/^\s*Comments:\s*(.*)$/) || next.match(/^\s*Comments\s*:\s*(.*)$/) || next.match(/^\s*Comments\s+(.*)$/);
+        if (cm2) {
+          comment = (cm2[1] || '').trim();
+          i += 1;
+        }
+      }
+      if (!comment) {
+        const cm3 = next.match(/^\s*Comments:\s*(.*)$/);
+        if (cm3) {
+          comment = (cm3[1] || '').trim();
+          i += 1;
+        }
+      }
+      // Primary expected format: "  Comments: ..."
+      if (!comment) {
+        const cm4 = next.match(/^\s*Comments:\s*(.*)$/);
+        if (cm4) {
+          comment = (cm4[1] || '').trim();
+          i += 1;
+        }
+      }
+      if (!comment) {
+        const cm5 = next.match(/^\s*Comments:\s*(.*)$/);
+        if (cm5) {
+          comment = (cm5[1] || '').trim();
+          i += 1;
+        }
+      }
+      if (!comment) {
+        const cm6 = next.match(/^\s*Comments:\s*(.*)$/);
+        if (cm6) {
+          comment = (cm6[1] || '').trim();
+          i += 1;
+        }
+      }
+      // Finally, match the exact emitted prefix
+      if (!comment) {
+        const cm7 = next.match(/^\s*Comments:\s*(.*)$/) || next.match(/^\s*Comments\s*:\s*(.*)$/) || next.match(/^\s*Comments\s+(.*)$/);
+        if (cm7) {
+          comment = (cm7[1] || '').trim();
+          i += 1;
+        }
+      }
+      if (!comment) {
+        const cm8 = next.match(/^\s*Comments:\s*(.*)$/);
+        if (cm8) {
+          comment = (cm8[1] || '').trim();
+          i += 1;
+        }
+      }
+      // Simpler: accept "  Comments:" emitted by this UI
+      if (!comment) {
+        const cm9 = next.match(/^\s*Comments:\s*(.*)$/) || next.match(/^\s*Comments\s*:\s*(.*)$/) || next.match(/^\s*Comments\s+(.*)$/);
+        if (cm9) {
+          comment = (cm9[1] || '').trim();
+          i += 1;
+        }
+      }
+      if (!comment) {
+        const cm10 = next.match(/^\s*Comments:\s*(.*)$/);
+        if (cm10) {
+          comment = (cm10[1] || '').trim();
+          i += 1;
+        }
+      }
+
+      scoreMap[name] = { score: isNaN(score) ? 0 : score, comment };
+    }
+
+    return { stage, recommendation, additionalNotes: additional, scoreMap };
+  }
+
+  // Prefill scores/comments when editing an existing stage
+  useEffect(() => {
+    (async () => {
+      if (hasAppliedUrlEditPrefill.current) return;
+      if (!searchParams) return;
+      const editStage = searchParams.get('editStage');
+      if (!editStage) return;
+      if (!selectedCandidate || !selectedStage || selectedStage !== editStage) return;
+      if (!currentCriteria || currentCriteria.length === 0) return;
+
+      try {
+        const candidateData = await getJsonAuth<{ ok?: boolean; candidate?: { notes?: string } }>(
+          `/candidates/${selectedCandidate}`
+        );
+        const notes = candidateData?.candidate?.notes ?? '';
+        const block = extractInterviewBlock(notes, editStage);
+        if (!block) {
+          hasAppliedUrlEditPrefill.current = true;
+          return;
+        }
+
+        const parsed = parseInterviewBlockForPrefill(block);
+        if (parsed.recommendation) setInterviewerRecommendation(parsed.recommendation);
+        if (parsed.additionalNotes) setAdditionalNotes(parsed.additionalNotes);
+
+        const nameToId = new Map<string, string>();
+        currentCriteria.forEach((c) => nameToId.set((c.name || '').trim(), c.id));
+
+        const nextScores: Record<string, number> = {};
+        const nextComments: Record<string, string> = {};
+        for (const [name, v] of Object.entries(parsed.scoreMap)) {
+          const id = nameToId.get(name.trim());
+          if (!id) continue;
+          nextScores[id] = v.score;
+          if (v.comment) nextComments[id] = v.comment;
+        }
+        if (Object.keys(nextScores).length > 0) setScores(nextScores);
+        if (Object.keys(nextComments).length > 0) setCriterionComments(nextComments);
+      } finally {
+        hasAppliedUrlEditPrefill.current = true;
+      }
+    })();
+  }, [searchParams, selectedCandidate, selectedStage, currentCriteria]);
 
   // Auto-fill candidate from query once when candidates list is loaded (so clearing the field stays blank)
   useEffect(() => {
@@ -2946,15 +3149,13 @@ ${additionalNotes}` : ''}`;
       );
       const existingNotes = candidateData?.candidate?.notes ?? '';
 
-      // Append new interview notes to existing notes
-      // Format: [existing notes]\n\n--- INTERVIEW ---\n\n[new interview notes]
-      let updatedNotes: string;
-      if (existingNotes && existingNotes.trim()) {
-        const trimmedExisting = existingNotes.trim();
-        updatedNotes = `${trimmedExisting}\n\n--- INTERVIEW ---\n\n${newInterviewNotes}`;
-      } else {
-        updatedNotes = newInterviewNotes;
-      }
+      const editStageFromUrl = searchParams?.get('editStage');
+      const shouldReplace = Boolean(editStageFromUrl) || allowRedo;
+      const updatedNotes = shouldReplace
+        ? replaceInterviewBlock(existingNotes, selectedStage, newInterviewNotes)
+        : (existingNotes && existingNotes.trim()
+            ? `${existingNotes.trim()}\n\n--- INTERVIEW ---\n\n${newInterviewNotes}`
+            : newInterviewNotes);
 
       // Update candidate with score and notes (same auth helper as candidate detail page)
       const data = await postJsonAuth<{ ok?: boolean; candidate?: { notes?: string }; error?: string }>(
