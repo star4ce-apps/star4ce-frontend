@@ -476,7 +476,7 @@ export default function EmployeeRoleHistoryPage() {
           <div className="mb-8">
             <div className="flex items-start justify-between">
               <div>
-                <h1 className="text-2xl font-semibold mb-1" style={{ color: COLORS.gray[900] }}>Role History</h1>
+                <h1 className="text-2xl font-semibold mb-1" style={{ color: COLORS.gray[900] }}>Change History</h1>
                 <p className="text-sm" style={{ color: COLORS.gray[500] }}>
                   Track all role, department, and status changes for employees and candidates.
                 </p>
