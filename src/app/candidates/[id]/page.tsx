@@ -628,6 +628,37 @@ export default function CandidateProfilePage() {
       const hasUniversity = candidate.university && candidate.university !== 'Not Provided';
       const hasDegree = candidate.degree && candidate.degree !== 'Not Provided';
       const hasReferral = candidate.referral && String(candidate.referral).trim() !== '';
+
+      // Address normalization:
+      // - Prefer structured fields when present
+      // - Otherwise parse legacy single-line address into street/city/state/zip
+      // - Also handle cases where `street` contains the entire "street, city, ST zip" string
+      const rawStreet = (candidate.street || '').trim();
+      const rawCity = (candidate.city || '').trim();
+      const rawState = (candidate.state || '').trim();
+      const rawZip = (candidate.zip_code || '').trim();
+      const legacyLine = hasLegacyAddress ? String(candidate.address).trim() : '';
+
+      let normalizedStreet: string | null = rawStreet || null;
+      let normalizedCity: string | null = rawCity || null;
+      let normalizedState: string | null = rawState || null;
+      let normalizedZip: string | null = rawZip || null;
+
+      const shouldParseLine =
+        (!normalizedCity || !normalizedState || !normalizedZip) &&
+        ((rawStreet && rawStreet.includes(',')) || (legacyLine && legacyLine.includes(',')));
+
+      if (shouldParseLine) {
+        const parsed = parseAddressLine(rawStreet && rawStreet.includes(',') ? rawStreet : legacyLine);
+        normalizedStreet = normalizedStreet || (parsed.street.trim() || null);
+        normalizedCity = normalizedCity || (parsed.city.trim() || null);
+        normalizedState = normalizedState || (parsed.state.trim() || null);
+        normalizedZip = normalizedZip || (parsed.zip.trim() || null);
+      }
+
+      if (!normalizedStreet) {
+        normalizedStreet = legacyLine || null;
+      }
       const employeeData: Record<string, unknown> = {
         name: candidate.name,
         email: candidate.email,
@@ -637,10 +668,10 @@ export default function CandidateProfilePage() {
         employee_id: useForm.employeeId.trim(),
         hired_date: today,
         status: useForm.status,
-        street: hasStreet ? candidate.street : (hasLegacyAddress ? candidate.address : null),
-        city: candidate.city || null,
-        state: candidate.state || null,
-        zip_code: candidate.zip_code || null,
+        street: normalizedStreet,
+        city: normalizedCity,
+        state: normalizedState,
+        zip_code: normalizedZip,
         date_of_birth: hasDob ? candidate.dateOfBirthRaw : null,
         gender: hasGender ? candidate.gender : null,
         university: hasUniversity ? candidate.university : null,
