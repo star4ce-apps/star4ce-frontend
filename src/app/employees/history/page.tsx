@@ -618,6 +618,7 @@ export default function EmployeeRoleHistoryPage() {
                       <th 
                         className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider cursor-pointer hover:opacity-90 transition-opacity text-white"
                         onClick={() => handleSort('previousValue')}
+                        style={{ width: '320px' }}
                       >
                         <div className="flex items-center gap-1.5">
                           Previous Value
@@ -627,7 +628,7 @@ export default function EmployeeRoleHistoryPage() {
                       <th 
                         className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider cursor-pointer hover:opacity-90 transition-opacity text-white"
                         onClick={() => handleSort('newValue')}
-                        style={{ width: '260px' }}
+                        style={{ width: '320px' }}
                       >
                         <div className="flex items-center gap-1.5">
                           New Value
@@ -637,6 +638,7 @@ export default function EmployeeRoleHistoryPage() {
                       <th 
                         className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider cursor-pointer hover:opacity-90 transition-opacity text-white"
                         onClick={() => handleSort('department')}
+                        style={{ width: '120px' }}
                       >
                         <div className="flex items-center gap-1.5">
                           Department
@@ -646,6 +648,7 @@ export default function EmployeeRoleHistoryPage() {
                       <th 
                         className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider cursor-pointer hover:opacity-90 transition-opacity text-white"
                         onClick={() => handleSort('changedBy')}
+                        style={{ width: '130px' }}
                       >
                         <div className="flex items-center gap-1.5">
                           Changed By
@@ -653,10 +656,11 @@ export default function EmployeeRoleHistoryPage() {
                         </div>
                       </th>
                       <th 
-                        className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider cursor-pointer hover:opacity-90 transition-opacity text-white"
+                        className="text-right py-3 px-3 text-[11px] font-semibold uppercase tracking-wider cursor-pointer hover:opacity-90 transition-opacity text-white"
                         onClick={() => handleSort('timestamp')}
+                        style={{ width: '140px' }}
                       >
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center justify-end gap-1.5">
                           Timestamp
                           <SortIcon column="timestamp" />
                         </div>
@@ -719,7 +723,7 @@ export default function EmployeeRoleHistoryPage() {
                           <td className="py-3 px-4 text-sm" style={{ color: '#374151' }}>
                             {renderExpandableValue(entry.previousValue, `${entryUiKey}-prev`)}
                           </td>
-                          <td className="py-3 px-4 text-sm" style={{ color: '#374151' }}>
+                          <td className="py-3 px-4 text-sm" style={{ color: '#374151', width: '320px' }}>
                             {renderExpandableValue(entry.newValue, entryUiKey)}
                             {entry.reason && entry.action === 'Terminated' && (
                               <div className="text-xs mt-1" style={{ color: '#6B7280', fontStyle: 'italic' }}>
@@ -727,11 +731,11 @@ export default function EmployeeRoleHistoryPage() {
                               </div>
                             )}
                           </td>
-                          <td className="py-3 px-4 text-sm" style={{ color: '#374151' }}>
+                          <td className="py-3 px-4 text-sm" style={{ color: '#374151', width: '120px' }}>
                             {entry.department || '—'}
                           </td>
-                          <td className="py-3 px-4 text-sm" style={{ color: '#374151' }}>{entry.changedBy}</td>
-                          <td className="py-3 px-4 text-sm" style={{ color: '#374151' }}>
+                          <td className="py-3 px-4 text-sm" style={{ color: '#374151', width: '130px' }}>{entry.changedBy}</td>
+                          <td className="py-3 px-3 text-sm text-right" style={{ color: '#374151', width: '140px' }}>
                             {formatTimestamp(entry.timestamp)}
                           </td>
                           <td className="py-3 px-4 text-right">
