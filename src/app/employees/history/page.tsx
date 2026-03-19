@@ -584,7 +584,7 @@ export default function EmployeeRoleHistoryPage() {
               </div>
             ) : (
               <div className="overflow-x-auto" style={{ overflowY: 'visible' }}>
-                <table className="w-full text-sm">
+                <table className="w-full text-sm table-fixed">
                   <thead>
                     <tr style={{ backgroundColor: '#4D6DBE' }}>
                       <th 
@@ -608,6 +608,7 @@ export default function EmployeeRoleHistoryPage() {
                       <th 
                         className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider cursor-pointer hover:opacity-90 transition-opacity text-white"
                         onClick={() => handleSort('action')}
+                        style={{ width: '150px' }}
                       >
                         <div className="flex items-center gap-1.5">
                           Action
@@ -626,6 +627,7 @@ export default function EmployeeRoleHistoryPage() {
                       <th 
                         className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider cursor-pointer hover:opacity-90 transition-opacity text-white"
                         onClick={() => handleSort('newValue')}
+                        style={{ width: '260px' }}
                       >
                         <div className="flex items-center gap-1.5">
                           New Value
@@ -697,7 +699,7 @@ export default function EmployeeRoleHistoryPage() {
                             </span>
                           </td>
                           <td className="py-3 px-4 text-sm" style={{ color: '#374151' }}>{entry.name}</td>
-                          <td className="py-3 px-4 text-sm" style={{ color: '#374151' }}>
+                          <td className="py-3 px-4 text-sm" style={{ color: '#374151', width: '150px' }}>
                             <div className="flex items-center gap-2">
                               <span>{entry.action}</span>
                               {entry.reverted && (
@@ -715,7 +717,7 @@ export default function EmployeeRoleHistoryPage() {
                             </div>
                           </td>
                           <td className="py-3 px-4 text-sm" style={{ color: '#374151' }}>
-                            {entry.previousValue || '—'}
+                            {renderExpandableValue(entry.previousValue, `${entryUiKey}-prev`)}
                           </td>
                           <td className="py-3 px-4 text-sm" style={{ color: '#374151' }}>
                             {renderExpandableValue(entry.newValue, entryUiKey)}
