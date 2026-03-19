@@ -58,9 +58,41 @@ export default function EmployeeRoleHistoryPage() {
   const [sortColumn, setSortColumn] = useState<string>('timestamp');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [listRefreshKey, setListRefreshKey] = useState(0);
+  const [expandedValueByKey, setExpandedValueByKey] = useState<Record<string, boolean>>({});
   const itemsPerPage = 10;
   const [role, setRole] = useState<string | null>(null);
   const [canViewEmployees, setCanViewEmployees] = useState<boolean | null>(null);
+
+  function getEntryUiKey(entry: HistoryEntry, index: number): string {
+    if (entry.audit_log_id != null) return `audit-${entry.audit_log_id}-${entry.action}-${entry.timestamp}`;
+    return `entry-${String(entry.id ?? index)}-${entry.action}-${entry.timestamp}`;
+  }
+
+  function renderExpandableValue(value: string | undefined, entryKey: string) {
+    const text = (value || '—').toString();
+    const normalized = text.trim();
+    const isLong = normalized.length > 180 || normalized.includes('\n');
+    if (!isLong) return <span>{text || '—'}</span>;
+
+    const expanded = expandedValueByKey[entryKey] === true;
+    const preview = normalized.length > 180 ? `${normalized.slice(0, 180)}…` : normalized.split('\n').slice(0, 2).join('\n') + '…';
+
+    return (
+      <div>
+        <div style={{ whiteSpace: expanded ? 'pre-wrap' : 'normal', wordBreak: 'break-word' }}>
+          {expanded ? text : preview}
+        </div>
+        <button
+          type="button"
+          className="mt-1 text-xs font-medium hover:underline"
+          style={{ color: '#4D6DBE' }}
+          onClick={() => setExpandedValueByKey((prev) => ({ ...prev, [entryKey]: !expanded }))}
+        >
+          {expanded ? 'View less' : 'View more'}
+        </button>
+      </div>
+    );
+  }
 
   useEffect(() => {
     (async () => {
@@ -444,7 +476,7 @@ export default function EmployeeRoleHistoryPage() {
           <div className="mb-8">
             <div className="flex items-start justify-between">
               <div>
-                <h1 className="text-2xl font-semibold mb-1" style={{ color: COLORS.gray[900] }}>Role History</h1>
+                <h1 className="text-2xl font-semibold mb-1" style={{ color: COLORS.gray[900] }}>Change History</h1>
                 <p className="text-sm" style={{ color: COLORS.gray[500] }}>
                   Track all role, department, and status changes for employees and candidates.
                 </p>
@@ -552,7 +584,7 @@ export default function EmployeeRoleHistoryPage() {
               </div>
             ) : (
               <div className="overflow-x-auto" style={{ overflowY: 'visible' }}>
-                <table className="w-full text-sm">
+                <table className="w-full text-sm table-fixed">
                   <thead>
                     <tr style={{ backgroundColor: '#4D6DBE' }}>
                       <th 
@@ -576,6 +608,7 @@ export default function EmployeeRoleHistoryPage() {
                       <th 
                         className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider cursor-pointer hover:opacity-90 transition-opacity text-white"
                         onClick={() => handleSort('action')}
+                        style={{ width: '150px' }}
                       >
                         <div className="flex items-center gap-1.5">
                           Action
@@ -585,6 +618,7 @@ export default function EmployeeRoleHistoryPage() {
                       <th 
                         className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider cursor-pointer hover:opacity-90 transition-opacity text-white"
                         onClick={() => handleSort('previousValue')}
+                        style={{ width: '320px' }}
                       >
                         <div className="flex items-center gap-1.5">
                           Previous Value
@@ -594,6 +628,7 @@ export default function EmployeeRoleHistoryPage() {
                       <th 
                         className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider cursor-pointer hover:opacity-90 transition-opacity text-white"
                         onClick={() => handleSort('newValue')}
+                        style={{ width: '320px' }}
                       >
                         <div className="flex items-center gap-1.5">
                           New Value
@@ -603,6 +638,7 @@ export default function EmployeeRoleHistoryPage() {
                       <th 
                         className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider cursor-pointer hover:opacity-90 transition-opacity text-white"
                         onClick={() => handleSort('department')}
+                        style={{ width: '120px' }}
                       >
                         <div className="flex items-center gap-1.5">
                           Department
@@ -612,6 +648,7 @@ export default function EmployeeRoleHistoryPage() {
                       <th 
                         className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider cursor-pointer hover:opacity-90 transition-opacity text-white"
                         onClick={() => handleSort('changedBy')}
+                        style={{ width: '130px' }}
                       >
                         <div className="flex items-center gap-1.5">
                           Changed By
@@ -619,10 +656,11 @@ export default function EmployeeRoleHistoryPage() {
                         </div>
                       </th>
                       <th 
-                        className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider cursor-pointer hover:opacity-90 transition-opacity text-white"
+                        className="text-right py-3 px-3 text-[11px] font-semibold uppercase tracking-wider cursor-pointer hover:opacity-90 transition-opacity text-white"
                         onClick={() => handleSort('timestamp')}
+                        style={{ width: '140px' }}
                       >
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center justify-end gap-1.5">
                           Timestamp
                           <SortIcon column="timestamp" />
                         </div>
@@ -639,6 +677,7 @@ export default function EmployeeRoleHistoryPage() {
                       </tr>
                     ) : (
                     paginatedEntries.map((entry, index) => {
+                      const entryUiKey = getEntryUiKey(entry, index);
                       return (
                         <tr 
                           key={
@@ -664,7 +703,7 @@ export default function EmployeeRoleHistoryPage() {
                             </span>
                           </td>
                           <td className="py-3 px-4 text-sm" style={{ color: '#374151' }}>{entry.name}</td>
-                          <td className="py-3 px-4 text-sm" style={{ color: '#374151' }}>
+                          <td className="py-3 px-4 text-sm" style={{ color: '#374151', width: '150px' }}>
                             <div className="flex items-center gap-2">
                               <span>{entry.action}</span>
                               {entry.reverted && (
@@ -682,21 +721,21 @@ export default function EmployeeRoleHistoryPage() {
                             </div>
                           </td>
                           <td className="py-3 px-4 text-sm" style={{ color: '#374151' }}>
-                            {entry.previousValue || '—'}
+                            {renderExpandableValue(entry.previousValue, `${entryUiKey}-prev`)}
                           </td>
-                          <td className="py-3 px-4 text-sm" style={{ color: '#374151' }}>
-                            {entry.newValue || '—'}
+                          <td className="py-3 px-4 text-sm" style={{ color: '#374151', width: '320px' }}>
+                            {renderExpandableValue(entry.newValue, entryUiKey)}
                             {entry.reason && entry.action === 'Terminated' && (
                               <div className="text-xs mt-1" style={{ color: '#6B7280', fontStyle: 'italic' }}>
                                 Reason: {entry.reason}
                               </div>
                             )}
                           </td>
-                          <td className="py-3 px-4 text-sm" style={{ color: '#374151' }}>
+                          <td className="py-3 px-4 text-sm" style={{ color: '#374151', width: '120px' }}>
                             {entry.department || '—'}
                           </td>
-                          <td className="py-3 px-4 text-sm" style={{ color: '#374151' }}>{entry.changedBy}</td>
-                          <td className="py-3 px-4 text-sm" style={{ color: '#374151' }}>
+                          <td className="py-3 px-4 text-sm" style={{ color: '#374151', width: '130px' }}>{entry.changedBy}</td>
+                          <td className="py-3 px-3 text-sm text-right" style={{ color: '#374151', width: '140px' }}>
                             {formatTimestamp(entry.timestamp)}
                           </td>
                           <td className="py-3 px-4 text-right">

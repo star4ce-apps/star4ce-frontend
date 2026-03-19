@@ -119,6 +119,33 @@ const STATE_ABBR_TO_FULL: Record<string, string> = {
   SD: 'South Dakota', TN: 'Tennessee', TX: 'Texas', UT: 'Utah', VT: 'Vermont', VA: 'Virginia',
   WA: 'Washington', WV: 'West Virginia', WI: 'Wisconsin', WY: 'Wyoming',
 };
+
+const STATE_FULL_TO_ABBR: Record<string, string> = Object.entries(STATE_ABBR_TO_FULL).reduce(
+  (acc, [abbr, full]) => {
+    acc[full.toUpperCase()] = abbr;
+    return acc;
+  },
+  {} as Record<string, string>
+);
+
+/**
+ * Convert the UI state value back into backend/storage format.
+ * If the original stored value was a 2-letter abbreviation, return an abbreviation.
+ */
+function stateForBackendSave(
+  originalBackendState: string | null | undefined,
+  uiStateValue: string
+): string | null {
+  const s = uiStateValue.trim();
+  if (!s) return null;
+  const orig = (originalBackendState ?? '').trim();
+  if (orig && orig.length === 2) {
+    if (s.length === 2) return s.toUpperCase();
+    return STATE_FULL_TO_ABBR[s.toUpperCase()] || s;
+  }
+  return s;
+}
+
 function stateForDropdown(state: string | null | undefined): string {
   if (!state || !state.trim()) return '';
   const s = state.trim();
@@ -179,6 +206,11 @@ export default function CandidateProfilePage() {
   const [editMajor, setEditMajor] = useState('');
   const [editReferrals, setEditReferrals] = useState<Array<{ firstName: string; lastName: string; phone: string; email: string; relationship: string }>>([]);
   const [savingPersonal, setSavingPersonal] = useState(false);
+  const editStreetInitialRef = useRef<string>('');
+  const editCityInitialRef = useRef<string>('');
+  const editStateInitialRef = useRef<string>('');
+  const editZipCodeInitialRef = useRef<string>('');
+  const originalBackendStateRef = useRef<string | null | undefined>(null);
   const [showBoardModal, setShowBoardModal] = useState(false);
   const [boardForm, setBoardForm] = useState({
     jobTitle: '',
@@ -596,6 +628,37 @@ export default function CandidateProfilePage() {
       const hasUniversity = candidate.university && candidate.university !== 'Not Provided';
       const hasDegree = candidate.degree && candidate.degree !== 'Not Provided';
       const hasReferral = candidate.referral && String(candidate.referral).trim() !== '';
+
+      // Address normalization:
+      // - Prefer structured fields when present
+      // - Otherwise parse legacy single-line address into street/city/state/zip
+      // - Also handle cases where `street` contains the entire "street, city, ST zip" string
+      const rawStreet = (candidate.street || '').trim();
+      const rawCity = (candidate.city || '').trim();
+      const rawState = (candidate.state || '').trim();
+      const rawZip = (candidate.zip_code || '').trim();
+      const legacyLine = hasLegacyAddress ? String(candidate.address).trim() : '';
+
+      let normalizedStreet: string | null = rawStreet || null;
+      let normalizedCity: string | null = rawCity || null;
+      let normalizedState: string | null = rawState || null;
+      let normalizedZip: string | null = rawZip || null;
+
+      const shouldParseLine =
+        (!normalizedCity || !normalizedState || !normalizedZip) &&
+        ((rawStreet && rawStreet.includes(',')) || (legacyLine && legacyLine.includes(',')));
+
+      if (shouldParseLine) {
+        const parsed = parseAddressLine(rawStreet && rawStreet.includes(',') ? rawStreet : legacyLine);
+        normalizedStreet = normalizedStreet || (parsed.street.trim() || null);
+        normalizedCity = normalizedCity || (parsed.city.trim() || null);
+        normalizedState = normalizedState || (parsed.state.trim() || null);
+        normalizedZip = normalizedZip || (parsed.zip.trim() || null);
+      }
+
+      if (!normalizedStreet) {
+        normalizedStreet = legacyLine || null;
+      }
       const employeeData: Record<string, unknown> = {
         name: candidate.name,
         email: candidate.email,
@@ -605,10 +668,10 @@ export default function CandidateProfilePage() {
         employee_id: useForm.employeeId.trim(),
         hired_date: today,
         status: useForm.status,
-        street: hasStreet ? candidate.street : (hasLegacyAddress ? candidate.address : null),
-        city: candidate.city || null,
-        state: candidate.state || null,
-        zip_code: candidate.zip_code || null,
+        street: normalizedStreet,
+        city: normalizedCity,
+        state: normalizedState,
+        zip_code: normalizedZip,
         date_of_birth: hasDob ? candidate.dateOfBirthRaw : null,
         gender: hasGender ? candidate.gender : null,
         university: hasUniversity ? candidate.university : null,
@@ -703,19 +766,36 @@ export default function CandidateProfilePage() {
     if (hasSeparate) {
       setEditStreet(candidate.street || '');
       setEditCity(candidate.city || '');
-      setEditState(stateForDropdown(candidate.state));
+      const uiState = stateForDropdown(candidate.state);
+      setEditState(uiState);
       setEditZipCode(candidate.zip_code || '');
+      editStreetInitialRef.current = candidate.street || '';
+      editCityInitialRef.current = candidate.city || '';
+      editStateInitialRef.current = uiState;
+      editZipCodeInitialRef.current = candidate.zip_code || '';
+      originalBackendStateRef.current = candidate.state;
     } else if (candidate.address && candidate.address !== 'Not Provided') {
       const parsed = parseAddressLine(candidate.address);
       setEditStreet(parsed.street);
       setEditCity(parsed.city);
-      setEditState(stateForDropdown(parsed.state));
+      const uiState = stateForDropdown(parsed.state);
+      setEditState(uiState);
       setEditZipCode(parsed.zip);
+      editStreetInitialRef.current = parsed.street;
+      editCityInitialRef.current = parsed.city;
+      editStateInitialRef.current = uiState;
+      editZipCodeInitialRef.current = parsed.zip;
+      originalBackendStateRef.current = parsed.state;
     } else {
       setEditStreet('');
       setEditCity('');
       setEditState('');
       setEditZipCode('');
+      editStreetInitialRef.current = '';
+      editCityInitialRef.current = '';
+      editStateInitialRef.current = '';
+      editZipCodeInitialRef.current = '';
+      originalBackendStateRef.current = candidate.state;
     }
     setEditGender(candidate.gender === 'Not Provided' ? '' : candidate.gender);
     setEditDateOfBirth(candidate.dateOfBirthRaw || '');
@@ -810,10 +890,16 @@ export default function CandidateProfilePage() {
         name: newName || undefined,
         email: editEmail.trim() || undefined,
         phone: editPhone.trim() || undefined,
-        street: editStreet.trim() || null,
-        city: editCity.trim() || null,
-        state: editState.trim() || null,
-        zip_code: editZipCode.trim() || null,
+
+        ...(editStreet.trim() !== editStreetInitialRef.current.trim() ? { street: editStreet.trim() || null } : {}),
+        ...(editCity.trim() !== editCityInitialRef.current.trim() ? { city: editCity.trim() || null } : {}),
+        ...(editState.trim() !== editStateInitialRef.current.trim()
+          ? { state: stateForBackendSave(originalBackendStateRef.current, editState) }
+          : {}),
+        ...(editZipCode.trim() !== editZipCodeInitialRef.current.trim()
+          ? { zip_code: editZipCode.trim() || null }
+          : {}),
+
         gender: editGender.trim() || null,
         date_of_birth: editDateOfBirth.trim() || null,
         university: editUniversity.trim() || null,
@@ -1483,7 +1569,7 @@ export default function CandidateProfilePage() {
               {activeTab === 'hiring-process' && (
                 <>
                   {/* Add New Interview Score - only when user can view interview scores */}
-                  {canViewInterviewScores && (
+                  {canViewInterviewScores && !(['Hired', 'Denied', 'Rejected'].includes((candidate?.stage || '').trim())) && (
                   <button
                     onClick={() => {
                       // Calculate next interview stage
@@ -1635,11 +1721,63 @@ export default function CandidateProfilePage() {
                                       : event.description}
                                   </p>
                                 </div>
-                                {event.date && (
-                                  <div className="flex-shrink-0 text-sm self-start" style={{ color: '#6B7280' }}>
-                                    {new Date(event.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                                  </div>
-                                )}
+                                <div className="flex-shrink-0 flex flex-col items-end gap-2">
+                                  {event.date && (
+                                    <div className="text-sm self-start" style={{ color: '#6B7280' }}>
+                                      {new Date(event.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                    </div>
+                                  )}
+                                  {canViewInterviewScores && !(['Hired', 'Denied', 'Rejected'].includes((candidate?.stage || '').trim())) && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const stageNum = event.title.match(/\d+/)?.[0] || '';
+                                        const candidateRole = candidate?.jobPosition || '';
+                                        const roleMap: Record<string, string> = {
+                                          'Body Shop Manager': 'body-shop-manager',
+                                          'Body Shop Technician': 'support-staff',
+                                          'Business Manager': 'c-level-manager',
+                                          'Business Office Support': 'office-clerk',
+                                          'C-Level Executives': 'c-level-manager',
+                                          'Platform Manager': 'c-level-manager',
+                                          'Controller': 'finance-manager',
+                                          'Finance Manager': 'finance-manager',
+                                          'Finance Director': 'finance-manager',
+                                          'General Manager': 'gm',
+                                          'Human Resources Manager': 'hr-manager',
+                                          'IT Manager': 'c-level-manager',
+                                          'Loaner Agent': 'support-staff',
+                                          'Mobility Manager': 'c-level-manager',
+                                          'Parts Counter Employee': 'support-staff',
+                                          'Parts Manager': 'parts-manager',
+                                          'Parts Support': 'support-staff',
+                                          'Drivers': 'support-staff',
+                                          'Sales Manager': 'sales-manager',
+                                          'GSM': 'sales-manager',
+                                          'Sales People': 'salesperson',
+                                          'Sales Support': 'support-staff',
+                                          'Receptionist': 'office-clerk',
+                                          'Service Advisor': 'service-advisor',
+                                          'Service Director': 'service-manager',
+                                          'Service Drive Manager': 'service-manager',
+                                          'Service Manager': 'service-manager',
+                                          'Parts and Service Director': 'service-manager',
+                                          'Service Support': 'support-staff',
+                                          'Porters': 'support-staff',
+                                          'Technician': 'support-staff',
+                                          'Used Car Director': 'sales-manager',
+                                          'Used Car Manager': 'sales-manager',
+                                        };
+                                        const roleId = roleMap[candidateRole] || 'c-level-manager';
+                                        router.push(`/candidates/score?candidateId=${candidateId}&role=${roleId}&stage=${stageNum}&editStage=${stageNum}`);
+                                      }}
+                                      className="text-xs font-semibold px-3 py-1.5 rounded-md border transition-colors hover:bg-gray-50"
+                                      style={{ borderColor: '#E5E7EB', color: '#4D6DBE' }}
+                                    >
+                                      Edit score
+                                    </button>
+                                  )}
+                                </div>
                               </div>
                             </div>
                           </div>

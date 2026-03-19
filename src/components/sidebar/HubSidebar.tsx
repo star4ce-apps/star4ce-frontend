@@ -331,7 +331,7 @@ export default function HubSidebar() {
   ];
 
   const administratorItems: MenuItem[] = role === 'admin' ? [
-    { label: 'Change History', href: '/employees/history', icon: <EmploymentHistoryIcon /> },
+    { label: 'Change History', href: '/history', icon: <EmploymentHistoryIcon /> },
     { label: 'Dealership Requests', href: '/admin/dealership-requests', icon: <DealershipRequestIcon /> },
     // { label: 'Manager Requests', href: '/admin/manager-requests', icon: <ManagerRequestIcon /> },
     // { label: 'Corporate Requests', href: '/admin/corporate-requests', icon: <CorporateRequestIcon /> }
