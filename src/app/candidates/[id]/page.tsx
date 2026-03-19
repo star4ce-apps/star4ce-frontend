@@ -1483,7 +1483,7 @@ export default function CandidateProfilePage() {
               {activeTab === 'hiring-process' && (
                 <>
                   {/* Add New Interview Score - only when user can view interview scores */}
-                  {canViewInterviewScores && (
+                  {canViewInterviewScores && !(['Hired', 'Denied', 'Rejected'].includes((candidate?.stage || '').trim())) && (
                   <button
                     onClick={() => {
                       // Calculate next interview stage
