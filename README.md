@@ -1,36 +1,70 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Star4ce Frontend
 
-## Getting Started
+Next.js app for the Star4ce dealership hiring / workforce platform. It talks to the Flask API in `star4ce-backend/`.
 
-First, run the development server:
+**Full architecture, deployment, and operations:** see the repo root [`README.md`](../README.md).
+
+---
+
+## Stack
+
+- **Next.js** 16 (App Router), **React** 19, **TypeScript**
+- **Tailwind CSS** 4
+- API calls use `NEXT_PUBLIC_STAR4CE_API_BASE` (see below)
+
+---
+
+## Local development
+
+### 1. Install and run
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### 2. Point the UI at the backend
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Create `.env.local` in this folder (not committed) so the browser can reach the API:
 
-## Learn More
+```env
+# Must match where Flask is running (backend defaults to port 5000 unless PORT is set)
+NEXT_PUBLIC_STAR4CE_API_BASE=http://127.0.0.1:5000
+```
 
-To learn more about Next.js, take a look at the following resources:
+If you omit this variable, the app falls back to a default in `src/lib/auth.ts`—set it explicitly so local dev always matches your backend port.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### 3. Run with the backend
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+1. Start API: `cd ../star4ce-backend && pip install -r requirements.txt && python app.py`
+2. Health check: `GET http://localhost:5000/health` (or your `PORT`)
+3. Start frontend: `npm run dev` here
 
-## Deploy on Vercel
+---
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Scripts
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+| Command        | Purpose        |
+|----------------|----------------|
+| `npm run dev`  | Dev server     |
+| `npm run build`| Production build |
+| `npm run start`| Serve production build (`PORT` supported) |
+| `npm run lint` | ESLint         |
+
+---
+
+## Deployment (Railway)
+
+Env vars are set in **Railway → your Next.js service → Variables** (not in git).
+
+There are **two hosted setups**: **development** (testing) and **production** (customers). Each frontend service must set `NEXT_PUBLIC_STAR4CE_API_BASE` to the **backend public URL for that same environment** (dev frontend → dev API only; prod → prod API only).
+
+Full runbook: root [`README.md`](../README.md).
+
+---
+
+## Learn more
+
+- [Next.js documentation](https://nextjs.org/docs)

@@ -124,6 +124,7 @@ export default function HubSidebar() {
   const [role, setRole] = useState<string | null>(null);
   const [isApproved, setIsApproved] = useState<boolean | null>(null);
   const [subscriptionActive, setSubscriptionActive] = useState<boolean>(true);
+  const [canViewSubscription, setCanViewSubscription] = useState<boolean | null>(null);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [selectedDealership, setSelectedDealership] = useState<{ id: number; name: string } | null>(null);
   const [dealerships, setDealerships] = useState<Array<{ id: number; name: string }>>([]);
@@ -241,6 +242,15 @@ export default function HubSidebar() {
           setIsApproved(data.is_approved !== false);
         }
         setSubscriptionActive(data.subscription_active !== false);
+        if (userRole === 'admin' || userRole === 'corporate') {
+          setCanViewSubscription(true);
+        } else if (userRole === 'manager' || userRole === 'hiring_manager') {
+          const { getUserPermissions } = await import('@/lib/permissions');
+          const perms = await getUserPermissions();
+          setCanViewSubscription(perms.view_subscription === true);
+        } else {
+          setCanViewSubscription(false);
+        }
       } else {
         // Handle manager_not_approved error
         if (data.error === 'manager_not_approved') {
@@ -321,10 +331,10 @@ export default function HubSidebar() {
   ];
 
   const administratorItems: MenuItem[] = role === 'admin' ? [
-    { label: 'Change History', href: '/employees/history', icon: <EmploymentHistoryIcon /> },
+    { label: 'Change History', href: '/history', icon: <EmploymentHistoryIcon /> },
     { label: 'Dealership Requests', href: '/admin/dealership-requests', icon: <DealershipRequestIcon /> },
-    { label: 'Manager Requests', href: '/admin/manager-requests', icon: <ManagerRequestIcon /> },
-    { label: 'Corporate Requests', href: '/admin/corporate-requests', icon: <CorporateRequestIcon /> }
+    // { label: 'Manager Requests', href: '/admin/manager-requests', icon: <ManagerRequestIcon /> },
+    // { label: 'Corporate Requests', href: '/admin/corporate-requests', icon: <CorporateRequestIcon /> }
   ] : [];
 
   const paymentItems: MenuItem[] = [];
@@ -710,6 +720,7 @@ export default function HubSidebar() {
                 )}
                 {!isManagerNotApproved && (
                   <>
+                    {canViewSubscription !== false && (
                     <Link
                       href="/subscription"
                       onClick={() => setShowUserMenu(false)}
@@ -728,6 +739,7 @@ export default function HubSidebar() {
                       </span>
                       <span className="text-left">Subscription</span>
                     </Link>
+                    )}
                     <Link
                       href="/settings"
                       onClick={() => setShowUserMenu(false)}

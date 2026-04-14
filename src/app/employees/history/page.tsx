@@ -6,6 +6,7 @@ import HubSidebar from '@/components/sidebar/HubSidebar';
 import RequireAuth from '@/components/layout/RequireAuth';
 import { API_BASE, getToken, getSelectedDealershipId } from '@/lib/auth';
 import { getJsonAuth, deleteJsonAuth, postJsonAuth } from '@/lib/http';
+import { getUserPermissions } from '@/lib/permissions';
 import toast from 'react-hot-toast';
 
 // Modern color palette - matching surveys page
@@ -26,7 +27,7 @@ const COLORS = {
 
 type HistoryEntry = {
   id: number | string;
-  type: 'employee' | 'candidate';
+  type: 'employee' | 'candidate' | 'user';
   name: string;
   action: string;
   previousValue?: string;
@@ -41,6 +42,8 @@ type HistoryEntry = {
   reverted?: boolean; // Whether this entry has been reverted
   revertedBy?: string; // Who reverted it
   revertedAt?: string; // When it was reverted
+  revert_audit_log_id?: number; // ID of the revert log (for "Revert to original")
+  revertViaInfoOnly?: boolean; // Score Changed from same update as Info Changed – revert only via the Info row
 };
 
 export default function EmployeeRoleHistoryPage() {
@@ -54,7 +57,64 @@ export default function EmployeeRoleHistoryPage() {
   const [error, setError] = useState<string | null>(null);
   const [sortColumn, setSortColumn] = useState<string>('timestamp');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+  const [listRefreshKey, setListRefreshKey] = useState(0);
+  const [expandedValueByKey, setExpandedValueByKey] = useState<Record<string, boolean>>({});
   const itemsPerPage = 10;
+  const [role, setRole] = useState<string | null>(null);
+  const [canViewEmployees, setCanViewEmployees] = useState<boolean | null>(null);
+
+  function getEntryUiKey(entry: HistoryEntry, index: number): string {
+    if (entry.audit_log_id != null) return `audit-${entry.audit_log_id}-${entry.action}-${entry.timestamp}`;
+    return `entry-${String(entry.id ?? index)}-${entry.action}-${entry.timestamp}`;
+  }
+
+  function renderExpandableValue(value: string | undefined, entryKey: string) {
+    const text = (value || '—').toString();
+    const normalized = text.trim();
+    const isLong = normalized.length > 180 || normalized.includes('\n');
+    if (!isLong) return <span>{text || '—'}</span>;
+
+    const expanded = expandedValueByKey[entryKey] === true;
+    const preview = normalized.length > 180 ? `${normalized.slice(0, 180)}…` : normalized.split('\n').slice(0, 2).join('\n') + '…';
+
+    return (
+      <div>
+        <div style={{ whiteSpace: expanded ? 'pre-wrap' : 'normal', wordBreak: 'break-word' }}>
+          {expanded ? text : preview}
+        </div>
+        <button
+          type="button"
+          className="mt-1 text-xs font-medium hover:underline"
+          style={{ color: '#4D6DBE' }}
+          onClick={() => setExpandedValueByKey((prev) => ({ ...prev, [entryKey]: !expanded }))}
+        >
+          {expanded ? 'View less' : 'View more'}
+        </button>
+      </div>
+    );
+  }
+
+  useEffect(() => {
+    (async () => {
+      const token = getToken();
+      if (!token) return;
+      try {
+        const res = await fetch(`${API_BASE}/auth/me`, { headers: { Authorization: `Bearer ${token}` } });
+        if (res.ok) {
+          const data = await res.json().catch(() => ({}));
+          const userRole = data.user?.role || data.role;
+          setRole(userRole);
+          if (userRole === 'admin' || userRole === 'corporate') setCanViewEmployees(true);
+          else if (userRole === 'manager' || userRole === 'hiring_manager') {
+            const perms = await getUserPermissions();
+            setCanViewEmployees(perms.view_employees === true);
+          } else setCanViewEmployees(false);
+        }
+      } catch {
+        setCanViewEmployees(false);
+      }
+    })();
+  }, []);
 
   // Load role history from API
   useEffect(() => {
@@ -77,22 +137,29 @@ export default function EmployeeRoleHistoryPage() {
       params.append('limit', '500'); // Get enough entries
       if (forceRefresh) params.append('_t', String(Date.now()));
       if (selectedType !== 'All Types') {
-        // Map "Employee" -> "employee", "Candidate" -> "candidate"
+        // Map "Employee" -> "employee", "Candidate" -> "candidate", "User" -> "user"
         const typeMap: { [key: string]: string } = {
           'Employee': 'employee',
-          'Candidate': 'candidate'
+          'Candidate': 'candidate',
+          'User': 'user'
         };
         params.append('type', typeMap[selectedType] || selectedType.toLowerCase());
       }
       // Note: Action filter is handled on frontend after receiving all entries
       // because backend action names don't match frontend display names
       
-      // Use getJsonAuth to include X-Dealership-Id header for corporate users
-      const data = await getJsonAuth<{ ok: boolean; entries: HistoryEntry[] }>(`/role-history?${params.toString()}`);
+      // Use fetch with cache bust and no-store so refetch after revert returns fresh data
+      const url = `${API_BASE}/role-history?${params.toString()}`;
+      const headers: Record<string, string> = {
+        ...(getToken() ? { Authorization: `Bearer ${getToken()}` } : {}),
+      };
+      const dealershipId = getSelectedDealershipId();
+      if (dealershipId) headers['X-Dealership-Id'] = String(dealershipId);
+      const res = await fetch(url, { method: 'GET', cache: 'no-store', headers });
+      const data = await res.json().catch(() => ({}));
       let entries: HistoryEntry[] = [];
-      
-      if (data.ok && data.entries) {
-        entries = data.entries;
+      if (data.ok && data.entries && Array.isArray(data.entries)) {
+        entries = data.entries.map((e: HistoryEntry) => ({ ...e }));
       }
 
       // Also load terminations and merge them
@@ -155,13 +222,15 @@ export default function EmployeeRoleHistoryPage() {
           }, [] as HistoryEntry[]);
 
           setHistoryEntries(uniqueEntries);
+          if (forceRefresh) setListRefreshKey(k => k + 1);
         } else {
           setHistoryEntries(entries);
+          if (forceRefresh) setListRefreshKey(k => k + 1);
         }
       } catch (terminationErr) {
-        // If termination loading fails, just use role history
         console.error('Failed to load terminations:', terminationErr);
         setHistoryEntries(entries);
+        if (forceRefresh) setListRefreshKey(k => k + 1);
       }
     } catch (err) {
       console.error('Failed to load role history:', err);
@@ -183,7 +252,8 @@ export default function EmployeeRoleHistoryPage() {
     
     const matchesType = selectedType === 'All Types' || 
       (selectedType === 'Employee' && entry.type === 'employee') ||
-      (selectedType === 'Candidate' && entry.type === 'candidate');
+      (selectedType === 'Candidate' && entry.type === 'candidate') ||
+      (selectedType === 'User' && entry.type === 'user');
     
     const matchesAction = selectedAction === 'All Actions' || entry.action === selectedAction;
 
@@ -259,7 +329,11 @@ export default function EmployeeRoleHistoryPage() {
   const actions = Array.from(new Set(entriesToFilter.map(entry => entry.action)));
 
   async function handleRevert(entry: HistoryEntry) {
-    
+    // Permission/role changes (type user) are not revertable
+    if (entry.type === 'user') {
+      toast.error('Permission and role changes cannot be reverted from here. Change them again in Users.');
+      return;
+    }
     // Cannot revert candidate creation, employee creation, or termination
     if (entry.action === 'Candidate Created' || entry.action === 'Employee Created' || entry.action === 'Terminated') {
       toast.error(`Cannot revert ${entry.action}`);
@@ -327,6 +401,72 @@ export default function EmployeeRoleHistoryPage() {
     }
   }
 
+  async function handleRevertToOriginal(entry: HistoryEntry) {
+    if (!entry.reverted || entry.revert_audit_log_id == null) {
+      toast.error('Cannot revert to original for this entry');
+      return;
+    }
+    if (!window.confirm(`Undo the revert for "${entry.action}" on ${entry.name}? This will restore the change that was reverted.`)) {
+      return;
+    }
+    try {
+      const token = getToken();
+      if (!token) {
+        toast.error('Not logged in');
+        return;
+      }
+      const headers: Record<string, string> = {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      };
+      const dealershipId = getSelectedDealershipId();
+      if (dealershipId) headers['X-Dealership-Id'] = String(dealershipId);
+
+      const res = await fetch(`${API_BASE}/role-history/revert-to-original`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ revert_audit_log_id: entry.revert_audit_log_id }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to revert to original');
+      }
+      toast.success(data.message || 'Revert undone; change restored.');
+      await loadRoleHistory(true);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to revert to original';
+      toast.error(msg);
+    }
+  }
+
+  if ((role === 'manager' || role === 'hiring_manager') && canViewEmployees === null) {
+    return (
+      <RequireAuth>
+        <div className="flex min-h-screen" style={{ backgroundColor: COLORS.gray[50] }}>
+          <HubSidebar />
+          <main className="ml-64 p-8 flex-1 flex items-center justify-center" style={{ maxWidth: 'calc(100vw - 256px)' }}>
+            <div className="text-sm" style={{ color: COLORS.gray[500] }}>Loading...</div>
+          </main>
+        </div>
+      </RequireAuth>
+    );
+  }
+
+  if (role != null && canViewEmployees === false) {
+    return (
+      <RequireAuth>
+        <div className="flex min-h-screen" style={{ backgroundColor: COLORS.gray[50] }}>
+          <HubSidebar />
+          <main className="ml-64 p-8 flex-1" style={{ maxWidth: 'calc(100vw - 256px)' }}>
+            <div className="text-center py-12">
+              <div className="text-sm font-medium" style={{ color: COLORS.gray[500] }}>You do not have permission to view this page. Please contact your administrator.</div>
+            </div>
+          </main>
+        </div>
+      </RequireAuth>
+    );
+  }
+
   return (
     <RequireAuth>
       <div className="flex min-h-screen" style={{ backgroundColor: COLORS.gray[50] }}>
@@ -336,7 +476,7 @@ export default function EmployeeRoleHistoryPage() {
           <div className="mb-8">
             <div className="flex items-start justify-between">
               <div>
-                <h1 className="text-2xl font-semibold mb-1" style={{ color: COLORS.gray[900] }}>Role History</h1>
+                <h1 className="text-2xl font-semibold mb-1" style={{ color: COLORS.gray[900] }}>Change History</h1>
                 <p className="text-sm" style={{ color: COLORS.gray[500] }}>
                   Track all role, department, and status changes for employees and candidates.
                 </p>
@@ -386,6 +526,7 @@ export default function EmployeeRoleHistoryPage() {
                 <option>All Types</option>
                 <option>Employee</option>
                 <option>Candidate</option>
+                <option>User</option>
               </select>
               <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: '#6B7280' }}>
@@ -443,7 +584,7 @@ export default function EmployeeRoleHistoryPage() {
               </div>
             ) : (
               <div className="overflow-x-auto" style={{ overflowY: 'visible' }}>
-                <table className="w-full text-sm">
+                <table className="w-full text-sm table-fixed">
                   <thead>
                     <tr style={{ backgroundColor: '#4D6DBE' }}>
                       <th 
@@ -467,6 +608,7 @@ export default function EmployeeRoleHistoryPage() {
                       <th 
                         className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider cursor-pointer hover:opacity-90 transition-opacity text-white"
                         onClick={() => handleSort('action')}
+                        style={{ width: '150px' }}
                       >
                         <div className="flex items-center gap-1.5">
                           Action
@@ -476,6 +618,7 @@ export default function EmployeeRoleHistoryPage() {
                       <th 
                         className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider cursor-pointer hover:opacity-90 transition-opacity text-white"
                         onClick={() => handleSort('previousValue')}
+                        style={{ width: '320px' }}
                       >
                         <div className="flex items-center gap-1.5">
                           Previous Value
@@ -485,6 +628,7 @@ export default function EmployeeRoleHistoryPage() {
                       <th 
                         className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider cursor-pointer hover:opacity-90 transition-opacity text-white"
                         onClick={() => handleSort('newValue')}
+                        style={{ width: '320px' }}
                       >
                         <div className="flex items-center gap-1.5">
                           New Value
@@ -494,6 +638,7 @@ export default function EmployeeRoleHistoryPage() {
                       <th 
                         className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider cursor-pointer hover:opacity-90 transition-opacity text-white"
                         onClick={() => handleSort('department')}
+                        style={{ width: '120px' }}
                       >
                         <div className="flex items-center gap-1.5">
                           Department
@@ -503,6 +648,7 @@ export default function EmployeeRoleHistoryPage() {
                       <th 
                         className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider cursor-pointer hover:opacity-90 transition-opacity text-white"
                         onClick={() => handleSort('changedBy')}
+                        style={{ width: '130px' }}
                       >
                         <div className="flex items-center gap-1.5">
                           Changed By
@@ -510,10 +656,11 @@ export default function EmployeeRoleHistoryPage() {
                         </div>
                       </th>
                       <th 
-                        className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider cursor-pointer hover:opacity-90 transition-opacity text-white"
+                        className="text-right py-3 px-3 text-[11px] font-semibold uppercase tracking-wider cursor-pointer hover:opacity-90 transition-opacity text-white"
                         onClick={() => handleSort('timestamp')}
+                        style={{ width: '140px' }}
                       >
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center justify-end gap-1.5">
                           Timestamp
                           <SortIcon column="timestamp" />
                         </div>
@@ -521,7 +668,7 @@ export default function EmployeeRoleHistoryPage() {
                       <th className="text-right py-3 px-4"></th>
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody key={listRefreshKey}>
                     {paginatedEntries.length === 0 ? (
                       <tr>
                         <td colSpan={9} className="py-12 text-center text-sm" style={{ color: '#6B7280' }}>
@@ -530,9 +677,15 @@ export default function EmployeeRoleHistoryPage() {
                       </tr>
                     ) : (
                     paginatedEntries.map((entry, index) => {
+                      const entryUiKey = getEntryUiKey(entry, index);
                       return (
                         <tr 
-                          key={entry.audit_log_id != null ? `audit-${entry.audit_log_id}` : `entry-${entry.id ?? index}`} 
+                          key={
+                            (entry.audit_log_id != null
+                              ? `audit-${entry.audit_log_id}-${entry.action}-${entry.timestamp}`
+                              : `entry-${entry.id ?? index}`) +
+                            `-${entry.reverted ? 'reverted' : 'active'}-${index}`
+                          } 
                           className="hover:bg-blue-50 transition-colors"
                           style={{ 
                             borderBottom: '1px solid #F3F4F6'
@@ -542,15 +695,15 @@ export default function EmployeeRoleHistoryPage() {
                             <span 
                               className="text-xs font-semibold px-2.5 py-1 rounded-full inline-block"
                               style={{ 
-                                backgroundColor: entry.type === 'employee' ? '#DBEAFE' : '#FEF3C7',
-                                color: entry.type === 'employee' ? '#1E40AF' : '#92400E'
+                                backgroundColor: entry.type === 'employee' ? '#DBEAFE' : entry.type === 'user' ? '#E5E7EB' : '#FEF3C7',
+                                color: entry.type === 'employee' ? '#1E40AF' : entry.type === 'user' ? '#374151' : '#92400E'
                               }}
                             >
-                              {entry.type === 'employee' ? 'Employee' : 'Candidate'}
+                              {entry.type === 'employee' ? 'Employee' : entry.type === 'user' ? 'User' : 'Candidate'}
                             </span>
                           </td>
                           <td className="py-3 px-4 text-sm" style={{ color: '#374151' }}>{entry.name}</td>
-                          <td className="py-3 px-4 text-sm" style={{ color: '#374151' }}>
+                          <td className="py-3 px-4 text-sm" style={{ color: '#374151', width: '150px' }}>
                             <div className="flex items-center gap-2">
                               <span>{entry.action}</span>
                               {entry.reverted && (
@@ -568,36 +721,53 @@ export default function EmployeeRoleHistoryPage() {
                             </div>
                           </td>
                           <td className="py-3 px-4 text-sm" style={{ color: '#374151' }}>
-                            {entry.previousValue || '—'}
+                            {renderExpandableValue(entry.previousValue, `${entryUiKey}-prev`)}
                           </td>
-                          <td className="py-3 px-4 text-sm" style={{ color: '#374151' }}>
-                            {entry.newValue || '—'}
+                          <td className="py-3 px-4 text-sm" style={{ color: '#374151', width: '320px' }}>
+                            {renderExpandableValue(entry.newValue, entryUiKey)}
                             {entry.reason && entry.action === 'Terminated' && (
                               <div className="text-xs mt-1" style={{ color: '#6B7280', fontStyle: 'italic' }}>
                                 Reason: {entry.reason}
                               </div>
                             )}
                           </td>
-                          <td className="py-3 px-4 text-sm" style={{ color: '#374151' }}>
+                          <td className="py-3 px-4 text-sm" style={{ color: '#374151', width: '120px' }}>
                             {entry.department || '—'}
                           </td>
-                          <td className="py-3 px-4 text-sm" style={{ color: '#374151' }}>{entry.changedBy}</td>
-                          <td className="py-3 px-4 text-sm" style={{ color: '#374151' }}>
+                          <td className="py-3 px-4 text-sm" style={{ color: '#374151', width: '130px' }}>{entry.changedBy}</td>
+                          <td className="py-3 px-3 text-sm text-right" style={{ color: '#374151', width: '140px' }}>
                             {formatTimestamp(entry.timestamp)}
                           </td>
                           <td className="py-3 px-4 text-right">
-                            <div className="relative inline-block">
-                              <button
-                                onClick={() => handleRevert(entry)}
-                                disabled={entry.action === 'Candidate Created' || entry.action === 'Employee Created' || entry.action === 'Terminated' || (entry.action !== 'Employee Removed' && entry.action !== 'Candidate Deleted' && (!entry.previousValue || entry.previousValue === '—' || entry.previousValue === 'N/A')) || entry.reverted}
-                                className="p-1.5 rounded-md hover:bg-gray-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                                style={{ color: '#6B7280' }}
-                                title="Revert this change"
-                              >
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
-                                </svg>
-                              </button>
+                            <div className="relative inline-block flex items-center justify-end gap-1">
+                              {entry.reverted && entry.revert_audit_log_id != null && !(entry.action === 'Score Changed' && entry.revertViaInfoOnly) ? (
+                                <button
+                                  onClick={() => handleRevertToOriginal(entry)}
+                                  className="p-1.5 rounded-md hover:bg-amber-50 transition-colors"
+                                  style={{ color: '#92400E' }}
+                                  title="Revert to original (undo the revert)"
+                                >
+                                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                  </svg>
+                                </button>
+                              ) : entry.reverted && entry.revert_audit_log_id != null && entry.action === 'Score Changed' && entry.revertViaInfoOnly ? (
+                                <span className="text-xs" style={{ color: '#9CA3AF' }} title="Undo revert via the Info Changed row above">—</span>
+                              ) : entry.action === 'Score Changed' && entry.revertViaInfoOnly ? (
+                                <span className="text-xs" style={{ color: '#9CA3AF' }} title="Revert via the Info Changed row above">—</span>
+                              ) : (
+                                <button
+                                  onClick={() => handleRevert(entry)}
+                                  disabled={entry.type === 'user' || entry.action === 'Candidate Created' || entry.action === 'Employee Created' || entry.action === 'Terminated' || (entry.action !== 'Employee Removed' && entry.action !== 'Candidate Deleted' && (!entry.previousValue || entry.previousValue === '—' || entry.previousValue === 'N/A')) || entry.reverted}
+                                  className="p-1.5 rounded-md hover:bg-gray-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                  style={{ color: '#6B7280' }}
+                                  title={entry.type === 'user' ? 'Permission/role changes cannot be reverted' : 'Revert this change'}
+                                >
+                                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                                  </svg>
+                                </button>
+                              )}
                             </div>
                           </td>
                         </tr>

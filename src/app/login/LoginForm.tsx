@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { loginApi, saveSession, getToken, API_BASE } from '@/lib/auth';
 import Logo from '@/components/Logo';
+import { isRegistrationEnabled } from '@/lib/registration';
 
 export default function LoginForm() {
   const search = useSearchParams();
@@ -228,12 +229,14 @@ export default function LoginForm() {
               </button>
 
               {/* Register Link */}
-              <div className="text-center text-gray-700">
-                Don't have an account?{' '}
-                <Link href="/register" className="text-[#0B2E65] hover:underline font-medium">
-                  Register
-                </Link>
-              </div>
+              {isRegistrationEnabled() ? (
+                <div className="text-center text-gray-700">
+                  Don&apos;t have an account?{' '}
+                  <Link href="/register" className="text-[#0B2E65] hover:underline font-medium">
+                    Register
+                  </Link>
+                </div>
+              ) : null}
             </form>
           </div>
         </div>

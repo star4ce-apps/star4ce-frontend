@@ -5,7 +5,15 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import RequireAuth from '@/components/layout/RequireAuth';
 import HubSidebar from '@/components/sidebar/HubSidebar';
 import { API_BASE, getToken } from '@/lib/auth';
+import { getUserPermissions } from '@/lib/permissions';
 import toast from 'react-hot-toast';
+
+const COLORS = {
+  gray: {
+    50: '#F8FAFC',
+    500: '#64748B',
+  },
+};
 
 /** Format Stripe-backed renewal date in user's local timezone. Optional addDays (e.g. 1 for "switch on" date). */
 function formatRenewalOrInvoiceDate(isoEndsAt: string | null | undefined, addDays: number = 0): string {
@@ -46,6 +54,7 @@ function SubscriptionPageContent() {
   const router = useRouter();
   const search = useSearchParams();
   const [userRole, setUserRole] = useState<string | null>(null);
+  const [canViewSubscription, setCanViewSubscription] = useState<boolean | null>(null);
   const [status, setStatus] = useState<SubscriptionStatus | null>(null);
   const [corporateSubscriptions, setCorporateSubscriptions] = useState<CorporateSubscription[]>([]);
   const [loading, setLoading] = useState(true);
@@ -96,14 +105,27 @@ function SubscriptionPageContent() {
         const role = data.user?.role || data.role;
         setUserRole(role);
         setSubscriptionActiveFromAuth(data.subscription_active !== false);
-        if (role === 'corporate') {
-          loadCorporateSubscriptions();
+        if (role === 'admin' || role === 'corporate') {
+          setCanViewSubscription(true);
+          if (role === 'corporate') {
+            loadCorporateSubscriptions();
+          } else {
+            loadSubscriptionStatus();
+          }
+        } else if (role === 'manager' || role === 'hiring_manager') {
+          const perms = await getUserPermissions();
+          const canView = perms.view_subscription === true;
+          setCanViewSubscription(canView);
+          if (canView) loadSubscriptionStatus();
+          else setLoading(false);
         } else {
-          loadSubscriptionStatus();
+          setCanViewSubscription(false);
+          setLoading(false);
         }
       }
     } catch (err) {
       console.error('Failed to load user role:', err);
+      setLoading(false);
     }
   }
 
@@ -372,6 +394,34 @@ function SubscriptionPageContent() {
     } finally {
       setUpgrading({ ...upgrading, [dealershipId || 0]: false });
     }
+  }
+
+  if ((userRole === 'manager' || userRole === 'hiring_manager') && canViewSubscription === null) {
+    return (
+      <RequireAuth>
+        <div className="flex min-h-screen" style={{ width: '100%', overflow: 'hidden', backgroundColor: '#F5F7FA' }}>
+          <HubSidebar />
+          <main className="ml-64 p-8 flex-1 flex items-center justify-center" style={{ overflowX: 'hidden', minWidth: 0 }}>
+            <div className="text-sm" style={{ color: '#64748B' }}>Loading...</div>
+          </main>
+        </div>
+      </RequireAuth>
+    );
+  }
+
+  if (userRole != null && canViewSubscription === false) {
+    return (
+      <RequireAuth>
+        <div className="flex min-h-screen" style={{ backgroundColor: COLORS.gray[50] }}>
+          <HubSidebar />
+          <main className="ml-64 p-8 flex-1" style={{ maxWidth: 'calc(100vw - 256px)' }}>
+            <div className="text-center py-12">
+              <div className="text-sm font-medium" style={{ color: COLORS.gray[500] }}>You do not have permission to view the employee list. Please contact your administrator.</div>
+            </div>
+          </main>
+        </div>
+      </RequireAuth>
+    );
   }
 
   if (loading) {

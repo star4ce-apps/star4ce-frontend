@@ -5,6 +5,7 @@ import { useRouter, useParams } from 'next/navigation';
 import HubSidebar from '@/components/sidebar/HubSidebar';
 import RequireAuth from '@/components/layout/RequireAuth';
 import { API_BASE, getToken } from '@/lib/auth';
+import { getUserPermissions } from '@/lib/permissions';
 import { deleteJsonAuth, getJsonAuth, postJsonAuth, putJsonAuth } from '@/lib/http';
 
 import toast from 'react-hot-toast';
@@ -48,6 +49,10 @@ type CandidateProfile = {
   gender: string;
   birthday: string;
   address: string;
+  street?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zip_code?: string | null;
   overallScore: number;
   stage: string;
   origin: string;
@@ -70,6 +75,21 @@ function formatBirthday(dateStr: string): string {
   return d.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
+/** Parse a single-line address like "24162 Twig St, Lake Forest, AR 92630" into street, city, state, zip. */
+function parseAddressLine(line: string): { street: string; city: string; state: string; zip: string } {
+  const trimmed = (line || '').trim();
+  if (!trimmed) return { street: '', city: '', state: '', zip: '' };
+  const parts = trimmed.split(',').map((p) => p.trim()).filter(Boolean);
+  const street = parts[0] || '';
+  const city = parts[1] || '';
+  const last = parts[2] || '';
+  // Last part often "ST 12345" or "State 12345" — zip is trailing 5 or 5+4 digits
+  const zipMatch = last.match(/\b(\d{5}(?:-\d{4})?)\s*$/);
+  const zip = zipMatch ? zipMatch[1] : '';
+  const state = zipMatch ? last.slice(0, zipMatch.index).trim() : last;
+  return { street, city, state, zip };
+}
+
 // Board employee: job titles, departments, statuses (match employees page)
 const BOARD_DEPARTMENTS = [
   'Sales Department', 'Service Department', 'Parts Department', 'Administration Department',
@@ -78,6 +98,67 @@ const BOARD_DEPARTMENTS = [
   'Training and Development', 'Others',
 ];
 const BOARD_STATUSES = ['Full-Time', 'Part-time', 'Intern'];
+const US_STATES = [
+  'Alabama', 'Alaska', 'Arizona', 'Arkansas', 'California', 'Colorado', 'Connecticut', 'Delaware',
+  'Florida', 'Georgia', 'Hawaii', 'Idaho', 'Illinois', 'Indiana', 'Iowa', 'Kansas', 'Kentucky',
+  'Louisiana', 'Maine', 'Maryland', 'Massachusetts', 'Michigan', 'Minnesota', 'Mississippi',
+  'Missouri', 'Montana', 'Nebraska', 'Nevada', 'New Hampshire', 'New Jersey', 'New Mexico',
+  'New York', 'North Carolina', 'North Dakota', 'Ohio', 'Oklahoma', 'Oregon', 'Pennsylvania',
+  'Rhode Island', 'South Carolina', 'South Dakota', 'Tennessee', 'Texas', 'Utah', 'Vermont',
+  'Virginia', 'Washington', 'West Virginia', 'Wisconsin', 'Wyoming',
+];
+/** Map state abbreviation (e.g. AR) to full name (e.g. Arkansas) so dropdown pre-fills from parsed/API data */
+const STATE_ABBR_TO_FULL: Record<string, string> = {
+  AL: 'Alabama', AK: 'Alaska', AZ: 'Arizona', AR: 'Arkansas', CA: 'California', CO: 'Colorado',
+  CT: 'Connecticut', DE: 'Delaware', FL: 'Florida', GA: 'Georgia', HI: 'Hawaii', ID: 'Idaho',
+  IL: 'Illinois', IN: 'Indiana', IA: 'Iowa', KS: 'Kansas', KY: 'Kentucky', LA: 'Louisiana',
+  ME: 'Maine', MD: 'Maryland', MA: 'Massachusetts', MI: 'Michigan', MN: 'Minnesota', MS: 'Mississippi',
+  MO: 'Missouri', MT: 'Montana', NE: 'Nebraska', NV: 'Nevada', NH: 'New Hampshire', NJ: 'New Jersey',
+  NM: 'New Mexico', NY: 'New York', NC: 'North Carolina', ND: 'North Dakota', OH: 'Ohio',
+  OK: 'Oklahoma', OR: 'Oregon', PA: 'Pennsylvania', RI: 'Rhode Island', SC: 'South Carolina',
+  SD: 'South Dakota', TN: 'Tennessee', TX: 'Texas', UT: 'Utah', VT: 'Vermont', VA: 'Virginia',
+  WA: 'Washington', WV: 'West Virginia', WI: 'Wisconsin', WY: 'Wyoming',
+};
+
+const STATE_FULL_TO_ABBR: Record<string, string> = Object.entries(STATE_ABBR_TO_FULL).reduce(
+  (acc, [abbr, full]) => {
+    acc[full.toUpperCase()] = abbr;
+    return acc;
+  },
+  {} as Record<string, string>
+);
+
+/**
+ * Convert the UI state value back into backend/storage format.
+ * If the original stored value was a 2-letter abbreviation, return an abbreviation.
+ */
+function stateForBackendSave(
+  originalBackendState: string | null | undefined,
+  uiStateValue: string
+): string | null {
+  const s = uiStateValue.trim();
+  if (!s) return null;
+  const orig = (originalBackendState ?? '').trim();
+  if (orig && orig.length === 2) {
+    if (s.length === 2) return s.toUpperCase();
+    return STATE_FULL_TO_ABBR[s.toUpperCase()] || s;
+  }
+  return s;
+}
+
+function stateForDropdown(state: string | null | undefined): string {
+  if (!state || !state.trim()) return '';
+  const s = state.trim();
+  if (s.length === 2) return STATE_ABBR_TO_FULL[s.toUpperCase()] || s;
+  return US_STATES.includes(s) ? s : '';
+}
+/** Display state as full name (e.g. AR -> Arkansas) so it's consistent with the edit form. */
+function stateForDisplay(state: string | null | undefined): string {
+  if (!state || !state.trim()) return '';
+  const s = state.trim();
+  if (s.length === 2) return STATE_ABBR_TO_FULL[s.toUpperCase()] || s;
+  return s;
+}
 const BOARD_JOB_TITLES = [
   'Body Shop Manager', 'Body Shop Technician', 'Business Manager', 'Business Office Support',
   'C-Level Executives', 'Platform Manager', 'Controller', 'Finance Manager', 'Finance Director',
@@ -100,6 +181,9 @@ export default function CandidateProfilePage() {
   const [saving, setSaving] = useState(false);
   const [allCandidates, setAllCandidates] = useState<CandidateProfile[]>([]);
   const [role, setRole] = useState<string | null>(null);
+  const [canViewCandidates, setCanViewCandidates] = useState<boolean | null>(null);
+  const [canManageCandidate, setCanManageCandidate] = useState(false);
+  const [canViewInterviewScores, setCanViewInterviewScores] = useState(true);
   const notesTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const resumeBlobUrlRef = useRef<string | null>(null);
   const [resumePreviewUrl, setResumePreviewUrl] = useState<string | null>(null);
@@ -111,7 +195,10 @@ export default function CandidateProfilePage() {
   const [editLastName, setEditLastName] = useState('');
   const [editEmail, setEditEmail] = useState('');
   const [editPhone, setEditPhone] = useState('');
-  const [editAddress, setEditAddress] = useState('');
+  const [editStreet, setEditStreet] = useState('');
+  const [editCity, setEditCity] = useState('');
+  const [editState, setEditState] = useState('');
+  const [editZipCode, setEditZipCode] = useState('');
   const [editGender, setEditGender] = useState('');
   const [editDateOfBirth, setEditDateOfBirth] = useState('');
   const [editUniversity, setEditUniversity] = useState('');
@@ -119,6 +206,11 @@ export default function CandidateProfilePage() {
   const [editMajor, setEditMajor] = useState('');
   const [editReferrals, setEditReferrals] = useState<Array<{ firstName: string; lastName: string; phone: string; email: string; relationship: string }>>([]);
   const [savingPersonal, setSavingPersonal] = useState(false);
+  const editStreetInitialRef = useRef<string>('');
+  const editCityInitialRef = useRef<string>('');
+  const editStateInitialRef = useRef<string>('');
+  const editZipCodeInitialRef = useRef<string>('');
+  const originalBackendStateRef = useRef<string | null | undefined>(null);
   const [showBoardModal, setShowBoardModal] = useState(false);
   const [boardForm, setBoardForm] = useState({
     jobTitle: '',
@@ -167,8 +259,18 @@ export default function CandidateProfilePage() {
         
         if (res.ok) {
           const data = await res.json();
-          setRole(data.user?.role || data.role || null);
+          const userRole = data.user?.role || data.role || null;
+          setRole(userRole);
+          if (userRole === 'admin' || userRole === 'corporate') setCanViewCandidates(true);
+          else if (userRole === 'manager' || userRole === 'hiring_manager') {
+            const perms = await getUserPermissions();
+            setCanViewCandidates(perms.view_candidates === true);
+          } else setCanViewCandidates(false);
         }
+
+        const perms = await getUserPermissions();
+        setCanViewInterviewScores(perms.view_interview_scores === true);
+        setCanManageCandidate(perms.modify_candidate === true || perms.manage_candidate === true);
       } catch (err) {
         // Silently fail - role will remain null
       }
@@ -309,6 +411,10 @@ export default function CandidateProfilePage() {
           gender: c.gender?.trim() || 'Not Provided',
           birthday: c.date_of_birth ? formatBirthday(c.date_of_birth) : 'Not Provided',
           address: c.address?.trim() || 'Not Provided',
+          street: c.street ?? undefined,
+          city: c.city ?? undefined,
+          state: c.state ?? undefined,
+          zip_code: c.zip_code ?? undefined,
           overallScore: c.score !== null && c.score !== undefined ? c.score / 10 : 0,
           stage: c.status || 'Awaiting',
           origin: 'Career Site',
@@ -332,12 +438,9 @@ export default function CandidateProfilePage() {
       }
     } catch (err: unknown) {
       const errorMsg = err instanceof Error ? err.message : 'Failed to load candidate';
-      // Check if it's a permission error
       if (errorMsg.includes('403') || errorMsg.includes('forbidden') || errorMsg.includes('insufficient role')) {
-        toast.error('You do not have permission to view this candidate');
-      } else if (errorMsg.includes('404') || errorMsg.includes('not found')) {
-        toast.error('Candidate not found');
-      } else {
+        setCanViewCandidates(false);
+      } else if (!errorMsg.includes('404') && !errorMsg.includes('not found')) {
         toast.error(errorMsg);
       }
       setCandidate(null);
@@ -348,6 +451,18 @@ export default function CandidateProfilePage() {
 
   async function updateCandidate(data: Partial<any>) {
     if (!candidate) return;
+
+    const currentStage = (candidate.stage || '').trim();
+    const isLocked = currentStage === 'Hired' || currentStage === 'Denied' || currentStage === 'Rejected';
+    if (isLocked) {
+      toast.error('This candidate can no longer be modified.');
+      return;
+    }
+
+    if (!canManageCandidate) {
+      toast.error('You do not have permission to edit candidates. Please contact your administrator.');
+      return;
+    }
     
     // Block corporate users from updating
     if (role === 'corporate') {
@@ -384,6 +499,12 @@ export default function CandidateProfilePage() {
 
   async function handleDenyApplication() {
     if (!candidate) return;
+
+    const s = (candidate.stage || '').trim();
+    if (s === 'Hired' || s === 'Denied' || s === 'Rejected') {
+      toast.error('This candidate cannot be denied.');
+      return;
+    }
     
     // Only admin and hiring_manager can deny (reject) applications
     if (role !== 'admin' && role !== 'hiring_manager') {
@@ -411,6 +532,11 @@ export default function CandidateProfilePage() {
 
   async function handleDeleteCandidate() {
     if (!candidate) return;
+    const s = (candidate.stage || '').trim();
+    if (s === 'Hired' || s === 'Denied' || s === 'Rejected') {
+      toast.error('This candidate cannot be deleted.');
+      return;
+    }
     if (role !== 'admin' && role !== 'hiring_manager') {
       toast.error('Only admin and hiring manager can delete candidates.');
       return;
@@ -495,12 +621,44 @@ export default function CandidateProfilePage() {
       const today = `${year}-${month}-${day}`;
 
       // Create employee data from candidate (move candidate info into employee list)
-      const hasAddress = candidate.address && candidate.address !== 'Not Provided';
+      const hasStreet = candidate.street && candidate.street.trim() !== '';
+      const hasLegacyAddress = candidate.address && candidate.address !== 'Not Provided';
       const hasGender = candidate.gender && candidate.gender !== 'Not Provided';
       const hasDob = candidate.dateOfBirthRaw && candidate.dateOfBirthRaw.trim() !== '';
       const hasUniversity = candidate.university && candidate.university !== 'Not Provided';
       const hasDegree = candidate.degree && candidate.degree !== 'Not Provided';
       const hasReferral = candidate.referral && String(candidate.referral).trim() !== '';
+
+      // Address normalization:
+      // - Prefer structured fields when present
+      // - Otherwise parse legacy single-line address into street/city/state/zip
+      // - Also handle cases where `street` contains the entire "street, city, ST zip" string
+      const rawStreet = (candidate.street || '').trim();
+      const rawCity = (candidate.city || '').trim();
+      const rawState = (candidate.state || '').trim();
+      const rawZip = (candidate.zip_code || '').trim();
+      const legacyLine = hasLegacyAddress ? String(candidate.address).trim() : '';
+
+      let normalizedStreet: string | null = rawStreet || null;
+      let normalizedCity: string | null = rawCity || null;
+      let normalizedState: string | null = rawState || null;
+      let normalizedZip: string | null = rawZip || null;
+
+      const shouldParseLine =
+        (!normalizedCity || !normalizedState || !normalizedZip) &&
+        ((rawStreet && rawStreet.includes(',')) || (legacyLine && legacyLine.includes(',')));
+
+      if (shouldParseLine) {
+        const parsed = parseAddressLine(rawStreet && rawStreet.includes(',') ? rawStreet : legacyLine);
+        normalizedStreet = normalizedStreet || (parsed.street.trim() || null);
+        normalizedCity = normalizedCity || (parsed.city.trim() || null);
+        normalizedState = normalizedState || (parsed.state.trim() || null);
+        normalizedZip = normalizedZip || (parsed.zip.trim() || null);
+      }
+
+      if (!normalizedStreet) {
+        normalizedStreet = legacyLine || null;
+      }
       const employeeData: Record<string, unknown> = {
         name: candidate.name,
         email: candidate.email,
@@ -510,10 +668,10 @@ export default function CandidateProfilePage() {
         employee_id: useForm.employeeId.trim(),
         hired_date: today,
         status: useForm.status,
-        street: hasAddress ? candidate.address : null,
-        city: null,
-        state: null,
-        zip_code: null,
+        street: normalizedStreet,
+        city: normalizedCity,
+        state: normalizedState,
+        zip_code: normalizedZip,
         date_of_birth: hasDob ? candidate.dateOfBirthRaw : null,
         gender: hasGender ? candidate.gender : null,
         university: hasUniversity ? candidate.university : null,
@@ -593,12 +751,52 @@ export default function CandidateProfilePage() {
 
   function openEditPersonal() {
     if (!candidate) return;
+    const s = (candidate.stage || '').trim();
+    if (s === 'Hired' || s === 'Denied' || s === 'Rejected') {
+      toast.error('This candidate cannot be edited.');
+      return;
+    }
     const nameParts = (candidate.name || '').trim().split(/\s+/).filter(Boolean);
     setEditFirstName(nameParts[0] || '');
     setEditLastName(nameParts.slice(1).join(' ') || '');
     setEditEmail(candidate.email || '');
     setEditPhone(candidate.phone || '');
-    setEditAddress(candidate.address === 'Not Provided' ? '' : (candidate.address || ''));
+    // Use separate fields if set; otherwise parse legacy single-line address so edit form isn't empty
+    const hasSeparate = candidate.street || candidate.city || candidate.state || candidate.zip_code;
+    if (hasSeparate) {
+      setEditStreet(candidate.street || '');
+      setEditCity(candidate.city || '');
+      const uiState = stateForDropdown(candidate.state);
+      setEditState(uiState);
+      setEditZipCode(candidate.zip_code || '');
+      editStreetInitialRef.current = candidate.street || '';
+      editCityInitialRef.current = candidate.city || '';
+      editStateInitialRef.current = uiState;
+      editZipCodeInitialRef.current = candidate.zip_code || '';
+      originalBackendStateRef.current = candidate.state;
+    } else if (candidate.address && candidate.address !== 'Not Provided') {
+      const parsed = parseAddressLine(candidate.address);
+      setEditStreet(parsed.street);
+      setEditCity(parsed.city);
+      const uiState = stateForDropdown(parsed.state);
+      setEditState(uiState);
+      setEditZipCode(parsed.zip);
+      editStreetInitialRef.current = parsed.street;
+      editCityInitialRef.current = parsed.city;
+      editStateInitialRef.current = uiState;
+      editZipCodeInitialRef.current = parsed.zip;
+      originalBackendStateRef.current = parsed.state;
+    } else {
+      setEditStreet('');
+      setEditCity('');
+      setEditState('');
+      setEditZipCode('');
+      editStreetInitialRef.current = '';
+      editCityInitialRef.current = '';
+      editStateInitialRef.current = '';
+      editZipCodeInitialRef.current = '';
+      originalBackendStateRef.current = candidate.state;
+    }
     setEditGender(candidate.gender === 'Not Provided' ? '' : candidate.gender);
     setEditDateOfBirth(candidate.dateOfBirthRaw || '');
     
@@ -679,7 +877,10 @@ export default function CandidateProfilePage() {
         name?: string;
         email?: string;
         phone?: string;
-        address?: string | null;
+        street?: string | null;
+        city?: string | null;
+        state?: string | null;
+        zip_code?: string | null;
         gender?: string | null; 
         date_of_birth?: string | null;
         university?: string | null;
@@ -689,7 +890,16 @@ export default function CandidateProfilePage() {
         name: newName || undefined,
         email: editEmail.trim() || undefined,
         phone: editPhone.trim() || undefined,
-        address: editAddress.trim() || null,
+
+        ...(editStreet.trim() !== editStreetInitialRef.current.trim() ? { street: editStreet.trim() || null } : {}),
+        ...(editCity.trim() !== editCityInitialRef.current.trim() ? { city: editCity.trim() || null } : {}),
+        ...(editState.trim() !== editStateInitialRef.current.trim()
+          ? { state: stateForBackendSave(originalBackendStateRef.current, editState) }
+          : {}),
+        ...(editZipCode.trim() !== editZipCodeInitialRef.current.trim()
+          ? { zip_code: editZipCode.trim() || null }
+          : {}),
+
         gender: editGender.trim() || null,
         date_of_birth: editDateOfBirth.trim() || null,
         university: editUniversity.trim() || null,
@@ -705,6 +915,10 @@ export default function CandidateProfilePage() {
           email: c.email || candidate.email,
           phone: c.phone || candidate.phone,
           address: c.address?.trim() || 'Not Provided',
+          street: c.street ?? candidate.street,
+          city: c.city ?? candidate.city,
+          state: c.state ?? candidate.state,
+          zip_code: c.zip_code ?? candidate.zip_code,
           gender: c.gender?.trim() || 'Not Provided',
           birthday: c.date_of_birth ? formatBirthday(c.date_of_birth) : 'Not Provided',
           dateOfBirthRaw: c.date_of_birth ?? undefined,
@@ -1131,6 +1345,34 @@ export default function CandidateProfilePage() {
     return [...awaitingEvents, ...otherEvents];
   };
 
+  if (role === null || ((role === 'manager' || role === 'hiring_manager') && canViewCandidates === null)) {
+    return (
+      <RequireAuth>
+        <div className="flex min-h-screen" style={{ width: '100%', overflow: 'hidden', backgroundColor: '#F5F7FA' }}>
+          <HubSidebar />
+          <main className="ml-64 p-8 flex-1 flex items-center justify-center" style={{ overflowX: 'hidden', minWidth: 0 }}>
+            <div className="text-sm" style={{ color: '#64748B' }}>Loading...</div>
+          </main>
+        </div>
+      </RequireAuth>
+    );
+  }
+
+  if (role != null && canViewCandidates === false) {
+    return (
+      <RequireAuth>
+        <div className="flex min-h-screen" style={{ width: '100%', overflow: 'hidden', backgroundColor: '#F5F7FA' }}>
+          <HubSidebar />
+          <main className="ml-64 p-8 flex-1" style={{ overflowX: 'hidden', minWidth: 0 }}>
+            <div className="text-center py-12">
+              <div className="text-sm font-medium" style={{ color: '#64748B' }}>You do not have permission to view the candidate list. Please contact your administrator.</div>
+            </div>
+          </main>
+        </div>
+      </RequireAuth>
+    );
+  }
+
   if (loading) {
     return (
       <RequireAuth>
@@ -1269,6 +1511,7 @@ export default function CandidateProfilePage() {
                       </div>
                     );
                   })()}
+                  {canViewInterviewScores && (
                   <div className="px-3 py-1 rounded-lg text-sm font-semibold flex items-center gap-1" style={{ backgroundColor: '#4D6DBE', color: '#FFFFFF' }}>
                     <span>Overall Score:</span>
                     {hasOverallScore ? (
@@ -1285,6 +1528,7 @@ export default function CandidateProfilePage() {
                       <span>N/A</span>
                     )}
                   </div>
+                  )}
                 </div>
                 <div className="flex items-center gap-4 text-sm" style={{ color: '#6B7280' }}>
                   <span>ID: #{candidate.id.toString().padStart(8, '0')}</span>
@@ -1324,7 +1568,8 @@ export default function CandidateProfilePage() {
             <div className="col-span-2 space-y-4">
               {activeTab === 'hiring-process' && (
                 <>
-                  {/* Add New Interview Score */}
+                  {/* Add New Interview Score - only when user can view interview scores */}
+                  {canViewInterviewScores && !(['Hired', 'Denied', 'Rejected'].includes((candidate?.stage || '').trim())) && (
                   <button
                     onClick={() => {
                       // Calculate next interview stage
@@ -1386,6 +1631,7 @@ export default function CandidateProfilePage() {
                       <span className="text-sm font-semibold">Add New Interview Score</span>
                     </div>
                   </button>
+                  )}
                   
                   {/* Hiring Process Timeline */}
                   <div className="space-y-4">
@@ -1475,11 +1721,63 @@ export default function CandidateProfilePage() {
                                       : event.description}
                                   </p>
                                 </div>
-                                {event.date && (
-                                  <div className="flex-shrink-0 text-sm self-start" style={{ color: '#6B7280' }}>
-                                    {new Date(event.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                                  </div>
-                                )}
+                                <div className="flex-shrink-0 flex flex-col items-end gap-2">
+                                  {event.date && (
+                                    <div className="text-sm self-start" style={{ color: '#6B7280' }}>
+                                      {new Date(event.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                    </div>
+                                  )}
+                                  {canViewInterviewScores && !(['Hired', 'Denied', 'Rejected'].includes((candidate?.stage || '').trim())) && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const stageNum = event.title.match(/\d+/)?.[0] || '';
+                                        const candidateRole = candidate?.jobPosition || '';
+                                        const roleMap: Record<string, string> = {
+                                          'Body Shop Manager': 'body-shop-manager',
+                                          'Body Shop Technician': 'support-staff',
+                                          'Business Manager': 'c-level-manager',
+                                          'Business Office Support': 'office-clerk',
+                                          'C-Level Executives': 'c-level-manager',
+                                          'Platform Manager': 'c-level-manager',
+                                          'Controller': 'finance-manager',
+                                          'Finance Manager': 'finance-manager',
+                                          'Finance Director': 'finance-manager',
+                                          'General Manager': 'gm',
+                                          'Human Resources Manager': 'hr-manager',
+                                          'IT Manager': 'c-level-manager',
+                                          'Loaner Agent': 'support-staff',
+                                          'Mobility Manager': 'c-level-manager',
+                                          'Parts Counter Employee': 'support-staff',
+                                          'Parts Manager': 'parts-manager',
+                                          'Parts Support': 'support-staff',
+                                          'Drivers': 'support-staff',
+                                          'Sales Manager': 'sales-manager',
+                                          'GSM': 'sales-manager',
+                                          'Sales People': 'salesperson',
+                                          'Sales Support': 'support-staff',
+                                          'Receptionist': 'office-clerk',
+                                          'Service Advisor': 'service-advisor',
+                                          'Service Director': 'service-manager',
+                                          'Service Drive Manager': 'service-manager',
+                                          'Service Manager': 'service-manager',
+                                          'Parts and Service Director': 'service-manager',
+                                          'Service Support': 'support-staff',
+                                          'Porters': 'support-staff',
+                                          'Technician': 'support-staff',
+                                          'Used Car Director': 'sales-manager',
+                                          'Used Car Manager': 'sales-manager',
+                                        };
+                                        const roleId = roleMap[candidateRole] || 'c-level-manager';
+                                        router.push(`/candidates/score?candidateId=${candidateId}&role=${roleId}&stage=${stageNum}&editStage=${stageNum}`);
+                                      }}
+                                      className="text-xs font-semibold px-3 py-1.5 rounded-md border transition-colors hover:bg-gray-50"
+                                      style={{ borderColor: '#E5E7EB', color: '#4D6DBE' }}
+                                    >
+                                      Edit score
+                                    </button>
+                                  )}
+                                </div>
                               </div>
                             </div>
                           </div>
@@ -1626,7 +1924,7 @@ export default function CandidateProfilePage() {
                 </div>
               )}
 
-              {activeTab === 'hiring-decision' && (role === 'admin' || role === 'hiring_manager') && (
+              {activeTab === 'hiring-decision' && (role === 'admin' || role === 'hiring_manager') && canManageCandidate && (
                 <div className="space-y-6">
                   <div className="rounded-xl p-6" style={{ backgroundColor: '#FFFFFF', border: '1px solid #E5E7EB', boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05)' }}>
                     <div className="mb-6">
@@ -1634,12 +1932,17 @@ export default function CandidateProfilePage() {
                       <p className="text-xs" style={{ color: '#6B7280' }}>Make a final decision for this candidate</p>
                     </div>
 
+                    {(() => {
+                      const stage = (candidate?.stage || '').trim();
+                      const isAccepted = stage === 'Hired';
+                      const isDenied = stage === 'Denied' || stage === 'Rejected';
+                      return (
                     <div className="grid grid-cols-2 gap-4">
                       {/* Accept Column */}
                       <div className="space-y-3">
                         <button
                           onClick={openBoardModal}
-                          disabled={saving}
+                          disabled={saving || isAccepted || isDenied}
                           className="cursor-pointer group relative overflow-hidden rounded-xl font-semibold transition-all disabled:opacity-60 disabled:cursor-not-allowed flex flex-col items-center justify-center gap-3 p-5 w-full"
                           style={{ 
                             backgroundColor: '#D1FAE5',
@@ -1647,19 +1950,43 @@ export default function CandidateProfilePage() {
                             border: '2px solid #A7F3D0',
                           }}
                           onMouseEnter={(e) => {
-                            if (!saving) {
+                            if (!saving && !isAccepted && !isDenied) {
                               e.currentTarget.style.backgroundColor = '#A7F3D0';
                               e.currentTarget.style.borderColor = '#6EE7B7';
                             }
                           }}
                           onMouseLeave={(e) => {
-                            if (!saving) {
+                            if (!saving && !isAccepted && !isDenied) {
                               e.currentTarget.style.backgroundColor = '#D1FAE5';
                               e.currentTarget.style.borderColor = '#A7F3D0';
                             }
                           }}
                         >
-                          {saving ? (
+                          {isAccepted ? (
+                            <>
+                              <div className="rounded-full p-3" style={{ backgroundColor: 'rgba(6, 95, 70, 0.1)' }}>
+                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                              </div>
+                              <div className="text-center">
+                                <div className="text-sm font-bold">Accepted</div>
+                                <div className="text-xs opacity-80 mt-0.5">Already hired</div>
+                              </div>
+                            </>
+                          ) : isDenied ? (
+                            <>
+                              <div className="rounded-full p-3" style={{ backgroundColor: 'rgba(6, 95, 70, 0.1)' }}>
+                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                              </div>
+                              <div className="text-center">
+                                <div className="text-sm font-bold">Accept</div>
+                                <div className="text-xs opacity-80 mt-0.5">Application denied</div>
+                              </div>
+                            </>
+                          ) : saving ? (
                             <>
                               <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
                                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
@@ -1683,8 +2010,11 @@ export default function CandidateProfilePage() {
                         </button>
                         {/* Accept Warning */}
                         <p className="text-xs leading-relaxed" style={{ color: '#16A34A' }}>
-                          Accepting this candidate will move their info to the employee list. Their resume will be removed after 7 days. 
-                          This action cannot be undone.
+                          {isAccepted
+                            ? 'This candidate has already been accepted and moved to the employee list.'
+                            : isDenied
+                              ? 'This application has been denied. Accept is no longer available.'
+                              : 'Accepting this candidate will move their info to the employee list. Their resume will be removed after 7 days. This action cannot be undone.'}
                         </p>
                       </div>
 
@@ -1692,7 +2022,7 @@ export default function CandidateProfilePage() {
                       <div className="space-y-3">
                         <button
                           onClick={handleDenyApplication}
-                          disabled={saving}
+                          disabled={saving || isDenied || isAccepted}
                           className="cursor-pointer group relative overflow-hidden rounded-xl font-semibold transition-all disabled:opacity-60 disabled:cursor-not-allowed flex flex-col items-center justify-center gap-3 p-5 w-full"
                           style={{ 
                             backgroundColor: '#FEE2E2',
@@ -1700,35 +2030,56 @@ export default function CandidateProfilePage() {
                             border: '2px solid #FECACA',
                           }}
                           onMouseEnter={(e) => {
-                            if (!saving) {
+                            if (!saving && !isDenied && !isAccepted) {
                               e.currentTarget.style.backgroundColor = '#FECACA';
                               e.currentTarget.style.borderColor = '#FCA5A5';
                             }
                           }}
                           onMouseLeave={(e) => {
-                            if (!saving) {
+                            if (!saving && !isDenied && !isAccepted) {
                               e.currentTarget.style.backgroundColor = '#FEE2E2';
                               e.currentTarget.style.borderColor = '#FECACA';
                             }
                           }}
                         >
-                          <div className="rounded-full p-3" style={{ backgroundColor: 'rgba(153, 27, 27, 0.1)' }}>
-                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                          </div>
-                          <div className="text-center">
-                            <div className="text-sm font-bold">Deny</div>
-                            <div className="text-xs opacity-80 mt-0.5">Reject application</div>
-                          </div>
+                          {isDenied ? (
+                            <>
+                              <div className="rounded-full p-3" style={{ backgroundColor: 'rgba(153, 27, 27, 0.1)' }}>
+                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                              </div>
+                              <div className="text-center">
+                                <div className="text-sm font-bold">Denied</div>
+                                <div className="text-xs opacity-80 mt-0.5">Already rejected</div>
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              <div className="rounded-full p-3" style={{ backgroundColor: 'rgba(153, 27, 27, 0.1)' }}>
+                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                              </div>
+                              <div className="text-center">
+                                <div className="text-sm font-bold">Deny</div>
+                                <div className="text-xs opacity-80 mt-0.5">Reject application</div>
+                              </div>
+                            </>
+                          )}
                         </button>
                         {/* Deny Warning */}
                         <p className="text-xs leading-relaxed" style={{ color: '#DC2626' }}>
-                          Denying this application will reject the candidate. Their resume will be kept for one year, then removed. 
-                          This action cannot be undone.
+                          {isAccepted
+                            ? 'This candidate has already been accepted and moved to the employee list.'
+                            : isDenied
+                            ? 'This application has already been denied.'
+                            : 'Denying this application will reject the candidate. Their resume will be kept for one year, then removed. This action cannot be undone.'}
                         </p>
                       </div>
                     </div>
+                      );
+                    })()}
                   </div>
                 </div>
               )}
@@ -1740,7 +2091,7 @@ export default function CandidateProfilePage() {
               <div className="rounded-xl p-5" style={{ backgroundColor: '#FFFFFF', border: '1px solid #E5E7EB' }}>
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-sm font-bold" style={{ color: '#232E40' }}>Information</h3>
-                  {(role === 'admin' || role === 'manager' || role === 'hiring_manager') && (
+                  {(role === 'admin' || role === 'manager' || role === 'hiring_manager') && canManageCandidate && !(['Hired','Denied','Rejected'].includes((candidate.stage || '').trim())) && (
                     <button
                       type="button"
                       onClick={openEditPersonal}
@@ -1789,10 +2140,35 @@ export default function CandidateProfilePage() {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                       </svg>
                       <div className="flex-1 min-w-0">
-                        <span className="text-xs font-medium block mb-0.5" style={{ color: '#9CA3AF' }}>Location</span>
-                        <span className={`text-sm break-words ${candidate.address && candidate.address !== 'Not Provided' ? '' : 'italic'}`} style={{ color: candidate.address && candidate.address !== 'Not Provided' ? '#374151' : '#9CA3AF' }}>
-                          {candidate.address && candidate.address !== 'Not Provided' ? candidate.address : 'No data'}
-                        </span>
+                        {(candidate.street || candidate.city || candidate.state || candidate.zip_code || (candidate.address && candidate.address !== 'Not Provided')) ? (
+                          <>
+                            {candidate.street && (
+                              <>
+                                <span className="text-xs font-medium block mb-0.5" style={{ color: '#9CA3AF' }}>Street</span>
+                                <span className="text-sm break-words" style={{ color: '#374151' }}>{candidate.street}</span>
+                              </>
+                            )}
+                            {(candidate.city || candidate.state || candidate.zip_code) && (
+                              <>
+                                <span className="text-xs font-medium block mb-0.5 mt-1" style={{ color: '#9CA3AF' }}>City, State, Zip</span>
+                                <span className="text-sm break-words" style={{ color: '#374151' }}>
+                                  {[candidate.city, stateForDisplay(candidate.state), candidate.zip_code].filter(Boolean).join(', ')}
+                                </span>
+                              </>
+                            )}
+                            {!candidate.street && !candidate.city && !candidate.state && !candidate.zip_code && candidate.address && candidate.address !== 'Not Provided' && (
+                              <>
+                                <span className="text-xs font-medium block mb-0.5" style={{ color: '#9CA3AF' }}>Location</span>
+                                <span className="text-sm break-words" style={{ color: '#374151' }}>{candidate.address}</span>
+                              </>
+                            )}
+                          </>
+                        ) : (
+                          <>
+                            <span className="text-xs font-medium block mb-0.5" style={{ color: '#9CA3AF' }}>Location</span>
+                            <span className="text-sm italic" style={{ color: '#9CA3AF' }}>No data</span>
+                          </>
+                        )}
                       </div>
                     </div>
                     <div className="flex items-start gap-2.5 text-sm">
@@ -1954,12 +2330,50 @@ export default function CandidateProfilePage() {
                         <h4 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: '#6B7280' }}>Personal</h4>
                         <div className="space-y-3">
                           <div>
-                            <label className="block text-xs font-medium mb-1" style={{ color: '#6B7280' }}>Location</label>
+                            <label className="block text-xs font-medium mb-1" style={{ color: '#6B7280' }}>Street</label>
                             <input
                               type="text"
-                              value={editAddress}
-                              onChange={(e) => setEditAddress(e.target.value)}
-                              placeholder="Address"
+                              value={editStreet}
+                              onChange={(e) => setEditStreet(e.target.value)}
+                              placeholder="Street address"
+                              className="w-full px-3 py-2 text-sm rounded-lg border"
+                              style={{ borderColor: '#D1D5DB', color: '#374151' }}
+                            />
+                          </div>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-xs font-medium mb-1" style={{ color: '#6B7280' }}>City</label>
+                              <input
+                                type="text"
+                                value={editCity}
+                                onChange={(e) => setEditCity(e.target.value)}
+                                placeholder="City"
+                                className="w-full px-3 py-2 text-sm rounded-lg border"
+                                style={{ borderColor: '#D1D5DB', color: '#374151' }}
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium mb-1" style={{ color: '#6B7280' }}>State</label>
+                              <select
+                                value={editState}
+                                onChange={(e) => setEditState(e.target.value)}
+                                className="w-full px-3 py-2 text-sm rounded-lg border"
+                                style={{ borderColor: '#D1D5DB', color: '#374151' }}
+                              >
+                                <option value="">Select state</option>
+                                {US_STATES.map((s) => (
+                                  <option key={s} value={s}>{s}</option>
+                                ))}
+                              </select>
+                            </div>
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium mb-1" style={{ color: '#6B7280' }}>Zip code</label>
+                            <input
+                              type="text"
+                              value={editZipCode}
+                              onChange={(e) => setEditZipCode(e.target.value)}
+                              placeholder="Zip code"
                               className="w-full px-3 py-2 text-sm rounded-lg border"
                               style={{ borderColor: '#D1D5DB', color: '#374151' }}
                             />
@@ -2144,7 +2558,8 @@ export default function CandidateProfilePage() {
                         </div>
                       </div>
 
-                      {/* Danger Zone */}
+                      {/* Danger Zone - only when user can manage candidates */}
+                      {canManageCandidate && (
                       <div className="pt-6 mt-6 border-t" style={{ borderColor: '#FEE2E2' }}>
                         <div className="p-4 rounded-lg" style={{ backgroundColor: '#FEF2F2', border: '1px solid #FEE2E2' }}>
                           <h4 className="text-xs font-semibold mb-2" style={{ color: '#991B1B' }}>Danger Zone</h4>
@@ -2154,7 +2569,7 @@ export default function CandidateProfilePage() {
                           <button
                             type="button"
                             onClick={handleDeleteCandidate}
-                            disabled={savingPersonal || role === 'corporate'}
+                            disabled={savingPersonal || role === 'corporate' || ['Hired','Denied','Rejected'].includes((candidate?.stage || '').trim())}
                             className="px-4 py-2 text-sm font-medium rounded-lg cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:opacity-90"
                             style={{ 
                               backgroundColor: '#FFFFFF', 
@@ -2166,6 +2581,7 @@ export default function CandidateProfilePage() {
                           </button>
                         </div>
                       </div>
+                      )}
                     </div>
                     <div className="flex gap-2 mt-4 pt-4 border-t px-5 pb-5" style={{ borderColor: '#E5E7EB' }}>
                       <button

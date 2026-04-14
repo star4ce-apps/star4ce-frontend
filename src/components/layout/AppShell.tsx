@@ -11,6 +11,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
   // Dashboard pages have their own layout, so skip Footer
   const isDashboardPage = pathname?.startsWith('/dashboard') ||
                           pathname?.startsWith('/employees') ||
+                          pathname?.startsWith('/history') ||
                           pathname?.startsWith('/analytics') ||
                           pathname?.startsWith('/candidates') ||
                           pathname?.startsWith('/standings') ||

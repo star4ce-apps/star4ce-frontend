@@ -1,6 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { useEffect } from 'react';
+import { isRegistrationEnabled } from '@/lib/registration';
 
 export default function PricingPage() {
   useEffect(() => {
@@ -83,12 +84,18 @@ export default function PricingPage() {
                 <div className="flex-grow mb-4">
                   <p className="text-gray-700 text-sm">Perfect for teams starting their hiring transformation journey</p>
                 </div>
-                <Link
-                  href="/admin-register?plan=monthly"
-                  className="block w-full bg-[#0B2E65] text-white text-center py-3 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-all hover:shadow-md hover:scale-[1.02]"
-                >
-                  Sign up
-                </Link>
+                {isRegistrationEnabled() ? (
+                  <Link
+                    href="/admin-register?plan=monthly"
+                    className="block w-full bg-[#0B2E65] text-white text-center py-3 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-all hover:shadow-md hover:scale-[1.02]"
+                  >
+                    Sign up
+                  </Link>
+                ) : (
+                  <p className="block w-full bg-gray-300 text-gray-600 text-center py-3 rounded-lg font-semibold cursor-not-allowed">
+                    Registration closed
+                  </p>
+                )}
               </div>
 
               {/* Features Section - Middle Column */}
@@ -125,12 +132,18 @@ export default function PricingPage() {
                 <div className="flex-grow mb-4">
                   <p className="text-gray-700 text-sm">Maximum savings for committed teams building long-term success</p>
                 </div>
-                <Link
-                  href="/admin-register?plan=annual"
-                  className="block w-full bg-[#0B2E65] text-white text-center py-3 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-all hover:shadow-md hover:scale-[1.02]"
-                >
-                  Sign up
-                </Link>
+                {isRegistrationEnabled() ? (
+                  <Link
+                    href="/admin-register?plan=annual"
+                    className="block w-full bg-[#0B2E65] text-white text-center py-3 rounded-lg font-semibold hover:bg-[#2c5aa0] transition-all hover:shadow-md hover:scale-[1.02]"
+                  >
+                    Sign up
+                  </Link>
+                ) : (
+                  <p className="block w-full bg-gray-300 text-gray-600 text-center py-3 rounded-lg font-semibold cursor-not-allowed">
+                    Registration closed
+                  </p>
+                )}
               </div>
             </div>
           </div>

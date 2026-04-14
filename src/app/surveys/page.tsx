@@ -5,6 +5,7 @@ import HubSidebar from '@/components/sidebar/HubSidebar';
 import RequireAuth from '@/components/layout/RequireAuth';
 import { getJsonAuth, postJsonAuth, deleteJsonAuth } from '@/lib/http';
 import { getToken, API_BASE } from '@/lib/auth';
+import { getUserPermissions } from '@/lib/permissions';
 import {
   PieChart,
   Pie,
@@ -93,6 +94,11 @@ type AccessCodeCreateResponse = {
   expires_at: string | null;
 };
 
+type AccessCodeBatchResponse = {
+  ok: boolean;
+  items: AccessCodeItem[];
+};
+
 export default function SurveysPage() {
   const [overallSatisfaction, setOverallSatisfaction] = useState<SatisfactionData[]>([]);
   const [departments, setDepartments] = useState<DepartmentData[]>([]);
@@ -109,6 +115,7 @@ export default function SurveysPage() {
   
   // Access codes state
   const [role, setRole] = useState<string | null>(null);
+  const [canViewSurveys, setCanViewSurveys] = useState<boolean | null>(null);
   const [loadingCreate, setLoadingCreate] = useState(false);
   const [loadingList, setLoadingList] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -116,6 +123,9 @@ export default function SurveysPage() {
   const [codes, setCodes] = useState<AccessCodeItem[]>([]);
   const [copiedCodeId, setCopiedCodeId] = useState<number | 'latest' | null>(null);
   const [deletingCodeId, setDeletingCodeId] = useState<number | null>(null);
+  const [batchCount, setBatchCount] = useState<string>('10');
+  const [batchSummary, setBatchSummary] = useState<string | null>(null);
+  const [printCode, setPrintCode] = useState<AccessCodeItem | null>(null);
   // Initialize with current month
   const getCurrentMonthDates = () => {
     const today = new Date();
@@ -250,12 +260,29 @@ export default function SurveysPage() {
     fetchSurveyData();
   }, [startDate, endDate]);
 
-  // Read role from localStorage
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const storedRole = localStorage.getItem('role');
-      setRole(storedRole);
-    }
+    if (typeof window === 'undefined') return;
+    const storedRole = localStorage.getItem('role');
+    setRole(storedRole);
+    (async () => {
+      const token = getToken();
+      if (!token) return;
+      try {
+        const res = await fetch(`${API_BASE}/auth/me`, { headers: { Authorization: `Bearer ${token}` } });
+        if (res.ok) {
+          const data = await res.json().catch(() => ({}));
+          const userRole = data.user?.role || data.role;
+          setRole(userRole);
+          if (userRole === 'admin' || userRole === 'corporate') setCanViewSurveys(true);
+          else if (userRole === 'manager' || userRole === 'hiring_manager') {
+            const perms = await getUserPermissions();
+            setCanViewSurveys(perms.view_surveys === true);
+          } else setCanViewSurveys(false);
+        }
+      } catch {
+        setCanViewSurveys(false);
+      }
+    })();
   }, []);
 
   const frontendBase = typeof window !== 'undefined' ? window.location.origin : '';
@@ -295,6 +322,7 @@ export default function SurveysPage() {
   async function handleGenerate() {
     setError(null);
     setResult(null);
+    setBatchSummary(null);
     setLoadingCreate(true);
 
     try {
@@ -307,6 +335,36 @@ export default function SurveysPage() {
       await loadCodes();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to create access code';
+      setError(msg);
+    } finally {
+      setLoadingCreate(false);
+    }
+  }
+
+  async function handleGenerateBatch() {
+    setError(null);
+    setResult(null);
+    setBatchSummary(null);
+    setLoadingCreate(true);
+
+    try {
+      let count = parseInt(batchCount, 10);
+      if (Number.isNaN(count) || count < 1) count = 1;
+      if (count > 50) count = 50;
+
+      const data = await postJsonAuth<AccessCodeBatchResponse>(
+        '/survey/access-codes/batch',
+        { count }
+      );
+
+      if (!data.ok) {
+        throw new Error('Failed to create access codes');
+      }
+
+      setBatchSummary(`Created ${data.items.length} new access codes.`);
+      await loadCodes();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to create access codes';
       setError(msg);
     } finally {
       setLoadingCreate(false);
@@ -349,6 +407,34 @@ export default function SurveysPage() {
 
   const isAdmin = role === 'admin';
   const canManageCodes = isAdmin || role === 'manager' || role === 'corporate';
+
+  if ((role === 'manager' || role === 'hiring_manager') && canViewSurveys === null) {
+    return (
+      <RequireAuth>
+        <div className="flex min-h-screen" style={{ backgroundColor: COLORS.gray[50] }}>
+          <HubSidebar />
+          <main className="ml-64 p-8 flex-1 flex items-center justify-center" style={{ maxWidth: 'calc(100vw - 256px)' }}>
+            <div className="text-sm" style={{ color: COLORS.gray[500] }}>Loading...</div>
+          </main>
+        </div>
+      </RequireAuth>
+    );
+  }
+
+  if (role != null && canViewSurveys === false) {
+    return (
+      <RequireAuth>
+        <div className="flex min-h-screen" style={{ backgroundColor: COLORS.gray[50] }}>
+          <HubSidebar />
+          <main className="ml-64 p-8 flex-1" style={{ maxWidth: 'calc(100vw - 256px)' }}>
+            <div className="text-center py-12">
+              <div className="text-sm font-medium" style={{ color: COLORS.gray[500] }}>You do not have permission to view surveys. Please contact your administrator.</div>
+            </div>
+          </main>
+        </div>
+      </RequireAuth>
+    );
+  }
 
   const getSentimentStyle = (sentiment: string) => {
     if (sentiment.includes('Positive')) return { bg: COLORS.gray[100], text: COLORS.gray[700] };
@@ -768,6 +854,82 @@ export default function SurveysPage() {
             </>
           )}
 
+          {/* Printable handout for a single survey access code */}
+          {printCode && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-white">
+              <div className="absolute top-4 right-4 flex gap-2 print:hidden">
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="cursor-pointer px-4 py-2 rounded-md text-sm font-semibold text-white"
+                  style={{ backgroundColor: '#4D6DBE' }}
+                >
+                  Print
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPrintCode(null)}
+                  className="cursor-pointer px-3 py-2 rounded-md text-sm font-semibold text-gray-700 border border-gray-300 bg-white"
+                >
+                  Close
+                </button>
+              </div>
+              <div className="w-full max-w-xl mx-4 border border-gray-300 rounded-xl p-10 shadow-lg print:shadow-none">
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-2">
+                    <div
+                      className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold"
+                      style={{ backgroundColor: '#0B2E65', color: '#FFFFFF' }}
+                    >
+                      S4
+                    </div>
+                    <div className="text-lg font-semibold" style={{ color: '#0B2E65' }}>
+                      Star4ce Employee Experience Survey
+                    </div>
+                  </div>
+                  <div className="text-xs text-gray-500 print:text-gray-400">
+                    Access code handout
+                  </div>
+                </div>
+
+                <div className="mb-6">
+                  <p className="text-sm mb-2" style={{ color: '#374151' }}>
+                    Use this card to access the anonymous survey. You can enter the code online
+                    or scan the QR code (if provided by your dealership).
+                  </p>
+                </div>
+
+                <div className="border border-dashed border-gray-300 rounded-xl p-6 mb-6">
+                  <div className="text-xs font-medium uppercase tracking-wide mb-2" style={{ color: '#6B7280' }}>
+                    Access code
+                  </div>
+                  <div className="text-4xl font-mono font-bold tracking-[0.25em] text-center py-4" style={{ color: '#111827' }}>
+                    {printCode.code}
+                  </div>
+                </div>
+
+                <div className="space-y-2 text-sm" style={{ color: '#374151' }}>
+                  <div>
+                    <span className="font-semibold">Survey link:</span>{' '}
+                    <span className="font-mono text-xs break-all">
+                      {`${frontendBase}/survey?code=${encodeURIComponent(printCode.code)}`}
+                    </span>
+                  </div>
+                  {printCode.expires_at && (
+                    <div className="text-xs text-gray-600">
+                      Expires:{' '}
+                      {new Date(printCode.expires_at).toLocaleString()}
+                    </div>
+                  )}
+                  <div className="mt-4 text-xs text-gray-500">
+                    This survey is anonymous. Your responses will be combined with others to
+                    help improve the dealership&apos;s workplace experience.
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {activeTab === 'access-codes' && (
             <div className="max-w-5xl">
               {!role && (
@@ -797,6 +959,11 @@ export default function SurveysPage() {
                       {error}
                     </div>
                   )}
+                  {batchSummary && !error && (
+                    <div className="rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+                      {batchSummary}
+                    </div>
+                  )}
 
                   <p className="text-base" style={{ color: '#374151' }}>
                     Generate a one-week survey access code for your dealership.
@@ -819,6 +986,27 @@ export default function SurveysPage() {
                   >
                     {loadingCreate ? 'Creating code…' : 'Create 7-day access code'}
                   </button>
+
+                  <div className="flex items-center gap-3">
+                    <label className="text-sm" style={{ color: '#374151' }}>
+                      Batch size:
+                      <input
+                        type="number"
+                        min={1}
+                        max={50}
+                        value={batchCount}
+                        onChange={(e) => setBatchCount(e.target.value)}
+                        className="ml-2 w-20 px-2 py-1 rounded border border-gray-300 text-sm"
+                      />
+                    </label>
+                    <button
+                      onClick={handleGenerateBatch}
+                      disabled={loadingCreate}
+                      className="cursor-pointer inline-flex items-center rounded-lg px-4 py-2.5 text-sm font-semibold text-[#4D6DBE] bg-white border border-[#4D6DBE] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                      {loadingCreate ? 'Creating…' : 'Create batch of codes'}
+                    </button>
+                  </div>
 
                   {result && (
                     <div className="mt-2 space-y-1 text-sm">
@@ -894,6 +1082,7 @@ export default function SurveysPage() {
                               <th className="px-4 py-3 text-left font-semibold" style={{ color: '#374151' }}>Status</th>
                               <th className="px-4 py-3 text-left font-semibold" style={{ color: '#374151' }}>Survey link</th>
                               <th className="px-4 py-3 text-left font-semibold" style={{ color: '#374151', width: '60px' }}></th>
+                              <th className="px-4 py-3 text-left font-semibold" style={{ color: '#374151', width: '80px' }}></th>
                             </tr>
                           </thead>
                           <tbody>
@@ -970,6 +1159,15 @@ export default function SurveysPage() {
                                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
                                         </svg>
                                       )}
+                                    </button>
+                                  </td>
+                                  <td className="px-4 py-3">
+                                    <button
+                                      type="button"
+                                      onClick={() => setPrintCode(c)}
+                                      className="cursor-pointer text-xs font-medium text-[#4D6DBE] hover:underline bg-transparent border-none p-0"
+                                    >
+                                      Print handout
                                     </button>
                                   </td>
                                 </tr>

@@ -6,6 +6,7 @@ import RequireAuth from '@/components/layout/RequireAuth';
 import HubSidebar from '@/components/sidebar/HubSidebar';
 import { API_BASE, getToken } from '@/lib/auth';
 import { getJsonAuth } from '@/lib/http';
+import { getUserPermissions } from '@/lib/permissions';
 import toast from 'react-hot-toast';
 
 // Modern color palette - matching surveys page
@@ -125,6 +126,9 @@ export default function EmployeesPage() {
   const router = useRouter();
   const pathname = usePathname();
   const [role, setRole] = useState<string | null>(null);
+  const [canViewEmployees, setCanViewEmployees] = useState<boolean | null>(null);
+  const [canCreateEmployee, setCanCreateEmployee] = useState(false);
+  const [canManageEmployee, setCanManageEmployee] = useState(false);
   const [isApproved, setIsApproved] = useState<boolean | null>(null);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(false);
@@ -184,13 +188,27 @@ export default function EmployeesPage() {
           
           if (res.ok) {
             const data = await res.json();
-            setRole(data.user?.role || data.role);
+            const userRole = data.user?.role || data.role;
+            setRole(userRole);
             setIsApproved(data.user?.is_approved !== false && data.is_approved !== false);
+            // Determine if user can view employees: admin/corporate always; manager/hiring_manager from permissions
+            if (userRole === 'admin' || userRole === 'corporate') {
+              setCanViewEmployees(true);
+            } else if (userRole === 'manager' || userRole === 'hiring_manager') {
+              const perms = await getUserPermissions();
+              setCanViewEmployees(perms.view_employees === true);
+            } else {
+              setCanViewEmployees(false);
+            }
+            const perms = await getUserPermissions();
+            setCanCreateEmployee(perms.create_employee === true);
+            setCanManageEmployee(perms.modify_employee === true || perms.manage_employee === true);
           } else {
             const data = await res.json();
             if (data.error === 'manager_not_approved') {
               setRole('manager');
               setIsApproved(false);
+              setCanViewEmployees(false);
             }
           }
         } catch (err) {
@@ -665,14 +683,29 @@ export default function EmployeesPage() {
     );
   }
 
-  if (role !== 'admin' && role !== 'corporate') {
+  // While we're still resolving permissions for manager/hiring_manager, show loading
+  if ((role === 'manager' || role === 'hiring_manager') && canViewEmployees === null) {
+    return (
+      <RequireAuth>
+        <div className="flex min-h-screen" style={{ backgroundColor: COLORS.gray[50] }}>
+          <HubSidebar />
+          <main className="ml-64 p-8 flex-1 flex items-center justify-center" style={{ maxWidth: 'calc(100vw - 256px)' }}>
+            <div className="text-sm" style={{ color: COLORS.gray[500] }}>Loading...</div>
+          </main>
+        </div>
+      </RequireAuth>
+    );
+  }
+
+  // Block access if we know the user is not allowed (admin/corporate always allowed; manager/hiring_manager need view_employees)
+  if (role != null && canViewEmployees === false) {
     return (
       <RequireAuth>
         <div className="flex min-h-screen" style={{ backgroundColor: COLORS.gray[50] }}>
           <HubSidebar />
           <main className="ml-64 p-8 flex-1" style={{ maxWidth: 'calc(100vw - 256px)' }}>
             <div className="text-center py-12">
-              <div className="text-sm font-medium" style={{ color: COLORS.gray[500] }}>Only Admin and Corporate users can view employees.</div>
+              <div className="text-sm font-medium" style={{ color: COLORS.gray[500] }}>You do not have permission to view the employee list. Please contact your administrator.</div>
             </div>
           </main>
         </div>
@@ -694,7 +727,7 @@ export default function EmployeesPage() {
                   Overview of all current and past employees, roles, statuses, and departmental assignments.
                 </p>
               </div>
-              {role !== 'corporate' ? (
+              {role !== 'corporate' && canCreateEmployee ? (
                 <span className="text-sm">
                   <span style={{ color: COLORS.gray[600] }}>Have an existing employee? </span>
                   <button
@@ -706,11 +739,11 @@ export default function EmployeesPage() {
                     Add them here
                   </button>
                 </span>
-              ) : (
+              ) : role === 'corporate' ? (
                 <div className="px-3 py-2 rounded-lg text-xs font-medium" style={{ backgroundColor: '#F3F4F6', color: '#6B7280' }}>
                   View-Only Mode
                 </div>
-              )}
+              ) : null}
             </div>
           </div>
 
@@ -1250,6 +1283,7 @@ export default function EmployeesPage() {
                     >
                       Close
                     </button>
+                    {canManageEmployee && (
                     <button
                       type="button"
                       onClick={() => {
@@ -1261,6 +1295,7 @@ export default function EmployeesPage() {
                     >
                       Edit Employee
                     </button>
+                    )}
                   </div>
                 </div>
               </div>
