@@ -4,8 +4,10 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { registerApi, saveSession } from '@/lib/auth';
 import Logo from '@/components/Logo';
+import RegistrationClosed from '@/components/RegistrationClosed';
+import { isRegistrationEnabled } from '@/lib/registration';
 
-export default function RegisterPage() {
+function RegisterPageContent() {
   const router = useRouter();
 
   const [currentStep, setCurrentStep] = useState(1);
@@ -668,4 +670,11 @@ export default function RegisterPage() {
       )}
     </div>
   );
+}
+
+export default function RegisterPage() {
+  if (!isRegistrationEnabled()) {
+    return <RegistrationClosed />;
+  }
+  return <RegisterPageContent />;
 }

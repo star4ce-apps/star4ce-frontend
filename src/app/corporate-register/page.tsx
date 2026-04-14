@@ -7,6 +7,8 @@ import { API_BASE } from '@/lib/auth';
 import { formatPhoneInput, validatePhoneFormat, PHONE_FORMAT_HELP } from '@/lib/phone';
 import toast from 'react-hot-toast';
 import Logo from '@/components/Logo';
+import RegistrationClosed from '@/components/RegistrationClosed';
+import { isRegistrationEnabled } from '@/lib/registration';
 
 function CorporateRegisterContent() {
   const router = useRouter();
@@ -578,6 +580,9 @@ function CorporateRegisterContent() {
 }
 
 export default function CorporateRegisterPage() {
+  if (!isRegistrationEnabled()) {
+    return <RegistrationClosed />;
+  }
   return (
     <Suspense fallback={
       <div className="min-h-screen flex items-center justify-center">

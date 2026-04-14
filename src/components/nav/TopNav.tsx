@@ -5,6 +5,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { getToken, clearSession } from '@/lib/auth';
 import Image from "next/image";
 import Logo from "@/components/Logo";
+import { isRegistrationEnabled } from "@/lib/registration";
 
 export default function TopNav()
 {
@@ -80,10 +81,14 @@ export default function TopNav()
                   <Link href="/login" className="cursor-pointer text-white hover:underline">
                     Login
                   </Link>
-                  <span className="text-white/70">/</span>
-                  <Link href="/register" className="cursor-pointer text-white hover:underline">
-                    Register
-                  </Link>
+                  {isRegistrationEnabled() ? (
+                    <>
+                      <span className="text-white/70">/</span>
+                      <Link href="/register" className="cursor-pointer text-white hover:underline">
+                        Register
+                      </Link>
+                    </>
+                  ) : null}
                 </div>
               )}
 
