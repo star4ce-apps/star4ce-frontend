@@ -7,6 +7,8 @@ import { API_BASE } from '@/lib/auth';
 import { formatPhoneInput, validatePhoneFormat, normalizePhone, PHONE_FORMAT_HELP } from '@/lib/phone';
 import toast from 'react-hot-toast';
 import Logo from '@/components/Logo';
+import RegistrationClosed from '@/components/RegistrationClosed';
+import { isRegistrationEnabled } from '@/lib/registration';
 
 function AdminRegisterPageContent() {
   const router = useRouter();
@@ -714,6 +716,9 @@ function AdminRegisterPageContent() {
 }
 
 export default function AdminRegisterPage() {
+  if (!isRegistrationEnabled()) {
+    return <RegistrationClosed />;
+  }
   return (
     <Suspense fallback={
       <div className="fixed inset-0 flex items-center justify-center">
