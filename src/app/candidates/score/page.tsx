@@ -2638,12 +2638,15 @@ function ScoreCandidatePageContent() {
   const hasAppliedUrlRoleStage = useRef(false);
   const hasAppliedUrlCandidate = useRef(false);
   const hasAppliedUrlEditPrefill = useRef(false);
+  const editPrefillGenerationRef = useRef(0);
   const currentUserIdRef = useRef<number | null>(null);
   const selectedCandidateRef = useRef('');
 
-  // Get criteria and map interview questions
-  const rawCriteria = criteriaDataRaw[selectedRole] || [];
-  const currentCriteria = mapQuestionsToCriteria(selectedRole, rawCriteria);
+  // Get criteria and map interview questions (memoized so edit-prefill effect is stable)
+  const currentCriteria = useMemo(
+    () => mapQuestionsToCriteria(selectedRole, criteriaDataRaw[selectedRole] || []),
+    [selectedRole],
+  );
   const selectedRoleData = roles.find(r => r.id === selectedRole);
 
   /** Count + labels: duplicate "Interview Stage: 1" blocks still advance (matches hiring timeline). */
@@ -2810,6 +2813,33 @@ function ScoreCandidatePageContent() {
   function parseInterviewBlockForPrefill(block: string) {
     const stageMatch = block.match(/Interview Stage:\s*(\d+)/);
     const stage = stageMatch?.[1] || '';
+
+    let interviewerName = '';
+    let roleDisplayName = '';
+    const headerLines = block.split(/\r?\n/).map((l) => l.trim());
+    for (let i = 0; i < headerLines.length; i++) {
+      const t = headerLines[i];
+      if (t.startsWith('Interviewer:')) {
+        let rest = t.replace(/^Interviewer:\s*/i, '').trim();
+        if (!rest && i + 1 < headerLines.length) {
+          const nxt = headerLines[i + 1];
+          if (
+            nxt &&
+            !nxt.startsWith('Role:') &&
+            !nxt.startsWith('Interview') &&
+            !nxt.startsWith('Scores:') &&
+            !nxt.startsWith('Total Weighted')
+          ) {
+            rest = nxt;
+            i += 1;
+          }
+        }
+        if (rest) interviewerName = rest;
+      } else if (t.startsWith('Role:')) {
+        roleDisplayName = t.replace(/^Role:\s*/i, '').trim();
+      }
+    }
+
     const recMatch = block.match(/Interviewer Recommendation:\s*(.*)/);
     const recommendationRaw = (recMatch?.[1] || '').trim();
     const recommendation =
@@ -2827,7 +2857,9 @@ function ScoreCandidatePageContent() {
 
     // Parse "Scores:" section into { criterionName -> { score, comment } }
     const scoreMap: Record<string, { score: number; comment: string }> = {};
-    const scoresSectionMatch = block.match(/Scores:\s*([\s\S]*?)\n\s*Total Weighted Score:/);
+    const scoresSectionMatch =
+      block.match(/Scores:\s*([\s\S]*?)(?=\r?\n\s*Total Weighted Score:)/i) ||
+      block.match(/Scores:\s*([\s\S]*?)(?=Total Weighted Score:)/i);
     const scoresSection = scoresSectionMatch?.[1] || '';
     const lines = scoresSection.split('\n').map((l) => l.replace(/\r/g, ''));
     for (let i = 0; i < lines.length; i++) {
@@ -2925,52 +2957,121 @@ function ScoreCandidatePageContent() {
       scoreMap[name] = { score: isNaN(score) ? 0 : score, comment };
     }
 
-    return { stage, recommendation, additionalNotes: additional, scoreMap };
+    return {
+      stage,
+      recommendation,
+      additionalNotes: additional,
+      scoreMap,
+      interviewerName,
+      roleDisplayName,
+    };
   }
+
+  const searchParamsSig = searchParams?.toString() ?? '';
+
+  // Allow edit prefill to run again when the score URL query changes.
+  useEffect(() => {
+    if (!searchParamsSig.includes('editStage=')) {
+      hasAppliedUrlEditPrefill.current = false;
+      return;
+    }
+    hasAppliedUrlEditPrefill.current = false;
+  }, [searchParamsSig]);
 
   // Prefill scores/comments when editing an existing stage
   useEffect(() => {
+    let cancelled = false;
+    const generation = ++editPrefillGenerationRef.current;
+
     (async () => {
       if (hasAppliedUrlEditPrefill.current) return;
       if (!searchParams) return;
       const editStage = searchParams.get('editStage');
       if (!editStage) return;
       if (!selectedCandidate || !selectedStage || selectedStage !== editStage) return;
-      if (!currentCriteria || currentCriteria.length === 0) return;
 
       try {
         const candidateData = await getJsonAuth<{ ok?: boolean; candidate?: { notes?: string } }>(
           `/candidates/${selectedCandidate}`
         );
+        if (cancelled || generation !== editPrefillGenerationRef.current) return;
         const notes = candidateData?.candidate?.notes ?? '';
         const block = getInterviewNoteBlockForStage(notes, editStage);
         if (!block) {
-          hasAppliedUrlEditPrefill.current = true;
+          if (generation === editPrefillGenerationRef.current) {
+            hasAppliedUrlEditPrefill.current = true;
+          }
           return;
         }
 
         const parsed = parseInterviewBlockForPrefill(block);
-        if (parsed.recommendation) setInterviewerRecommendation(parsed.recommendation);
-        if (parsed.additionalNotes) setAdditionalNotes(parsed.additionalNotes);
 
-        const nameToId = new Map<string, string>();
-        currentCriteria.forEach((c) => nameToId.set((c.name || '').trim(), c.id));
+        const matchedRoleFromNotes = parsed.roleDisplayName
+          ? roles.find(
+              (r) => r.name.trim().toLowerCase() === parsed.roleDisplayName.trim().toLowerCase(),
+            )?.id
+          : undefined;
+        const roleFromUrl = searchParams.get('role');
+        const urlRubricOk = Boolean(roleFromUrl && roles.some((r) => r.id === roleFromUrl));
+        const rubricRoleId =
+          matchedRoleFromNotes || (urlRubricOk && roleFromUrl ? roleFromUrl : selectedRole);
+        const criteriaRows = mapQuestionsToCriteria(rubricRoleId, criteriaDataRaw[rubricRoleId] || []);
+        if (!criteriaRows.length) {
+          if (generation === editPrefillGenerationRef.current) {
+            hasAppliedUrlEditPrefill.current = true;
+          }
+          return;
+        }
+
+        if (matchedRoleFromNotes) {
+          setSelectedRole(matchedRoleFromNotes);
+        }
+
+        setInterviewerRecommendation(parsed.recommendation || '');
+        setAdditionalNotes(parsed.additionalNotes ?? '');
+
+        if (parsed.interviewerName && managers.length > 0) {
+          const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, ' ');
+          const target = norm(parsed.interviewerName);
+          const match = managers.find((mgr) => norm(managerDisplayName(mgr)) === target);
+          if (match) setSelectedManager(String(match.id));
+        }
 
         const nextScores: Record<string, number> = {};
         const nextComments: Record<string, string> = {};
-        for (const [name, v] of Object.entries(parsed.scoreMap)) {
-          const id = nameToId.get(name.trim());
-          if (!id) continue;
-          nextScores[id] = v.score;
-          if (v.comment) nextComments[id] = v.comment;
+        for (const c of criteriaRows) {
+          const key = (c.name || '').trim();
+          const v = parsed.scoreMap[key];
+          nextScores[c.id] = v?.score ?? 0;
+          nextComments[c.id] = v?.comment ?? '';
         }
-        if (Object.keys(nextScores).length > 0) setScores(nextScores);
-        if (Object.keys(nextComments).length > 0) setCriterionComments(nextComments);
-      } finally {
+
+        const hadScoreLines = Object.keys(parsed.scoreMap).length > 0;
+        const mappedAny = criteriaRows.some((c) => parsed.scoreMap[(c.name || '').trim()]);
+        if (hadScoreLines && !mappedAny) {
+          console.warn(
+            'Edit prefill: notes scores did not match rubric names; zeros used where unmatched.',
+            { roleDisplay: parsed.roleDisplayName, rubricRoleId },
+          );
+        }
+
+        if (generation !== editPrefillGenerationRef.current) return;
+
+        setScores(nextScores);
+        setCriterionComments(nextComments);
         hasAppliedUrlEditPrefill.current = true;
+      } catch (e) {
+        console.error('Edit score prefill failed:', e);
+        if (generation === editPrefillGenerationRef.current) {
+          hasAppliedUrlEditPrefill.current = true;
+        }
       }
     })();
-  }, [searchParams, selectedCandidate, selectedStage, currentCriteria]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [searchParamsSig, selectedCandidate, selectedStage, selectedRole, managers]);
 
   // Auto-fill candidate from query once when candidates list is loaded (so clearing the field stays blank)
   useEffect(() => {
