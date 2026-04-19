@@ -154,7 +154,7 @@ export default function TopNav()
                       pathname === '/survey' ? 'text-[#2c5aa0] border-b-2 border-[#2c5aa0] pb-1' : ''
                     }`}
                   >
-                    Survey
+                    Take survey
                   </Link>
                   <Link 
                     href="/subscription" 
@@ -205,7 +205,7 @@ export default function TopNav()
                       pathname === '/survey' ? 'text-[#2c5aa0] border-b-2 border-[#2c5aa0] pb-1' : ''
                     }`}
                   >
-                    Survey
+                    Take survey
                   </Link>
                 </>
               )}
@@ -286,7 +286,7 @@ export default function TopNav()
                         }`}
                         onClick={() => setMobileMenuOpen(false)}
                       >
-                        Survey
+                        Take survey
                       </Link>
                       <Link 
                         href="/subscription" 
@@ -353,7 +353,7 @@ export default function TopNav()
                         }`}
                         onClick={() => setMobileMenuOpen(false)}
                       >
-                        Survey
+                        Take survey
                       </Link>
                       <div className="px-6 py-4 border-t border-gray-200 mt-2">
                         <Link
