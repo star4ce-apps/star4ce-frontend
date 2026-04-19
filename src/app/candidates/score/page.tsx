@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useState, useEffect, useRef } from 'react';
+import { Suspense, useState, useEffect, useRef, type Dispatch, type SetStateAction } from 'react';
 import React from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import HubSidebar from '@/components/sidebar/HubSidebar';
@@ -2548,6 +2548,32 @@ function managerDisplayName(m: Manager): string {
   return 'Unknown';
 }
 
+/** Merge latest score (and related fields) from GET /candidates/:id so the banner matches DB after edits on other pages or tabs. */
+async function mergeFreshCandidateIntoList(
+  candidateId: string,
+  setCandidates: Dispatch<SetStateAction<Candidate[]>>,
+) {
+  try {
+    const data = await getJsonAuth<{ ok?: boolean; candidate?: Candidate }>(`/candidates/${candidateId}`);
+    const fresh = data?.candidate;
+    if (!fresh) return;
+    setCandidates((prev) => {
+      const idNum = Number(candidateId);
+      const idx = prev.findIndex((x) => x.id === idNum);
+      if (idx === -1) return prev;
+      const row = prev[idx];
+      if (row.score === fresh.score && row.name === fresh.name && row.status === fresh.status) return prev;
+      return prev.map((c, i) =>
+        i === idx
+          ? { ...c, score: fresh.score ?? c.score, name: fresh.name ?? c.name, status: fresh.status ?? c.status }
+          : c,
+      );
+    });
+  } catch {
+    // ignore
+  }
+}
+
 function ScoreCandidatePageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -2577,6 +2603,7 @@ function ScoreCandidatePageContent() {
   const hasAppliedUrlCandidate = useRef(false);
   const hasAppliedUrlEditPrefill = useRef(false);
   const currentUserIdRef = useRef<number | null>(null);
+  const selectedCandidateRef = useRef('');
 
   // Get criteria and map interview questions
   const rawCriteria = criteriaDataRaw[selectedRole] || [];
@@ -2619,6 +2646,26 @@ function ScoreCandidatePageContent() {
       setSelectedManager(String(uid));
     }
   }, [managers, selectedManager]);
+
+  useEffect(() => {
+    selectedCandidateRef.current = selectedCandidate;
+  }, [selectedCandidate]);
+
+  // Keep banner "Existing Score" in sync with server (list payload is only loaded on mount).
+  useEffect(() => {
+    if (!selectedCandidate) return;
+    void mergeFreshCandidateIntoList(selectedCandidate, setCandidates);
+  }, [selectedCandidate]);
+
+  useEffect(() => {
+    const onVis = () => {
+      if (document.visibilityState !== 'visible') return;
+      const id = selectedCandidateRef.current;
+      if (id) void mergeFreshCandidateIntoList(id, setCandidates);
+    };
+    document.addEventListener('visibilitychange', onVis);
+    return () => document.removeEventListener('visibilitychange', onVis);
+  }, []);
 
   // Load completed stages when candidate is selected
   useEffect(() => {

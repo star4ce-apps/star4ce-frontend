@@ -1,8 +1,8 @@
 /**
  * Parse candidate notes to extract interview scores (one per interview block).
- * Must match profile parseProcessEvents() exactly so list and profile show the same average.
- * Profile normalizes so "Total Weighted Score:" is on its own line (value on next line),
- * so totalScore is often empty and we use category average — we do the same here.
+ * Must match profile parseProcessEvents() so list and profile stay aligned.
+ * Prefer the "(NN/100)" total from the Total Weighted Score line; only fall back to the
+ * simple category /10 average when that line is missing (unweighted, approximate).
  */
 export function getInterviewScoresFromNotes(notes: string | null | undefined): number[] {
   if (!notes || !notes.trim()) return [];
@@ -39,14 +39,12 @@ export function getInterviewScoresFromNotes(notes: string | null | undefined): n
   }
 
   for (const block of interviewBlocks) {
-    // Same normalization as profile so "Total Weighted Score:" gets value on next line (then we ignore it and use category avg)
     const normalizedBlock = block
       .replace(/(Interview Stage:)([^\n])/g, '$1\n$2')
       .replace(/(Hiring Manager:)([^\n])/g, '$1\n$2')
       .replace(/(Role:)([^\n])/g, '$1\n$2')
       .replace(/(Interviewer Recommendation:)([^\n])/g, '$1\n$2')
       .replace(/(Scores:)([^\n])/g, '$1\n$2')
-      .replace(/(Total Weighted Score:)([^\n])/g, '$1\n$2')
       .replace(/(Additional Notes:)([^\n])/g, '$1\n$2');
     const lines = normalizedBlock.split('\n').map((l) => l.trim()).filter((l) => l.length > 0);
 
@@ -57,8 +55,12 @@ export function getInterviewScoresFromNotes(notes: string | null | undefined): n
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
       if (line.startsWith('Total Weighted Score:')) {
-        // Profile only takes same-line value; after normalization value is on next line so this is often ''
-        totalScore = line.replace('Total Weighted Score:', '').trim();
+        let rest = line.replace('Total Weighted Score:', '').trim();
+        if (!rest && i + 1 < lines.length) {
+          rest = lines[i + 1].trim();
+          i += 1;
+        }
+        totalScore = rest;
       } else if (line === 'Scores:') {
         inScoresSection = true;
       } else if (line.startsWith('Additional Notes:')) {

@@ -53,7 +53,6 @@ type CandidateProfile = {
   city?: string | null;
   state?: string | null;
   zip_code?: string | null;
-  overallScore: number;
   stage: string;
   origin: string;
   appliedDate: string;
@@ -61,6 +60,8 @@ type CandidateProfile = {
   university?: string;
   degree?: string;
   referral?: string;
+  /** Canonical overall (0–100) from API; updated when interview scores are submitted. */
+  scoreOutOf100: number | null;
   interviewHistory: InterviewHistory[];
   notes: string;
   resumeUrl?: string | null;
@@ -369,7 +370,7 @@ export default function CandidateProfilePage() {
           gender: c.gender?.trim() || 'Not Provided',
           birthday: c.date_of_birth ? formatBirthday(c.date_of_birth) : 'Not Provided',
           address: c.address?.trim() || 'Not Provided',
-          overallScore: c.score ? c.score / 10 : 0,
+          scoreOutOf100: c.score !== null && c.score !== undefined ? Number(c.score) : null,
           stage: c.status || 'Awaiting',
           origin: 'Career Site',
           appliedDate: new Date(c.applied_at).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' }),
@@ -415,7 +416,7 @@ export default function CandidateProfilePage() {
           city: c.city ?? undefined,
           state: c.state ?? undefined,
           zip_code: c.zip_code ?? undefined,
-          overallScore: c.score !== null && c.score !== undefined ? c.score / 10 : 0,
+          scoreOutOf100: c.score !== null && c.score !== undefined ? Number(c.score) : null,
           stage: c.status || 'Awaiting',
           origin: 'Career Site',
           appliedDate: new Date(c.applied_at).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' }),
@@ -1134,7 +1135,9 @@ export default function CandidateProfilePage() {
         .replace(/(Role:)([^\n])/g, '$1\n$2')
         // Do not add newline after Interviewer Recommendation: so "Interviewer Recommendation: Next Stage" stays on one line
         .replace(/(Scores:)([^\n])/g, '$1\n$2')
-        .replace(/(Total Weighted Score:)([^\n])/g, '$1\n$2')
+        // Do not split "Total Weighted Score:" from its value — that leaves an empty `totalScore` line and
+        // pushes "6.70/10 (67/100)" into the scores section, so (NN/100) is never parsed and we fall back to
+        // an unweighted average of category /10 scores (often ~2 points below the real weighted total).
         .replace(/(Additional Notes:)([^\n])/g, '$1\n$2');
       // Do not add newline after Comments: so "Comments: text" stays on one line and parses correctly
       
@@ -1181,7 +1184,12 @@ export default function CandidateProfilePage() {
             i++; // Skip the next line since we've processed it
           }
         } else if (line.startsWith('Total Weighted Score:')) {
-          totalScore = line.replace('Total Weighted Score:', '').trim();
+          let rest = line.replace('Total Weighted Score:', '').trim();
+          if (!rest && i + 1 < lines.length) {
+            rest = lines[i + 1].trim();
+            i += 1;
+          }
+          totalScore = rest;
         } else if (line === 'Scores:') {
           inScoresSection = true;
           inNotesSection = false;
@@ -1412,7 +1420,7 @@ export default function CandidateProfilePage() {
 
   const processEvents = parseProcessEvents();
 
-  // Average of all interview scores for overall display (fallback to candidate.overallScore from backend)
+  // Parsed per-interview totals (can differ from API overall when multiple interviews exist).
   const interviewScores = processEvents
     .filter((e): e is ProcessEvent & { score: number } => e.type === 'interview' && e.score != null)
     .map(e => e.score);
@@ -1420,8 +1428,10 @@ export default function CandidateProfilePage() {
     interviewScores.length > 0
       ? Math.round(interviewScores.reduce((a, b) => a + b, 0) / interviewScores.length)
       : null;
-  const hasOverallScore = averageInterviewScore !== null;
-  const displayOverallScore = hasOverallScore ? averageInterviewScore : null;
+  const hasStoredOverall =
+    candidate.scoreOutOf100 !== null && candidate.scoreOutOf100 !== undefined;
+  const displayOverallScore = hasStoredOverall ? candidate.scoreOutOf100 : averageInterviewScore;
+  const hasOverallScore = displayOverallScore !== null && displayOverallScore !== undefined;
 
   return (
     <RequireAuth>
