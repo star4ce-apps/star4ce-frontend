@@ -339,12 +339,8 @@ export default function SurveyPage() {
 
   return (
     <div
-      className="fixed flex items-center justify-center overflow-hidden"
+      className="fixed inset-0 flex items-center justify-center overflow-hidden"
       style={{
-        top: '110px',
-        left: 0,
-        right: 0,
-        bottom: 0,
         backgroundImage: 'url(/images/header.jpg)',
         backgroundSize: 'cover',
         backgroundPosition: 'center',

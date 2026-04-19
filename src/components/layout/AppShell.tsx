@@ -23,7 +23,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
                           pathname?.startsWith('/settings') ||
                           (pathname?.startsWith('/admin') && !pathname?.startsWith('/admin-register') && !pathname?.startsWith('/admin-subscribe'));
 
-  // Survey page: no footer, no padding
+  // Public survey entry: no TopNav (avoids admin nav when a manager is still logged in on a shared device).
   const isSurveyPage = pathname === '/survey';
 
   // Only show footer on home page
@@ -36,8 +36,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
   if (isSurveyPage) {
     return (
       <div className="min-h-screen flex flex-col bg-white">
-        <TopNav />
-        <main className="flex-1 pt-[110px]">{children}</main>
+        <main className="flex-1 min-h-0">{children}</main>
         <PageScripts />
       </div>
     );
