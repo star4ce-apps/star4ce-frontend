@@ -231,7 +231,6 @@ function parsePerformanceReviewsFromNotes(notes: string): PerformanceReview[] {
       .replace(/(Reviewer:)([^\n])/g, '$1\n$2')
       .replace(/(Role:)([^\n])/g, '$1\n$2')
       .replace(/(Scores:)([^\n])/g, '$1\n$2')
-      .replace(/(Total Weighted Score:)([^\n])/g, '$1\n$2')
       .replace(/(Strengths:)([^\n])/g, '$1\n$2')
       .replace(/(Areas for Improvement:)([^\n])/g, '$1\n$2')
       .replace(/(Additional Notes:)([^\n])/g, '$1\n$2');
@@ -270,7 +269,12 @@ function parsePerformanceReviewsFromNotes(notes: string): PerformanceReview[] {
       } else if (line.startsWith('Role:')) {
         role = line.replace('Role:', '').trim();
       } else if (line.startsWith('Total Weighted Score:')) {
-        totalScore = line.replace('Total Weighted Score:', '').trim();
+        let rest = line.replace('Total Weighted Score:', '').trim();
+        if (!rest && i + 1 < lines.length) {
+          rest = lines[i + 1].trim();
+          i += 1;
+        }
+        totalScore = rest;
       } else if (line === 'Scores:') {
         inScoresSection = true;
         inStrengthsSection = false;

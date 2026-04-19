@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useState, useEffect, useRef } from 'react';
+import { Suspense, useState, useEffect, useRef, useMemo, type Dispatch, type SetStateAction } from 'react';
 import React from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import HubSidebar from '@/components/sidebar/HubSidebar';
@@ -8,6 +8,13 @@ import RequireAuth from '@/components/layout/RequireAuth';
 import { API_BASE, getToken } from '@/lib/auth';
 import { getUserPermissions } from '@/lib/permissions';
 import { getJsonAuth, postJsonAuth } from '@/lib/http';
+import { jobPositionToScoreRoleId } from '@/lib/candidateScoreRoleMap';
+import {
+  getEffectiveCompletedInterviewMax,
+  getInterviewNoteBlockForStage,
+  isInterviewStageCompletedForUi,
+  replaceInterviewNoteBlockForStage,
+} from '@/lib/candidateNotes';
 import toast from 'react-hot-toast';
 
 // Modern color palette - matching surveys page
@@ -2525,7 +2532,7 @@ type Candidate = {
   name: string;
   email: string;
   phone: string | null;
-  position: string;
+  position?: string | null;
   status: string;
   score?: number | null;
 };
@@ -2539,6 +2546,16 @@ type Manager = {
   role: string;
 };
 
+/** Payload from GET /interviewers when merging into manager dropdown */
+type InterviewerApiUser = {
+  id: number;
+  email?: string;
+  full_name?: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
+  role?: string;
+};
+
 function managerDisplayName(m: Manager): string {
   if (m.first_name && m.last_name) return `${m.first_name} ${m.last_name}`.trim();
   if (m.first_name) return m.first_name;
@@ -2546,6 +2563,58 @@ function managerDisplayName(m: Manager): string {
   if (m.full_name && m.full_name.trim()) return m.full_name.trim();
   if (m.email && m.email.includes('@')) return m.email.split('@')[0].replace(/[._]/g, ' ');
   return 'Unknown';
+}
+
+/** Merge latest score (and related fields) from GET /candidates/:id so the banner matches DB after edits on other pages or tabs. */
+async function mergeFreshCandidateIntoList(
+  candidateId: string,
+  setCandidates: Dispatch<SetStateAction<Candidate[]>>,
+) {
+  try {
+    const data = await getJsonAuth<{ ok?: boolean; candidate?: Candidate }>(`/candidates/${candidateId}`);
+    const fresh = data?.candidate;
+    if (!fresh) return;
+    setCandidates((prev) => {
+      const idNum = Number(candidateId);
+      const idx = prev.findIndex((x) => x.id === idNum);
+      if (idx === -1) return prev;
+      const row = prev[idx];
+      const pos = fresh.position ?? row.position ?? '';
+      if (
+        row.score === fresh.score &&
+        row.name === fresh.name &&
+        row.status === fresh.status &&
+        row.position === pos
+      ) {
+        return prev;
+      }
+      return prev.map((c, i) =>
+        i === idx
+          ? {
+              ...c,
+              score: fresh.score ?? c.score,
+              name: fresh.name ?? c.name,
+              status: fresh.status ?? c.status,
+              position: pos,
+            }
+          : c,
+      );
+    });
+  } catch {
+    // ignore
+  }
+}
+
+/** Extract (NN/100) total from one interview block (matches notes format from submit). */
+function parseTotalOutOf100FromInterviewBlock(block: string): number | null {
+  if (!block) return null;
+  const lineMatch = block.match(/Total\s+Weighted\s+Score:\s*([^\n]+)/i);
+  const tail = (lineMatch?.[1] || '').trim();
+  const haystack = tail || block;
+  const paren = haystack.match(/\(\s*(\d+)\s*\/\s*100\s*\)/);
+  if (!paren) return null;
+  const n = parseInt(paren[1], 10);
+  return Number.isNaN(n) ? null : n;
 }
 
 function ScoreCandidatePageContent() {
@@ -2556,6 +2625,10 @@ function ScoreCandidatePageContent() {
   const [selectedManager, setSelectedManager] = useState('');
   const [selectedStage, setSelectedStage] = useState('');
   const [completedStages, setCompletedStages] = useState<Set<number>>(new Set());
+  /** Set when `loadCompletedStages` finishes for `selectedCandidate` (avoids snapping URL stage to 1 before notes load). */
+  const [interviewStagesLoadedCandidateId, setInterviewStagesLoadedCandidateId] = useState<string | null>(null);
+  /** Latest candidate notes (for per-stage existing score banner; refreshed with completed stages). */
+  const [candidateNotesSnapshot, setCandidateNotesSnapshot] = useState('');
   const [showRedoConfirmation, setShowRedoConfirmation] = useState(false);
   const [pendingStage, setPendingStage] = useState<string | null>(null);
   const [allowRedo, setAllowRedo] = useState(false);
@@ -2576,12 +2649,33 @@ function ScoreCandidatePageContent() {
   const hasAppliedUrlRoleStage = useRef(false);
   const hasAppliedUrlCandidate = useRef(false);
   const hasAppliedUrlEditPrefill = useRef(false);
+  const editPrefillGenerationRef = useRef(0);
   const currentUserIdRef = useRef<number | null>(null);
+  const selectedCandidateRef = useRef('');
 
-  // Get criteria and map interview questions
-  const rawCriteria = criteriaDataRaw[selectedRole] || [];
-  const currentCriteria = mapQuestionsToCriteria(selectedRole, rawCriteria);
+  // Get criteria and map interview questions (memoized so edit-prefill effect is stable)
+  const currentCriteria = useMemo(
+    () => mapQuestionsToCriteria(selectedRole, criteriaDataRaw[selectedRole] || []),
+    [selectedRole],
+  );
   const selectedRoleData = roles.find(r => r.id === selectedRole);
+
+  /** Count + labels: duplicate "Interview Stage: 1" blocks still advance (matches hiring timeline). */
+  const effectiveMaxCompletedInterview = useMemo(
+    () => getEffectiveCompletedInterviewMax(candidateNotesSnapshot),
+    [candidateNotesSnapshot],
+  );
+
+  /** Next stage to score is effectiveMax+1; only show pills through that stage (hide 3–5 until 2 is done, etc.). */
+  const highestVisibleInterviewStage = useMemo(
+    () => Math.min(5, effectiveMaxCompletedInterview + 1),
+    [effectiveMaxCompletedInterview],
+  );
+
+  const visibleInterviewStages = useMemo(
+    () => Array.from({ length: highestVisibleInterviewStage }, (_, i) => i + 1),
+    [highestVisibleInterviewStage],
+  );
 
   useEffect(() => {
     (async () => {
@@ -2620,13 +2714,36 @@ function ScoreCandidatePageContent() {
     }
   }, [managers, selectedManager]);
 
+  useEffect(() => {
+    selectedCandidateRef.current = selectedCandidate;
+  }, [selectedCandidate]);
+
+  // Keep banner "Existing Score" in sync with server (list payload is only loaded on mount).
+  useEffect(() => {
+    if (!selectedCandidate) return;
+    void mergeFreshCandidateIntoList(selectedCandidate, setCandidates);
+  }, [selectedCandidate]);
+
+  useEffect(() => {
+    const onVis = () => {
+      if (document.visibilityState !== 'visible') return;
+      const id = selectedCandidateRef.current;
+      if (id) void mergeFreshCandidateIntoList(id, setCandidates);
+    };
+    document.addEventListener('visibilitychange', onVis);
+    return () => document.removeEventListener('visibilitychange', onVis);
+  }, []);
+
   // Load completed stages when candidate is selected
   useEffect(() => {
     if (selectedCandidate) {
-      loadCompletedStages(selectedCandidate);
+      setInterviewStagesLoadedCandidateId(null);
+      void loadCompletedStages(selectedCandidate);
     } else {
+      setInterviewStagesLoadedCandidateId(null);
       setCompletedStages(new Set());
       setAllowRedo(false);
+      setCandidateNotesSnapshot('');
     }
   }, [selectedCandidate]);
 
@@ -2651,35 +2768,72 @@ function ScoreCandidatePageContent() {
     setPendingStage(null);
   }, [searchParams]);
 
-  function extractInterviewBlock(notes: string, stage: string): string | null {
-    if (!notes || !notes.trim() || !stage) return null;
-    const blocks = notes.includes('--- INTERVIEW ---')
-      ? notes.split(/--- INTERVIEW ---/g)
-      : notes.split(/Interview Stage:/g).map((b, i) => (i === 0 ? b : `Interview Stage:${b}`));
-    const target = blocks.find((b) => new RegExp(`Interview Stage:\\s*${stage}\\b`).test(b));
-    return target ? target.trim() : null;
-  }
+  const selectedCandidatePositionSig = useMemo(() => {
+    const c = candidates.find((x) => x.id.toString() === selectedCandidate);
+    return c && selectedCandidate ? `${c.id}|${(c.position || '').trim()}` : '';
+  }, [selectedCandidate, candidates]);
 
-  function replaceInterviewBlock(notes: string, stage: string, newBlock: string): string {
-    const trimmedNew = (newBlock || '').trim();
-    if (!trimmedNew) return notes || '';
+  // Match scorecard "Role" to the candidate's job title when they are chosen (avoids wrong rubric after prior session).
+  // Deep links with ?candidateId=&role= still win so profile "Edit score" stays explicit.
+  useEffect(() => {
+    if (!selectedCandidate || !selectedCandidatePositionSig) return;
+    const c = candidates.find((x) => x.id.toString() === selectedCandidate);
+    if (!c) return;
 
-    const existing = (notes || '').trim();
-    if (!existing) return trimmedNew;
+    const urlRole = searchParams?.get('role');
+    const urlCand = searchParams?.get('candidateId');
+    if (urlRole && roles.some((r) => r.id === urlRole) && urlCand === selectedCandidate) {
+      setSelectedRole(urlRole);
+      return;
+    }
 
-    const blocks = existing.includes('--- INTERVIEW ---')
-      ? existing.split(/--- INTERVIEW ---/g).map((b) => b.trim()).filter(Boolean)
-      : existing.split(/(?=Interview Stage:)/g).map((b) => b.trim()).filter(Boolean);
+    const title = (c.position || '').trim();
+    if (!title) return;
+    const nextRole = jobPositionToScoreRoleId(title);
+    if (roles.some((r) => r.id === nextRole)) {
+      setSelectedRole(nextRole);
+    }
+  }, [selectedCandidate, selectedCandidatePositionSig, searchParams]);
 
-    const kept = blocks.filter((b) => !new RegExp(`Interview Stage:\\s*${stage}\\b`).test(b));
-    kept.push(trimmedNew);
-
-    return kept.join('\n\n--- INTERVIEW ---\n\n');
-  }
+  useEffect(() => {
+    if (!selectedStage || !selectedCandidate) return;
+    if (interviewStagesLoadedCandidateId !== selectedCandidate) return;
+    const n = parseInt(selectedStage, 10);
+    if (Number.isNaN(n) || n < 1 || n > highestVisibleInterviewStage) {
+      setSelectedStage(String(Math.max(1, highestVisibleInterviewStage)));
+    }
+  }, [highestVisibleInterviewStage, selectedStage, interviewStagesLoadedCandidateId, selectedCandidate]);
 
   function parseInterviewBlockForPrefill(block: string) {
     const stageMatch = block.match(/Interview Stage:\s*(\d+)/);
     const stage = stageMatch?.[1] || '';
+
+    let interviewerName = '';
+    let roleDisplayName = '';
+    const headerLines = block.split(/\r?\n/).map((l) => l.trim());
+    for (let i = 0; i < headerLines.length; i++) {
+      const t = headerLines[i];
+      if (t.startsWith('Interviewer:')) {
+        let rest = t.replace(/^Interviewer:\s*/i, '').trim();
+        if (!rest && i + 1 < headerLines.length) {
+          const nxt = headerLines[i + 1];
+          if (
+            nxt &&
+            !nxt.startsWith('Role:') &&
+            !nxt.startsWith('Interview') &&
+            !nxt.startsWith('Scores:') &&
+            !nxt.startsWith('Total Weighted')
+          ) {
+            rest = nxt;
+            i += 1;
+          }
+        }
+        if (rest) interviewerName = rest;
+      } else if (t.startsWith('Role:')) {
+        roleDisplayName = t.replace(/^Role:\s*/i, '').trim();
+      }
+    }
+
     const recMatch = block.match(/Interviewer Recommendation:\s*(.*)/);
     const recommendationRaw = (recMatch?.[1] || '').trim();
     const recommendation =
@@ -2697,7 +2851,9 @@ function ScoreCandidatePageContent() {
 
     // Parse "Scores:" section into { criterionName -> { score, comment } }
     const scoreMap: Record<string, { score: number; comment: string }> = {};
-    const scoresSectionMatch = block.match(/Scores:\s*([\s\S]*?)\n\s*Total Weighted Score:/);
+    const scoresSectionMatch =
+      block.match(/Scores:\s*([\s\S]*?)(?=\r?\n\s*Total Weighted Score:)/i) ||
+      block.match(/Scores:\s*([\s\S]*?)(?=Total Weighted Score:)/i);
     const scoresSection = scoresSectionMatch?.[1] || '';
     const lines = scoresSection.split('\n').map((l) => l.replace(/\r/g, ''));
     for (let i = 0; i < lines.length; i++) {
@@ -2795,52 +2951,121 @@ function ScoreCandidatePageContent() {
       scoreMap[name] = { score: isNaN(score) ? 0 : score, comment };
     }
 
-    return { stage, recommendation, additionalNotes: additional, scoreMap };
+    return {
+      stage,
+      recommendation,
+      additionalNotes: additional,
+      scoreMap,
+      interviewerName,
+      roleDisplayName,
+    };
   }
+
+  const searchParamsSig = searchParams?.toString() ?? '';
+
+  // Allow edit prefill to run again when the score URL query changes.
+  useEffect(() => {
+    if (!searchParamsSig.includes('editStage=')) {
+      hasAppliedUrlEditPrefill.current = false;
+      return;
+    }
+    hasAppliedUrlEditPrefill.current = false;
+  }, [searchParamsSig]);
 
   // Prefill scores/comments when editing an existing stage
   useEffect(() => {
+    let cancelled = false;
+    const generation = ++editPrefillGenerationRef.current;
+
     (async () => {
       if (hasAppliedUrlEditPrefill.current) return;
       if (!searchParams) return;
       const editStage = searchParams.get('editStage');
       if (!editStage) return;
       if (!selectedCandidate || !selectedStage || selectedStage !== editStage) return;
-      if (!currentCriteria || currentCriteria.length === 0) return;
 
       try {
         const candidateData = await getJsonAuth<{ ok?: boolean; candidate?: { notes?: string } }>(
           `/candidates/${selectedCandidate}`
         );
+        if (cancelled || generation !== editPrefillGenerationRef.current) return;
         const notes = candidateData?.candidate?.notes ?? '';
-        const block = extractInterviewBlock(notes, editStage);
+        const block = getInterviewNoteBlockForStage(notes, editStage);
         if (!block) {
-          hasAppliedUrlEditPrefill.current = true;
+          if (generation === editPrefillGenerationRef.current) {
+            hasAppliedUrlEditPrefill.current = true;
+          }
           return;
         }
 
         const parsed = parseInterviewBlockForPrefill(block);
-        if (parsed.recommendation) setInterviewerRecommendation(parsed.recommendation);
-        if (parsed.additionalNotes) setAdditionalNotes(parsed.additionalNotes);
 
-        const nameToId = new Map<string, string>();
-        currentCriteria.forEach((c) => nameToId.set((c.name || '').trim(), c.id));
+        const matchedRoleFromNotes = parsed.roleDisplayName
+          ? roles.find(
+              (r) => r.name.trim().toLowerCase() === parsed.roleDisplayName.trim().toLowerCase(),
+            )?.id
+          : undefined;
+        const roleFromUrl = searchParams.get('role');
+        const urlRubricOk = Boolean(roleFromUrl && roles.some((r) => r.id === roleFromUrl));
+        const rubricRoleId =
+          matchedRoleFromNotes || (urlRubricOk && roleFromUrl ? roleFromUrl : selectedRole);
+        const criteriaRows = mapQuestionsToCriteria(rubricRoleId, criteriaDataRaw[rubricRoleId] || []);
+        if (!criteriaRows.length) {
+          if (generation === editPrefillGenerationRef.current) {
+            hasAppliedUrlEditPrefill.current = true;
+          }
+          return;
+        }
+
+        if (matchedRoleFromNotes) {
+          setSelectedRole(matchedRoleFromNotes);
+        }
+
+        setInterviewerRecommendation(parsed.recommendation || '');
+        setAdditionalNotes(parsed.additionalNotes ?? '');
+
+        if (parsed.interviewerName && managers.length > 0) {
+          const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, ' ');
+          const target = norm(parsed.interviewerName);
+          const match = managers.find((mgr) => norm(managerDisplayName(mgr)) === target);
+          if (match) setSelectedManager(String(match.id));
+        }
 
         const nextScores: Record<string, number> = {};
         const nextComments: Record<string, string> = {};
-        for (const [name, v] of Object.entries(parsed.scoreMap)) {
-          const id = nameToId.get(name.trim());
-          if (!id) continue;
-          nextScores[id] = v.score;
-          if (v.comment) nextComments[id] = v.comment;
+        for (const c of criteriaRows) {
+          const key = (c.name || '').trim();
+          const v = parsed.scoreMap[key];
+          nextScores[c.id] = v?.score ?? 0;
+          nextComments[c.id] = v?.comment ?? '';
         }
-        if (Object.keys(nextScores).length > 0) setScores(nextScores);
-        if (Object.keys(nextComments).length > 0) setCriterionComments(nextComments);
-      } finally {
+
+        const hadScoreLines = Object.keys(parsed.scoreMap).length > 0;
+        const mappedAny = criteriaRows.some((c) => parsed.scoreMap[(c.name || '').trim()]);
+        if (hadScoreLines && !mappedAny) {
+          console.warn(
+            'Edit prefill: notes scores did not match rubric names; zeros used where unmatched.',
+            { roleDisplay: parsed.roleDisplayName, rubricRoleId },
+          );
+        }
+
+        if (generation !== editPrefillGenerationRef.current) return;
+
+        setScores(nextScores);
+        setCriterionComments(nextComments);
         hasAppliedUrlEditPrefill.current = true;
+      } catch (e) {
+        console.error('Edit score prefill failed:', e);
+        if (generation === editPrefillGenerationRef.current) {
+          hasAppliedUrlEditPrefill.current = true;
+        }
       }
     })();
-  }, [searchParams, selectedCandidate, selectedStage, currentCriteria]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [searchParamsSig, selectedCandidate, selectedStage, selectedRole, managers]);
 
   // Auto-fill candidate from query once when candidates list is loaded (so clearing the field stays blank)
   useEffect(() => {
@@ -2859,12 +3084,17 @@ function ScoreCandidatePageContent() {
   async function loadCompletedStages(candidateId: string) {
     try {
       const token = getToken();
-      if (!token) return;
+      if (!token) {
+        setCompletedStages(new Set());
+        setCandidateNotesSnapshot('');
+        return;
+      }
 
       const candidateData = await getJsonAuth<{ ok?: boolean; candidate?: { notes?: string } }>(
         `/candidates/${candidateId}`
       );
       const notes = candidateData?.candidate?.notes ?? '';
+      setCandidateNotesSnapshot(notes);
 
       if (!notes || !notes.trim()) {
         setCompletedStages(new Set());
@@ -2897,14 +3127,27 @@ function ScoreCandidatePageContent() {
     } catch (err) {
       console.error('Failed to load completed stages:', err);
       setCompletedStages(new Set());
+      setCandidateNotesSnapshot('');
+    } finally {
+      if (selectedCandidateRef.current === candidateId) {
+        setInterviewStagesLoadedCandidateId(candidateId);
+      }
     }
   }
 
   function handleStageSelection(stage: string) {
     const stageNum = parseInt(stage, 10);
-    
+    if (Number.isNaN(stageNum)) return;
+
+    const effectiveMax = getEffectiveCompletedInterviewMax(candidateNotesSnapshot);
+    const nextSequential = effectiveMax + 1;
+    if (!completedStages.has(stageNum) && stageNum > nextSequential) {
+      toast.error('Complete the previous interview stage first.');
+      return;
+    }
+
     // Check if this stage has already been completed
-    if (completedStages.has(stageNum) && !allowRedo) {
+    if (isInterviewStageCompletedForUi(candidateNotesSnapshot, stageNum) && !allowRedo) {
       // Show confirmation dialog
       setPendingStage(stage);
       setShowRedoConfirmation(true);
@@ -2997,9 +3240,9 @@ function ScoreCandidatePageContent() {
 
       // Fetch all interviewers (admin, manager, hiring_manager, corporate) for this dealership
       try {
-        const data = await getJsonAuth<{ ok?: boolean; interviewers?: any[] }>('/interviewers');
+        const data = await getJsonAuth<{ ok?: boolean; interviewers?: InterviewerApiUser[] }>('/interviewers');
         if (data?.interviewers) {
-          (data.interviewers as any[]).forEach((u: any) => {
+          data.interviewers.forEach((u) => {
             if (!managerExists(u.id)) {
               const fullName = u.full_name || (u.first_name && u.last_name ? `${u.first_name} ${u.last_name}`.trim() : null);
               allManagers.push({
@@ -3043,13 +3286,15 @@ function ScoreCandidatePageContent() {
     }));
   };
 
+  /** Points toward 100: (raw 0–10 / 10) × weight% = raw × weight / 10. Weights should sum to 100. */
   const calculateWeighted = (criterionId: string): number => {
     const criterion = currentCriteria.find(c => c.id === criterionId);
     if (!criterion) return 0;
     const rawScore = scores[criterionId] || 0;
-    return (rawScore * criterion.weight) / 100;
+    return (rawScore * criterion.weight) / 10;
   };
 
+  /** Sum of weighted contributions; 0–100 when criterion weights sum to 100 and all raw scores are 0–10. */
   const totalWeighted = currentCriteria.reduce((sum, criterion) => {
     return sum + calculateWeighted(criterion.id);
   }, 0);
@@ -3089,7 +3334,7 @@ function ScoreCandidatePageContent() {
 
     // Check if this stage has already been completed and user hasn't confirmed redo
     const stageNum = parseInt(selectedStage, 10);
-    if (completedStages.has(stageNum) && !allowRedo) {
+    if (isInterviewStageCompletedForUi(candidateNotesSnapshot, stageNum) && !allowRedo) {
       toast.error('This interview stage has already been completed. Please confirm to redo it.');
       setPendingStage(selectedStage);
       setShowRedoConfirmation(true);
@@ -3111,8 +3356,7 @@ function ScoreCandidatePageContent() {
         return;
       }
 
-      // Convert total weighted score (0-10 scale) to 0-100 scale
-      const scoreOutOf100 = Math.round(totalWeighted * 10);
+      const scoreOutOf100 = Math.round(totalWeighted);
 
       // Get candidate and manager info
       const candidate = candidates.find(c => c.id.toString() === selectedCandidate);
@@ -3138,7 +3382,7 @@ Interviewer Recommendation: ${recommendationText}
 Scores:
 ${criterionNotes}
 
-Total Weighted Score: ${totalWeighted.toFixed(2)}/10 (${scoreOutOf100}/100)${additionalNotes ? `
+Total Weighted Score: ${totalWeighted.toFixed(2)}/100 (${scoreOutOf100}/100)${additionalNotes ? `
 
 Additional Notes:
 ${additionalNotes}` : ''}`;
@@ -3152,7 +3396,7 @@ ${additionalNotes}` : ''}`;
       const editStageFromUrl = searchParams?.get('editStage');
       const shouldReplace = Boolean(editStageFromUrl) || allowRedo;
       const updatedNotes = shouldReplace
-        ? replaceInterviewBlock(existingNotes, selectedStage, newInterviewNotes)
+        ? replaceInterviewNoteBlockForStage(existingNotes, selectedStage, newInterviewNotes)
         : (existingNotes && existingNotes.trim()
             ? `${existingNotes.trim()}\n\n--- INTERVIEW ---\n\n${newInterviewNotes}`
             : newInterviewNotes);
@@ -3192,7 +3436,7 @@ ${additionalNotes}` : ''}`;
       await loadCandidates();
       // Reload completed stages if candidate is still selected
       if (selectedCandidate) {
-        loadCompletedStages(selectedCandidate);
+        void loadCompletedStages(selectedCandidate);
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to submit scores';
@@ -3282,20 +3526,38 @@ ${additionalNotes}` : ''}`;
 
           {/* Candidate, Role, Interview Stage, and Interviewer Selection - Top */}
           {(() => {
-            const selectedCandidateObj = candidates.find(c => c.id.toString() === selectedCandidate);
-            if (selectedCandidate && selectedCandidateObj && selectedCandidateObj.score !== null && selectedCandidateObj.score !== undefined) {
-              return (
-                <div className="mb-4 p-3 rounded-lg" style={{ backgroundColor: '#FEF3C7', border: '1px solid #FCD34D' }}>
-                  <p className="text-sm font-semibold" style={{ color: '#92400E' }}>
-                    Existing Score: {selectedCandidateObj.score}/100
-                  </p>
-                  <p className="text-xs" style={{ color: '#78350F' }}>
-                    Entering new scores will update this candidate's score.
-                  </p>
-                </div>
+            const selectedCandidateObj = candidates.find((c) => c.id.toString() === selectedCandidate);
+            const stageNum = selectedStage ? parseInt(selectedStage, 10) : NaN;
+            const selectedStageHasInterview =
+              Boolean(
+                selectedCandidate &&
+                  selectedStage &&
+                  !Number.isNaN(stageNum) &&
+                  isInterviewStageCompletedForUi(candidateNotesSnapshot, stageNum),
               );
+            if (!selectedCandidateObj || !selectedStageHasInterview) {
+              return null;
             }
-            return null;
+            const block = getInterviewNoteBlockForStage(candidateNotesSnapshot, selectedStage);
+            const stageTotal = block ? parseTotalOutOf100FromInterviewBlock(block) : null;
+            const display =
+              stageTotal !== null && stageTotal !== undefined
+                ? stageTotal
+                : selectedCandidateObj.score !== null && selectedCandidateObj.score !== undefined
+                  ? selectedCandidateObj.score
+                  : null;
+            return (
+              <div className="mb-4 p-3 rounded-lg" style={{ backgroundColor: '#FEF3C7', border: '1px solid #FCD34D' }}>
+                <p className="text-sm font-semibold" style={{ color: '#92400E' }}>
+                  {display !== null && display !== undefined
+                    ? `Existing score for Interview ${selectedStage}: ${display}/100`
+                    : `Interview ${selectedStage} already has scores on file`}
+                </p>
+                <p className="text-xs" style={{ color: '#78350F' }}>
+                  Entering new scores will update this interview and the candidate&apos;s overall score.
+                </p>
+              </div>
+            );
           })()}
           <div className="grid grid-cols-4 gap-4 mb-6">
             <div className="relative">
@@ -3334,8 +3596,8 @@ ${additionalNotes}` : ''}`;
                       .filter(candidate => {
                         if (!candidateSearch) return true;
                         const searchLower = candidateSearch.toLowerCase();
-                        return candidate.name.toLowerCase().includes(searchLower) || 
-                               candidate.position.toLowerCase().includes(searchLower);
+                        return candidate.name.toLowerCase().includes(searchLower) ||
+                               (candidate.position ?? '').toLowerCase().includes(searchLower);
                       })
                       .map(candidate => (
                         <div
@@ -3356,8 +3618,8 @@ ${additionalNotes}` : ''}`;
                     {candidates.filter(candidate => {
                       if (!candidateSearch) return true;
                       const searchLower = candidateSearch.toLowerCase();
-                      return candidate.name.toLowerCase().includes(searchLower) || 
-                             candidate.position.toLowerCase().includes(searchLower);
+                      return candidate.name.toLowerCase().includes(searchLower) ||
+                             (candidate.position ?? '').toLowerCase().includes(searchLower);
                     }).length === 0 && (
                       <div className="px-4 py-2 text-sm" style={{ color: '#6B7280' }}>
                         No candidates found
@@ -3424,9 +3686,9 @@ ${additionalNotes}` : ''}`;
               <label className="block text-sm font-bold mb-2" style={{ color: '#232E40' }}>
                 Interview Stage:
               </label>
-              <div className="flex gap-2">
-                {[1, 2, 3, 4, 5].map((num) => {
-                  const isCompleted = completedStages.has(num);
+              <div className="flex gap-2 flex-wrap">
+                {visibleInterviewStages.map((num) => {
+                  const isCompleted = isInterviewStageCompletedForUi(candidateNotesSnapshot, num);
                   const isSelected = selectedStage === num.toString();
                   return (
                     <button
@@ -3652,7 +3914,7 @@ ${additionalNotes}` : ''}`;
               <div className="flex items-center gap-4 py-3" style={{ borderBottom: '1px solid #E5E7EB' }}>
                 <span className="text-sm font-bold whitespace-nowrap px-3 py-1 rounded" style={{ color: '#047857', backgroundColor: '#6EE7B7', minWidth: '90px' }}>90-100</span>
                 <span className="text-sm font-semibold" style={{ color: '#232E40' }}>Likely Game Changer</span>
-                <span className="text-sm" style={{ color: '#6B7280' }}>— Exceptional talent; could transform the department's performance</span>
+                <span className="text-sm" style={{ color: '#6B7280' }}>— Exceptional talent; could transform the department&apos;s performance</span>
               </div>
               <div className="flex items-center gap-4 py-3" style={{ borderBottom: '1px solid #E5E7EB' }}>
                 <span className="text-sm font-bold whitespace-nowrap px-3 py-1 rounded" style={{ color: '#065F46', backgroundColor: '#A7F3D0', minWidth: '90px' }}>80-89</span>
@@ -3667,7 +3929,7 @@ ${additionalNotes}` : ''}`;
               <div className="flex items-center gap-4 py-3" style={{ borderBottom: '1px solid #E5E7EB' }}>
                 <span className="text-sm font-bold whitespace-nowrap px-3 py-1 rounded" style={{ color: '#92400E', backgroundColor: '#FDE68A', minWidth: '90px' }}>60-69</span>
                 <span className="text-sm font-semibold" style={{ color: '#232E40' }}>Average Candidate</span>
-                <span className="text-sm" style={{ color: '#6B7280' }}>— Won't move the needle; meets basic expectations but lacks standout qualities</span>
+                <span className="text-sm" style={{ color: '#6B7280' }}>— Won&apos;t move the needle; meets basic expectations but lacks standout qualities</span>
               </div>
               <div className="flex items-center gap-4 py-3">
                 <span className="text-sm font-bold whitespace-nowrap px-3 py-1 rounded" style={{ color: '#991B1B', backgroundColor: '#FECACA', minWidth: '90px' }}>59 - 00</span>
@@ -3688,7 +3950,7 @@ ${additionalNotes}` : ''}`;
                   color: '#FFFFFF',
                 }}
               >
-                {Math.round(totalWeighted * 10)}/100
+                {Math.round(totalWeighted)}/100
               </span>
             </div>
             <div className="flex items-center gap-3">
@@ -4048,7 +4310,7 @@ ${additionalNotes}` : ''}`;
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '4px 0', borderBottom: '1px solid #ddd' }}>
                     <span style={{ fontWeight: 'bold', padding: '2px 6px', border: '1px solid #000', minWidth: '60px', textAlign: 'center' }}>90-100</span>
                     <span style={{ fontWeight: 'bold' }}>Likely Game Changer</span>
-                    <span style={{ color: '#000' }}>— Exceptional talent; could transform the department's performance</span>
+                    <span style={{ color: '#000' }}>— Exceptional talent; could transform the department&apos;s performance</span>
                         </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '4px 0', borderBottom: '1px solid #ddd' }}>
                     <span style={{ fontWeight: 'bold', padding: '2px 6px', border: '1px solid #000', minWidth: '60px', textAlign: 'center' }}>80-89</span>
@@ -4063,7 +4325,7 @@ ${additionalNotes}` : ''}`;
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '4px 0', borderBottom: '1px solid #ddd' }}>
                     <span style={{ fontWeight: 'bold', padding: '2px 6px', border: '1px solid #000', minWidth: '60px', textAlign: 'center' }}>60-69</span>
                     <span style={{ fontWeight: 'bold' }}>Average Candidate</span>
-                    <span style={{ color: '#000' }}>— Won't move the needle; meets basic expectations but lacks standout qualities</span>
+                    <span style={{ color: '#000' }}>— Won&apos;t move the needle; meets basic expectations but lacks standout qualities</span>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '4px 0' }}>
                     <span style={{ fontWeight: 'bold', padding: '2px 6px', border: '1px solid #000', minWidth: '60px', textAlign: 'center' }}>59-00</span>
@@ -4189,8 +4451,11 @@ ${additionalNotes}` : ''}`;
 
       {/* Redo Confirmation Modal */}
       {showRedoConfirmation && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-          <div className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-[2px]"
+          style={{ backgroundColor: 'rgba(71, 85, 105, 0.35)' }}
+        >
+          <div className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4 border border-slate-200">
             <h3 className="text-lg font-semibold mb-4" style={{ color: '#232E40' }}>
               Interview Stage Already Completed
             </h3>

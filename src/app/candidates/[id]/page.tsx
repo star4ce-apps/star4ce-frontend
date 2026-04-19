@@ -7,6 +7,8 @@ import RequireAuth from '@/components/layout/RequireAuth';
 import { API_BASE, getToken } from '@/lib/auth';
 import { getUserPermissions } from '@/lib/permissions';
 import { deleteJsonAuth, getJsonAuth, postJsonAuth, putJsonAuth } from '@/lib/http';
+import { jobPositionToScoreRoleId } from '@/lib/candidateScoreRoleMap';
+import { getEffectiveCompletedInterviewMax } from '@/lib/candidateNotes';
 
 import toast from 'react-hot-toast';
 
@@ -53,7 +55,6 @@ type CandidateProfile = {
   city?: string | null;
   state?: string | null;
   zip_code?: string | null;
-  overallScore: number;
   stage: string;
   origin: string;
   appliedDate: string;
@@ -61,6 +62,8 @@ type CandidateProfile = {
   university?: string;
   degree?: string;
   referral?: string;
+  /** Canonical overall (0–100) from API; updated when interview scores are submitted. */
+  scoreOutOf100: number | null;
   interviewHistory: InterviewHistory[];
   notes: string;
   resumeUrl?: string | null;
@@ -369,7 +372,7 @@ export default function CandidateProfilePage() {
           gender: c.gender?.trim() || 'Not Provided',
           birthday: c.date_of_birth ? formatBirthday(c.date_of_birth) : 'Not Provided',
           address: c.address?.trim() || 'Not Provided',
-          overallScore: c.score ? c.score / 10 : 0,
+          scoreOutOf100: c.score !== null && c.score !== undefined ? Number(c.score) : null,
           stage: c.status || 'Awaiting',
           origin: 'Career Site',
           appliedDate: new Date(c.applied_at).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' }),
@@ -415,7 +418,7 @@ export default function CandidateProfilePage() {
           city: c.city ?? undefined,
           state: c.state ?? undefined,
           zip_code: c.zip_code ?? undefined,
-          overallScore: c.score !== null && c.score !== undefined ? c.score / 10 : 0,
+          scoreOutOf100: c.score !== null && c.score !== undefined ? Number(c.score) : null,
           stage: c.status || 'Awaiting',
           origin: 'Career Site',
           appliedDate: new Date(c.applied_at).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' }),
@@ -1134,7 +1137,9 @@ export default function CandidateProfilePage() {
         .replace(/(Role:)([^\n])/g, '$1\n$2')
         // Do not add newline after Interviewer Recommendation: so "Interviewer Recommendation: Next Stage" stays on one line
         .replace(/(Scores:)([^\n])/g, '$1\n$2')
-        .replace(/(Total Weighted Score:)([^\n])/g, '$1\n$2')
+        // Do not split "Total Weighted Score:" from its value — that leaves an empty `totalScore` line and
+        // pushes "6.70/10 (67/100)" into the scores section, so (NN/100) is never parsed and we fall back to
+        // an unweighted average of category /10 scores (often ~2 points below the real weighted total).
         .replace(/(Additional Notes:)([^\n])/g, '$1\n$2');
       // Do not add newline after Comments: so "Comments: text" stays on one line and parses correctly
       
@@ -1181,7 +1186,12 @@ export default function CandidateProfilePage() {
             i++; // Skip the next line since we've processed it
           }
         } else if (line.startsWith('Total Weighted Score:')) {
-          totalScore = line.replace('Total Weighted Score:', '').trim();
+          let rest = line.replace('Total Weighted Score:', '').trim();
+          if (!rest && i + 1 < lines.length) {
+            rest = lines[i + 1].trim();
+            i += 1;
+          }
+          totalScore = rest;
         } else if (line === 'Scores:') {
           inScoresSection = true;
           inNotesSection = false;
@@ -1412,7 +1422,7 @@ export default function CandidateProfilePage() {
 
   const processEvents = parseProcessEvents();
 
-  // Average of all interview scores for overall display (fallback to candidate.overallScore from backend)
+  // Parsed per-interview totals (can differ from API overall when multiple interviews exist).
   const interviewScores = processEvents
     .filter((e): e is ProcessEvent & { score: number } => e.type === 'interview' && e.score != null)
     .map(e => e.score);
@@ -1420,8 +1430,10 @@ export default function CandidateProfilePage() {
     interviewScores.length > 0
       ? Math.round(interviewScores.reduce((a, b) => a + b, 0) / interviewScores.length)
       : null;
-  const hasOverallScore = averageInterviewScore !== null;
-  const displayOverallScore = hasOverallScore ? averageInterviewScore : null;
+  const hasStoredOverall =
+    candidate.scoreOutOf100 !== null && candidate.scoreOutOf100 !== undefined;
+  const displayOverallScore = hasStoredOverall ? candidate.scoreOutOf100 : averageInterviewScore;
+  const hasOverallScore = displayOverallScore !== null && displayOverallScore !== undefined;
 
   return (
     <RequireAuth>
@@ -1572,53 +1584,12 @@ export default function CandidateProfilePage() {
                   {canViewInterviewScores && !(['Hired', 'Denied', 'Rejected'].includes((candidate?.stage || '').trim())) && (
                   <button
                     onClick={() => {
-                      // Calculate next interview stage
-                      const events = parseProcessEvents();
-                      const interviewEvents = events.filter(e => e.type === 'interview');
-                      const nextStage = interviewEvents.length + 1;
-                      
-                      // Get candidate's role/position
+                      const maxDone = getEffectiveCompletedInterviewMax(candidate?.notes);
+                      const nextStage = Math.min(5, Math.max(1, maxDone + 1));
+
                       const candidateRole = candidate?.jobPosition || '';
-                      
-                      // Map role to role ID
-                      const roleMap: Record<string, string> = {
-                        'Body Shop Manager': 'body-shop-manager',
-                        'Body Shop Technician': 'support-staff',
-                        'Business Manager': 'c-level-manager',
-                        'Business Office Support': 'office-clerk',
-                        'C-Level Executives': 'c-level-manager',
-                        'Platform Manager': 'c-level-manager',
-                        'Controller': 'finance-manager',
-                        'Finance Manager': 'finance-manager',
-                        'Finance Director': 'finance-manager',
-                        'General Manager': 'gm',
-                        'Human Resources Manager': 'hr-manager',
-                        'IT Manager': 'c-level-manager',
-                        'Loaner Agent': 'support-staff',
-                        'Mobility Manager': 'c-level-manager',
-                        'Parts Counter Employee': 'support-staff',
-                        'Parts Manager': 'parts-manager',
-                        'Parts Support': 'support-staff',
-                        'Drivers': 'support-staff',
-                        'Sales Manager': 'sales-manager',
-                        'GSM': 'sales-manager',
-                        'Sales People': 'salesperson',
-                        'Sales Support': 'support-staff',
-                        'Receptionist': 'office-clerk',
-                        'Service Advisor': 'service-advisor',
-                        'Service Director': 'service-manager',
-                        'Service Drive Manager': 'service-manager',
-                        'Service Manager': 'service-manager',
-                        'Parts and Service Director': 'service-manager',
-                        'Service Support': 'support-staff',
-                        'Porters': 'support-staff',
-                        'Technician': 'support-staff',
-                        'Used Car Director': 'sales-manager',
-                        'Used Car Manager': 'sales-manager',
-                      };
-                      
-                      const roleId = roleMap[candidateRole] || 'c-level-manager';
-                      
+                      const roleId = jobPositionToScoreRoleId(candidateRole);
+
                       router.push(`/candidates/score?candidateId=${candidateId}&role=${roleId}&stage=${nextStage}`);
                     }}
                     className="cursor-pointer w-full rounded-xl p-5 border-2 border-dashed transition-all hover:border-solid hover:bg-gray-50"
@@ -1733,42 +1704,7 @@ export default function CandidateProfilePage() {
                                       onClick={() => {
                                         const stageNum = event.title.match(/\d+/)?.[0] || '';
                                         const candidateRole = candidate?.jobPosition || '';
-                                        const roleMap: Record<string, string> = {
-                                          'Body Shop Manager': 'body-shop-manager',
-                                          'Body Shop Technician': 'support-staff',
-                                          'Business Manager': 'c-level-manager',
-                                          'Business Office Support': 'office-clerk',
-                                          'C-Level Executives': 'c-level-manager',
-                                          'Platform Manager': 'c-level-manager',
-                                          'Controller': 'finance-manager',
-                                          'Finance Manager': 'finance-manager',
-                                          'Finance Director': 'finance-manager',
-                                          'General Manager': 'gm',
-                                          'Human Resources Manager': 'hr-manager',
-                                          'IT Manager': 'c-level-manager',
-                                          'Loaner Agent': 'support-staff',
-                                          'Mobility Manager': 'c-level-manager',
-                                          'Parts Counter Employee': 'support-staff',
-                                          'Parts Manager': 'parts-manager',
-                                          'Parts Support': 'support-staff',
-                                          'Drivers': 'support-staff',
-                                          'Sales Manager': 'sales-manager',
-                                          'GSM': 'sales-manager',
-                                          'Sales People': 'salesperson',
-                                          'Sales Support': 'support-staff',
-                                          'Receptionist': 'office-clerk',
-                                          'Service Advisor': 'service-advisor',
-                                          'Service Director': 'service-manager',
-                                          'Service Drive Manager': 'service-manager',
-                                          'Service Manager': 'service-manager',
-                                          'Parts and Service Director': 'service-manager',
-                                          'Service Support': 'support-staff',
-                                          'Porters': 'support-staff',
-                                          'Technician': 'support-staff',
-                                          'Used Car Director': 'sales-manager',
-                                          'Used Car Manager': 'sales-manager',
-                                        };
-                                        const roleId = roleMap[candidateRole] || 'c-level-manager';
+                                        const roleId = jobPositionToScoreRoleId(candidateRole);
                                         router.push(`/candidates/score?candidateId=${candidateId}&role=${roleId}&stage=${stageNum}&editStage=${stageNum}`);
                                       }}
                                       className="text-xs font-semibold px-3 py-1.5 rounded-md border transition-colors hover:bg-gray-50"
