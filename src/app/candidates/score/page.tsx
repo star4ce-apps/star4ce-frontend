@@ -3302,13 +3302,15 @@ function ScoreCandidatePageContent() {
     }));
   };
 
+  /** Points toward 100: (raw 0–10 / 10) × weight% = raw × weight / 10. Weights should sum to 100. */
   const calculateWeighted = (criterionId: string): number => {
     const criterion = currentCriteria.find(c => c.id === criterionId);
     if (!criterion) return 0;
     const rawScore = scores[criterionId] || 0;
-    return (rawScore * criterion.weight) / 100;
+    return (rawScore * criterion.weight) / 10;
   };
 
+  /** Sum of weighted contributions; 0–100 when criterion weights sum to 100 and all raw scores are 0–10. */
   const totalWeighted = currentCriteria.reduce((sum, criterion) => {
     return sum + calculateWeighted(criterion.id);
   }, 0);
@@ -3370,8 +3372,7 @@ function ScoreCandidatePageContent() {
         return;
       }
 
-      // Convert total weighted score (0-10 scale) to 0-100 scale
-      const scoreOutOf100 = Math.round(totalWeighted * 10);
+      const scoreOutOf100 = Math.round(totalWeighted);
 
       // Get candidate and manager info
       const candidate = candidates.find(c => c.id.toString() === selectedCandidate);
@@ -3397,7 +3398,7 @@ Interviewer Recommendation: ${recommendationText}
 Scores:
 ${criterionNotes}
 
-Total Weighted Score: ${totalWeighted.toFixed(2)}/10 (${scoreOutOf100}/100)${additionalNotes ? `
+Total Weighted Score: ${totalWeighted.toFixed(2)}/100 (${scoreOutOf100}/100)${additionalNotes ? `
 
 Additional Notes:
 ${additionalNotes}` : ''}`;
@@ -3965,7 +3966,7 @@ ${additionalNotes}` : ''}`;
                   color: '#FFFFFF',
                 }}
               >
-                {Math.round(totalWeighted * 10)}/100
+                {Math.round(totalWeighted)}/100
               </span>
             </div>
             <div className="flex items-center gap-3">
