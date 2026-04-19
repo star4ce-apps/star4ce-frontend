@@ -168,3 +168,47 @@ export function isInterviewStageCompletedForUi(notes: string | null | undefined,
   const b = getInterviewNoteBlockForStage(notes, String(stageNum));
   return Boolean(b?.trim());
 }
+
+/**
+ * Replace one interview block when editing/redoing a stage. Uses the same block resolution as
+ * getInterviewNoteBlockForStage (ordinal when labels are duplicated), so we do not append a second card.
+ */
+export function replaceInterviewNoteBlockForStage(
+  notes: string | null | undefined,
+  stageStr: string,
+  newBlock: string,
+): string {
+  const trimmedNew = (newBlock || '').trim();
+  if (!trimmedNew) return (notes || '').trim();
+
+  const existing = (notes || '').trim();
+  if (!existing) return trimmedNew;
+
+  const blocks = collectInterviewNoteBlocks(existing);
+  if (blocks.length === 0) return trimmedNew;
+
+  const target = getInterviewNoteBlockForStage(existing, stageStr);
+  let idx = -1;
+  if (target) {
+    idx = blocks.findIndex((b) => b === target);
+  }
+  if (idx < 0) {
+    const n = parseInt(stageStr, 10);
+    if (!Number.isNaN(n) && n >= 1 && n <= blocks.length) {
+      idx = n - 1;
+    }
+  }
+  if (idx >= 0) {
+    const next = [...blocks];
+    next[idx] = trimmedNew;
+    return next.join('\n\n--- INTERVIEW ---\n\n');
+  }
+
+  // Single interview in notes — replace whole notes (no separator ambiguity)
+  if (blocks.length === 1) {
+    return trimmedNew;
+  }
+
+  // Do not append here (that duplicates scorecards). Caller should refresh notes if this happens.
+  return existing;
+}

@@ -13,6 +13,7 @@ import {
   getEffectiveCompletedInterviewMax,
   getInterviewNoteBlockForStage,
   isInterviewStageCompletedForUi,
+  replaceInterviewNoteBlockForStage,
 } from '@/lib/candidateNotes';
 import toast from 'react-hot-toast';
 
@@ -2803,23 +2804,6 @@ function ScoreCandidatePageContent() {
     }
   }, [highestVisibleInterviewStage, selectedStage, interviewStagesLoadedCandidateId, selectedCandidate]);
 
-  function replaceInterviewBlock(notes: string, stage: string, newBlock: string): string {
-    const trimmedNew = (newBlock || '').trim();
-    if (!trimmedNew) return notes || '';
-
-    const existing = (notes || '').trim();
-    if (!existing) return trimmedNew;
-
-    const blocks = existing.includes('--- INTERVIEW ---')
-      ? existing.split(/--- INTERVIEW ---/g).map((b) => b.trim()).filter(Boolean)
-      : existing.split(/(?=Interview Stage:)/g).map((b) => b.trim()).filter(Boolean);
-
-    const kept = blocks.filter((b) => !new RegExp(`Interview Stage:\\s*${stage}\\b`).test(b));
-    kept.push(trimmedNew);
-
-    return kept.join('\n\n--- INTERVIEW ---\n\n');
-  }
-
   function parseInterviewBlockForPrefill(block: string) {
     const stageMatch = block.match(/Interview Stage:\s*(\d+)/);
     const stage = stageMatch?.[1] || '';
@@ -3412,7 +3396,7 @@ ${additionalNotes}` : ''}`;
       const editStageFromUrl = searchParams?.get('editStage');
       const shouldReplace = Boolean(editStageFromUrl) || allowRedo;
       const updatedNotes = shouldReplace
-        ? replaceInterviewBlock(existingNotes, selectedStage, newInterviewNotes)
+        ? replaceInterviewNoteBlockForStage(existingNotes, selectedStage, newInterviewNotes)
         : (existingNotes && existingNotes.trim()
             ? `${existingNotes.trim()}\n\n--- INTERVIEW ---\n\n${newInterviewNotes}`
             : newInterviewNotes);
