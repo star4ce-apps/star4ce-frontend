@@ -8,6 +8,7 @@ import { API_BASE, getToken } from '@/lib/auth';
 import { getUserPermissions } from '@/lib/permissions';
 import { deleteJsonAuth, getJsonAuth, postJsonAuth, putJsonAuth } from '@/lib/http';
 import { jobPositionToScoreRoleId } from '@/lib/candidateScoreRoleMap';
+import { getEffectiveCompletedInterviewMax } from '@/lib/candidateNotes';
 
 import toast from 'react-hot-toast';
 
@@ -1583,12 +1584,9 @@ export default function CandidateProfilePage() {
                   {canViewInterviewScores && !(['Hired', 'Denied', 'Rejected'].includes((candidate?.stage || '').trim())) && (
                   <button
                     onClick={() => {
-                      // Calculate next interview stage
-                      const events = parseProcessEvents();
-                      const interviewEvents = events.filter(e => e.type === 'interview');
-                      const nextStage = interviewEvents.length + 1;
-                      
-                      // Get candidate's role/position
+                      const maxDone = getEffectiveCompletedInterviewMax(candidate?.notes);
+                      const nextStage = Math.min(5, Math.max(1, maxDone + 1));
+
                       const candidateRole = candidate?.jobPosition || '';
                       const roleId = jobPositionToScoreRoleId(candidateRole);
 

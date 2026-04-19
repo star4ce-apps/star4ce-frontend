@@ -9,6 +9,11 @@ import { API_BASE, getToken } from '@/lib/auth';
 import { getUserPermissions } from '@/lib/permissions';
 import { getJsonAuth, postJsonAuth } from '@/lib/http';
 import { jobPositionToScoreRoleId } from '@/lib/candidateScoreRoleMap';
+import {
+  getEffectiveCompletedInterviewMax,
+  getInterviewNoteBlockForStage,
+  isInterviewStageCompletedForUi,
+} from '@/lib/candidateNotes';
 import toast from 'react-hot-toast';
 
 // Modern color palette - matching surveys page
@@ -2609,6 +2614,8 @@ function ScoreCandidatePageContent() {
   const [selectedManager, setSelectedManager] = useState('');
   const [selectedStage, setSelectedStage] = useState('');
   const [completedStages, setCompletedStages] = useState<Set<number>>(new Set());
+  /** Set when `loadCompletedStages` finishes for `selectedCandidate` (avoids snapping URL stage to 1 before notes load). */
+  const [interviewStagesLoadedCandidateId, setInterviewStagesLoadedCandidateId] = useState<string | null>(null);
   /** Latest candidate notes (for per-stage existing score banner; refreshed with completed stages). */
   const [candidateNotesSnapshot, setCandidateNotesSnapshot] = useState('');
   const [showRedoConfirmation, setShowRedoConfirmation] = useState(false);
@@ -2638,6 +2645,23 @@ function ScoreCandidatePageContent() {
   const rawCriteria = criteriaDataRaw[selectedRole] || [];
   const currentCriteria = mapQuestionsToCriteria(selectedRole, rawCriteria);
   const selectedRoleData = roles.find(r => r.id === selectedRole);
+
+  /** Count + labels: duplicate "Interview Stage: 1" blocks still advance (matches hiring timeline). */
+  const effectiveMaxCompletedInterview = useMemo(
+    () => getEffectiveCompletedInterviewMax(candidateNotesSnapshot),
+    [candidateNotesSnapshot],
+  );
+
+  /** Next stage to score is effectiveMax+1; only show pills through that stage (hide 3–5 until 2 is done, etc.). */
+  const highestVisibleInterviewStage = useMemo(
+    () => Math.min(5, effectiveMaxCompletedInterview + 1),
+    [effectiveMaxCompletedInterview],
+  );
+
+  const visibleInterviewStages = useMemo(
+    () => Array.from({ length: highestVisibleInterviewStage }, (_, i) => i + 1),
+    [highestVisibleInterviewStage],
+  );
 
   useEffect(() => {
     (async () => {
@@ -2699,8 +2723,10 @@ function ScoreCandidatePageContent() {
   // Load completed stages when candidate is selected
   useEffect(() => {
     if (selectedCandidate) {
-      loadCompletedStages(selectedCandidate);
+      setInterviewStagesLoadedCandidateId(null);
+      void loadCompletedStages(selectedCandidate);
     } else {
+      setInterviewStagesLoadedCandidateId(null);
       setCompletedStages(new Set());
       setAllowRedo(false);
       setCandidateNotesSnapshot('');
@@ -2755,14 +2781,14 @@ function ScoreCandidatePageContent() {
     }
   }, [selectedCandidate, selectedCandidatePositionSig, searchParams]);
 
-  function extractInterviewBlock(notes: string, stage: string): string | null {
-    if (!notes || !notes.trim() || !stage) return null;
-    const blocks = notes.includes('--- INTERVIEW ---')
-      ? notes.split(/--- INTERVIEW ---/g)
-      : notes.split(/Interview Stage:/g).map((b, i) => (i === 0 ? b : `Interview Stage:${b}`));
-    const target = blocks.find((b) => new RegExp(`Interview Stage:\\s*${stage}\\b`).test(b));
-    return target ? target.trim() : null;
-  }
+  useEffect(() => {
+    if (!selectedStage || !selectedCandidate) return;
+    if (interviewStagesLoadedCandidateId !== selectedCandidate) return;
+    const n = parseInt(selectedStage, 10);
+    if (Number.isNaN(n) || n < 1 || n > highestVisibleInterviewStage) {
+      setSelectedStage(String(Math.max(1, highestVisibleInterviewStage)));
+    }
+  }, [highestVisibleInterviewStage, selectedStage, interviewStagesLoadedCandidateId, selectedCandidate]);
 
   function replaceInterviewBlock(notes: string, stage: string, newBlock: string): string {
     const trimmedNew = (newBlock || '').trim();
@@ -2917,7 +2943,7 @@ function ScoreCandidatePageContent() {
           `/candidates/${selectedCandidate}`
         );
         const notes = candidateData?.candidate?.notes ?? '';
-        const block = extractInterviewBlock(notes, editStage);
+        const block = getInterviewNoteBlockForStage(notes, editStage);
         if (!block) {
           hasAppliedUrlEditPrefill.current = true;
           return;
@@ -2963,7 +2989,11 @@ function ScoreCandidatePageContent() {
   async function loadCompletedStages(candidateId: string) {
     try {
       const token = getToken();
-      if (!token) return;
+      if (!token) {
+        setCompletedStages(new Set());
+        setCandidateNotesSnapshot('');
+        return;
+      }
 
       const candidateData = await getJsonAuth<{ ok?: boolean; candidate?: { notes?: string } }>(
         `/candidates/${candidateId}`
@@ -3003,14 +3033,26 @@ function ScoreCandidatePageContent() {
       console.error('Failed to load completed stages:', err);
       setCompletedStages(new Set());
       setCandidateNotesSnapshot('');
+    } finally {
+      if (selectedCandidateRef.current === candidateId) {
+        setInterviewStagesLoadedCandidateId(candidateId);
+      }
     }
   }
 
   function handleStageSelection(stage: string) {
     const stageNum = parseInt(stage, 10);
-    
+    if (Number.isNaN(stageNum)) return;
+
+    const effectiveMax = getEffectiveCompletedInterviewMax(candidateNotesSnapshot);
+    const nextSequential = effectiveMax + 1;
+    if (!completedStages.has(stageNum) && stageNum > nextSequential) {
+      toast.error('Complete the previous interview stage first.');
+      return;
+    }
+
     // Check if this stage has already been completed
-    if (completedStages.has(stageNum) && !allowRedo) {
+    if (isInterviewStageCompletedForUi(candidateNotesSnapshot, stageNum) && !allowRedo) {
       // Show confirmation dialog
       setPendingStage(stage);
       setShowRedoConfirmation(true);
@@ -3195,7 +3237,7 @@ function ScoreCandidatePageContent() {
 
     // Check if this stage has already been completed and user hasn't confirmed redo
     const stageNum = parseInt(selectedStage, 10);
-    if (completedStages.has(stageNum) && !allowRedo) {
+    if (isInterviewStageCompletedForUi(candidateNotesSnapshot, stageNum) && !allowRedo) {
       toast.error('This interview stage has already been completed. Please confirm to redo it.');
       setPendingStage(selectedStage);
       setShowRedoConfirmation(true);
@@ -3298,7 +3340,7 @@ ${additionalNotes}` : ''}`;
       await loadCandidates();
       // Reload completed stages if candidate is still selected
       if (selectedCandidate) {
-        loadCompletedStages(selectedCandidate);
+        void loadCompletedStages(selectedCandidate);
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to submit scores';
@@ -3395,12 +3437,12 @@ ${additionalNotes}` : ''}`;
                 selectedCandidate &&
                   selectedStage &&
                   !Number.isNaN(stageNum) &&
-                  completedStages.has(stageNum),
+                  isInterviewStageCompletedForUi(candidateNotesSnapshot, stageNum),
               );
             if (!selectedCandidateObj || !selectedStageHasInterview) {
               return null;
             }
-            const block = extractInterviewBlock(candidateNotesSnapshot, selectedStage);
+            const block = getInterviewNoteBlockForStage(candidateNotesSnapshot, selectedStage);
             const stageTotal = block ? parseTotalOutOf100FromInterviewBlock(block) : null;
             const display =
               stageTotal !== null && stageTotal !== undefined
@@ -3548,9 +3590,9 @@ ${additionalNotes}` : ''}`;
               <label className="block text-sm font-bold mb-2" style={{ color: '#232E40' }}>
                 Interview Stage:
               </label>
-              <div className="flex gap-2">
-                {[1, 2, 3, 4, 5].map((num) => {
-                  const isCompleted = completedStages.has(num);
+              <div className="flex gap-2 flex-wrap">
+                {visibleInterviewStages.map((num) => {
+                  const isCompleted = isInterviewStageCompletedForUi(candidateNotesSnapshot, num);
                   const isSelected = selectedStage === num.toString();
                   return (
                     <button
