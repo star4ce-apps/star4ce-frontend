@@ -2545,6 +2545,16 @@ type Manager = {
   role: string;
 };
 
+/** Payload from GET /interviewers when merging into manager dropdown */
+type InterviewerApiUser = {
+  id: number;
+  email?: string;
+  full_name?: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
+  role?: string;
+};
+
 function managerDisplayName(m: Manager): string {
   if (m.first_name && m.last_name) return `${m.first_name} ${m.last_name}`.trim();
   if (m.first_name) return m.first_name;
@@ -3246,9 +3256,9 @@ function ScoreCandidatePageContent() {
 
       // Fetch all interviewers (admin, manager, hiring_manager, corporate) for this dealership
       try {
-        const data = await getJsonAuth<{ ok?: boolean; interviewers?: any[] }>('/interviewers');
+        const data = await getJsonAuth<{ ok?: boolean; interviewers?: InterviewerApiUser[] }>('/interviewers');
         if (data?.interviewers) {
-          (data.interviewers as any[]).forEach((u: any) => {
+          data.interviewers.forEach((u) => {
             if (!managerExists(u.id)) {
               const fullName = u.full_name || (u.first_name && u.last_name ? `${u.first_name} ${u.last_name}`.trim() : null);
               allManagers.push({
@@ -3559,7 +3569,7 @@ ${additionalNotes}` : ''}`;
                     : `Interview ${selectedStage} already has scores on file`}
                 </p>
                 <p className="text-xs" style={{ color: '#78350F' }}>
-                  Entering new scores will update this interview and the candidate's overall score.
+                  Entering new scores will update this interview and the candidate&apos;s overall score.
                 </p>
               </div>
             );
@@ -3601,8 +3611,8 @@ ${additionalNotes}` : ''}`;
                       .filter(candidate => {
                         if (!candidateSearch) return true;
                         const searchLower = candidateSearch.toLowerCase();
-                        return candidate.name.toLowerCase().includes(searchLower) || 
-                               candidate.position.toLowerCase().includes(searchLower);
+                        return candidate.name.toLowerCase().includes(searchLower) ||
+                               (candidate.position ?? '').toLowerCase().includes(searchLower);
                       })
                       .map(candidate => (
                         <div
@@ -3623,8 +3633,8 @@ ${additionalNotes}` : ''}`;
                     {candidates.filter(candidate => {
                       if (!candidateSearch) return true;
                       const searchLower = candidateSearch.toLowerCase();
-                      return candidate.name.toLowerCase().includes(searchLower) || 
-                             candidate.position.toLowerCase().includes(searchLower);
+                      return candidate.name.toLowerCase().includes(searchLower) ||
+                             (candidate.position ?? '').toLowerCase().includes(searchLower);
                     }).length === 0 && (
                       <div className="px-4 py-2 text-sm" style={{ color: '#6B7280' }}>
                         No candidates found
@@ -3919,7 +3929,7 @@ ${additionalNotes}` : ''}`;
               <div className="flex items-center gap-4 py-3" style={{ borderBottom: '1px solid #E5E7EB' }}>
                 <span className="text-sm font-bold whitespace-nowrap px-3 py-1 rounded" style={{ color: '#047857', backgroundColor: '#6EE7B7', minWidth: '90px' }}>90-100</span>
                 <span className="text-sm font-semibold" style={{ color: '#232E40' }}>Likely Game Changer</span>
-                <span className="text-sm" style={{ color: '#6B7280' }}>— Exceptional talent; could transform the department's performance</span>
+                <span className="text-sm" style={{ color: '#6B7280' }}>— Exceptional talent; could transform the department&apos;s performance</span>
               </div>
               <div className="flex items-center gap-4 py-3" style={{ borderBottom: '1px solid #E5E7EB' }}>
                 <span className="text-sm font-bold whitespace-nowrap px-3 py-1 rounded" style={{ color: '#065F46', backgroundColor: '#A7F3D0', minWidth: '90px' }}>80-89</span>
@@ -3934,7 +3944,7 @@ ${additionalNotes}` : ''}`;
               <div className="flex items-center gap-4 py-3" style={{ borderBottom: '1px solid #E5E7EB' }}>
                 <span className="text-sm font-bold whitespace-nowrap px-3 py-1 rounded" style={{ color: '#92400E', backgroundColor: '#FDE68A', minWidth: '90px' }}>60-69</span>
                 <span className="text-sm font-semibold" style={{ color: '#232E40' }}>Average Candidate</span>
-                <span className="text-sm" style={{ color: '#6B7280' }}>— Won't move the needle; meets basic expectations but lacks standout qualities</span>
+                <span className="text-sm" style={{ color: '#6B7280' }}>— Won&apos;t move the needle; meets basic expectations but lacks standout qualities</span>
               </div>
               <div className="flex items-center gap-4 py-3">
                 <span className="text-sm font-bold whitespace-nowrap px-3 py-1 rounded" style={{ color: '#991B1B', backgroundColor: '#FECACA', minWidth: '90px' }}>59 - 00</span>
@@ -4315,7 +4325,7 @@ ${additionalNotes}` : ''}`;
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '4px 0', borderBottom: '1px solid #ddd' }}>
                     <span style={{ fontWeight: 'bold', padding: '2px 6px', border: '1px solid #000', minWidth: '60px', textAlign: 'center' }}>90-100</span>
                     <span style={{ fontWeight: 'bold' }}>Likely Game Changer</span>
-                    <span style={{ color: '#000' }}>— Exceptional talent; could transform the department's performance</span>
+                    <span style={{ color: '#000' }}>— Exceptional talent; could transform the department&apos;s performance</span>
                         </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '4px 0', borderBottom: '1px solid #ddd' }}>
                     <span style={{ fontWeight: 'bold', padding: '2px 6px', border: '1px solid #000', minWidth: '60px', textAlign: 'center' }}>80-89</span>
@@ -4330,7 +4340,7 @@ ${additionalNotes}` : ''}`;
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '4px 0', borderBottom: '1px solid #ddd' }}>
                     <span style={{ fontWeight: 'bold', padding: '2px 6px', border: '1px solid #000', minWidth: '60px', textAlign: 'center' }}>60-69</span>
                     <span style={{ fontWeight: 'bold' }}>Average Candidate</span>
-                    <span style={{ color: '#000' }}>— Won't move the needle; meets basic expectations but lacks standout qualities</span>
+                    <span style={{ color: '#000' }}>— Won&apos;t move the needle; meets basic expectations but lacks standout qualities</span>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '4px 0' }}>
                     <span style={{ fontWeight: 'bold', padding: '2px 6px', border: '1px solid #000', minWidth: '60px', textAlign: 'center' }}>59-00</span>
