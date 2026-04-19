@@ -2574,6 +2574,18 @@ async function mergeFreshCandidateIntoList(
   }
 }
 
+/** Extract (NN/100) total from one interview block (matches notes format from submit). */
+function parseTotalOutOf100FromInterviewBlock(block: string): number | null {
+  if (!block) return null;
+  const lineMatch = block.match(/Total\s+Weighted\s+Score:\s*([^\n]+)/i);
+  const tail = (lineMatch?.[1] || '').trim();
+  const haystack = tail || block;
+  const paren = haystack.match(/\(\s*(\d+)\s*\/\s*100\s*\)/);
+  if (!paren) return null;
+  const n = parseInt(paren[1], 10);
+  return Number.isNaN(n) ? null : n;
+}
+
 function ScoreCandidatePageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -2582,6 +2594,8 @@ function ScoreCandidatePageContent() {
   const [selectedManager, setSelectedManager] = useState('');
   const [selectedStage, setSelectedStage] = useState('');
   const [completedStages, setCompletedStages] = useState<Set<number>>(new Set());
+  /** Latest candidate notes (for per-stage existing score banner; refreshed with completed stages). */
+  const [candidateNotesSnapshot, setCandidateNotesSnapshot] = useState('');
   const [showRedoConfirmation, setShowRedoConfirmation] = useState(false);
   const [pendingStage, setPendingStage] = useState<string | null>(null);
   const [allowRedo, setAllowRedo] = useState(false);
@@ -2674,6 +2688,7 @@ function ScoreCandidatePageContent() {
     } else {
       setCompletedStages(new Set());
       setAllowRedo(false);
+      setCandidateNotesSnapshot('');
     }
   }, [selectedCandidate]);
 
@@ -2912,6 +2927,7 @@ function ScoreCandidatePageContent() {
         `/candidates/${candidateId}`
       );
       const notes = candidateData?.candidate?.notes ?? '';
+      setCandidateNotesSnapshot(notes);
 
       if (!notes || !notes.trim()) {
         setCompletedStages(new Set());
@@ -2944,6 +2960,7 @@ function ScoreCandidatePageContent() {
     } catch (err) {
       console.error('Failed to load completed stages:', err);
       setCompletedStages(new Set());
+      setCandidateNotesSnapshot('');
     }
   }
 
@@ -3329,20 +3346,38 @@ ${additionalNotes}` : ''}`;
 
           {/* Candidate, Role, Interview Stage, and Interviewer Selection - Top */}
           {(() => {
-            const selectedCandidateObj = candidates.find(c => c.id.toString() === selectedCandidate);
-            if (selectedCandidate && selectedCandidateObj && selectedCandidateObj.score !== null && selectedCandidateObj.score !== undefined) {
-              return (
-                <div className="mb-4 p-3 rounded-lg" style={{ backgroundColor: '#FEF3C7', border: '1px solid #FCD34D' }}>
-                  <p className="text-sm font-semibold" style={{ color: '#92400E' }}>
-                    Existing Score: {selectedCandidateObj.score}/100
-                  </p>
-                  <p className="text-xs" style={{ color: '#78350F' }}>
-                    Entering new scores will update this candidate's score.
-                  </p>
-                </div>
+            const selectedCandidateObj = candidates.find((c) => c.id.toString() === selectedCandidate);
+            const stageNum = selectedStage ? parseInt(selectedStage, 10) : NaN;
+            const selectedStageHasInterview =
+              Boolean(
+                selectedCandidate &&
+                  selectedStage &&
+                  !Number.isNaN(stageNum) &&
+                  completedStages.has(stageNum),
               );
+            if (!selectedCandidateObj || !selectedStageHasInterview) {
+              return null;
             }
-            return null;
+            const block = extractInterviewBlock(candidateNotesSnapshot, selectedStage);
+            const stageTotal = block ? parseTotalOutOf100FromInterviewBlock(block) : null;
+            const display =
+              stageTotal !== null && stageTotal !== undefined
+                ? stageTotal
+                : selectedCandidateObj.score !== null && selectedCandidateObj.score !== undefined
+                  ? selectedCandidateObj.score
+                  : null;
+            return (
+              <div className="mb-4 p-3 rounded-lg" style={{ backgroundColor: '#FEF3C7', border: '1px solid #FCD34D' }}>
+                <p className="text-sm font-semibold" style={{ color: '#92400E' }}>
+                  {display !== null && display !== undefined
+                    ? `Existing score for Interview ${selectedStage}: ${display}/100`
+                    : `Interview ${selectedStage} already has scores on file`}
+                </p>
+                <p className="text-xs" style={{ color: '#78350F' }}>
+                  Entering new scores will update this interview and the candidate's overall score.
+                </p>
+              </div>
+            );
           })()}
           <div className="grid grid-cols-4 gap-4 mb-6">
             <div className="relative">
@@ -4236,8 +4271,11 @@ ${additionalNotes}` : ''}`;
 
       {/* Redo Confirmation Modal */}
       {showRedoConfirmation && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-          <div className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-[2px]"
+          style={{ backgroundColor: 'rgba(71, 85, 105, 0.35)' }}
+        >
+          <div className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4 border border-slate-200">
             <h3 className="text-lg font-semibold mb-4" style={{ color: '#232E40' }}>
               Interview Stage Already Completed
             </h3>
