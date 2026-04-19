@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useState, useEffect, useRef, type Dispatch, type SetStateAction } from 'react';
+import { Suspense, useState, useEffect, useRef, useMemo, type Dispatch, type SetStateAction } from 'react';
 import React from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import HubSidebar from '@/components/sidebar/HubSidebar';
@@ -8,6 +8,7 @@ import RequireAuth from '@/components/layout/RequireAuth';
 import { API_BASE, getToken } from '@/lib/auth';
 import { getUserPermissions } from '@/lib/permissions';
 import { getJsonAuth, postJsonAuth } from '@/lib/http';
+import { jobPositionToScoreRoleId } from '@/lib/candidateScoreRoleMap';
 import toast from 'react-hot-toast';
 
 // Modern color palette - matching surveys page
@@ -2525,7 +2526,7 @@ type Candidate = {
   name: string;
   email: string;
   phone: string | null;
-  position: string;
+  position?: string | null;
   status: string;
   score?: number | null;
 };
@@ -2562,10 +2563,24 @@ async function mergeFreshCandidateIntoList(
       const idx = prev.findIndex((x) => x.id === idNum);
       if (idx === -1) return prev;
       const row = prev[idx];
-      if (row.score === fresh.score && row.name === fresh.name && row.status === fresh.status) return prev;
+      const pos = fresh.position ?? row.position ?? '';
+      if (
+        row.score === fresh.score &&
+        row.name === fresh.name &&
+        row.status === fresh.status &&
+        row.position === pos
+      ) {
+        return prev;
+      }
       return prev.map((c, i) =>
         i === idx
-          ? { ...c, score: fresh.score ?? c.score, name: fresh.name ?? c.name, status: fresh.status ?? c.status }
+          ? {
+              ...c,
+              score: fresh.score ?? c.score,
+              name: fresh.name ?? c.name,
+              status: fresh.status ?? c.status,
+              position: pos,
+            }
           : c,
       );
     });
@@ -2712,6 +2727,33 @@ function ScoreCandidatePageContent() {
     setShowRedoConfirmation(false);
     setPendingStage(null);
   }, [searchParams]);
+
+  const selectedCandidatePositionSig = useMemo(() => {
+    const c = candidates.find((x) => x.id.toString() === selectedCandidate);
+    return c && selectedCandidate ? `${c.id}|${(c.position || '').trim()}` : '';
+  }, [selectedCandidate, candidates]);
+
+  // Match scorecard "Role" to the candidate's job title when they are chosen (avoids wrong rubric after prior session).
+  // Deep links with ?candidateId=&role= still win so profile "Edit score" stays explicit.
+  useEffect(() => {
+    if (!selectedCandidate || !selectedCandidatePositionSig) return;
+    const c = candidates.find((x) => x.id.toString() === selectedCandidate);
+    if (!c) return;
+
+    const urlRole = searchParams?.get('role');
+    const urlCand = searchParams?.get('candidateId');
+    if (urlRole && roles.some((r) => r.id === urlRole) && urlCand === selectedCandidate) {
+      setSelectedRole(urlRole);
+      return;
+    }
+
+    const title = (c.position || '').trim();
+    if (!title) return;
+    const nextRole = jobPositionToScoreRoleId(title);
+    if (roles.some((r) => r.id === nextRole)) {
+      setSelectedRole(nextRole);
+    }
+  }, [selectedCandidate, selectedCandidatePositionSig, searchParams]);
 
   function extractInterviewBlock(notes: string, stage: string): string | null {
     if (!notes || !notes.trim() || !stage) return null;

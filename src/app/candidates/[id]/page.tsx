@@ -7,6 +7,7 @@ import RequireAuth from '@/components/layout/RequireAuth';
 import { API_BASE, getToken } from '@/lib/auth';
 import { getUserPermissions } from '@/lib/permissions';
 import { deleteJsonAuth, getJsonAuth, postJsonAuth, putJsonAuth } from '@/lib/http';
+import { jobPositionToScoreRoleId } from '@/lib/candidateScoreRoleMap';
 
 import toast from 'react-hot-toast';
 
@@ -1589,46 +1590,8 @@ export default function CandidateProfilePage() {
                       
                       // Get candidate's role/position
                       const candidateRole = candidate?.jobPosition || '';
-                      
-                      // Map role to role ID
-                      const roleMap: Record<string, string> = {
-                        'Body Shop Manager': 'body-shop-manager',
-                        'Body Shop Technician': 'support-staff',
-                        'Business Manager': 'c-level-manager',
-                        'Business Office Support': 'office-clerk',
-                        'C-Level Executives': 'c-level-manager',
-                        'Platform Manager': 'c-level-manager',
-                        'Controller': 'finance-manager',
-                        'Finance Manager': 'finance-manager',
-                        'Finance Director': 'finance-manager',
-                        'General Manager': 'gm',
-                        'Human Resources Manager': 'hr-manager',
-                        'IT Manager': 'c-level-manager',
-                        'Loaner Agent': 'support-staff',
-                        'Mobility Manager': 'c-level-manager',
-                        'Parts Counter Employee': 'support-staff',
-                        'Parts Manager': 'parts-manager',
-                        'Parts Support': 'support-staff',
-                        'Drivers': 'support-staff',
-                        'Sales Manager': 'sales-manager',
-                        'GSM': 'sales-manager',
-                        'Sales People': 'salesperson',
-                        'Sales Support': 'support-staff',
-                        'Receptionist': 'office-clerk',
-                        'Service Advisor': 'service-advisor',
-                        'Service Director': 'service-manager',
-                        'Service Drive Manager': 'service-manager',
-                        'Service Manager': 'service-manager',
-                        'Parts and Service Director': 'service-manager',
-                        'Service Support': 'support-staff',
-                        'Porters': 'support-staff',
-                        'Technician': 'support-staff',
-                        'Used Car Director': 'sales-manager',
-                        'Used Car Manager': 'sales-manager',
-                      };
-                      
-                      const roleId = roleMap[candidateRole] || 'c-level-manager';
-                      
+                      const roleId = jobPositionToScoreRoleId(candidateRole);
+
                       router.push(`/candidates/score?candidateId=${candidateId}&role=${roleId}&stage=${nextStage}`);
                     }}
                     className="cursor-pointer w-full rounded-xl p-5 border-2 border-dashed transition-all hover:border-solid hover:bg-gray-50"
@@ -1743,42 +1706,7 @@ export default function CandidateProfilePage() {
                                       onClick={() => {
                                         const stageNum = event.title.match(/\d+/)?.[0] || '';
                                         const candidateRole = candidate?.jobPosition || '';
-                                        const roleMap: Record<string, string> = {
-                                          'Body Shop Manager': 'body-shop-manager',
-                                          'Body Shop Technician': 'support-staff',
-                                          'Business Manager': 'c-level-manager',
-                                          'Business Office Support': 'office-clerk',
-                                          'C-Level Executives': 'c-level-manager',
-                                          'Platform Manager': 'c-level-manager',
-                                          'Controller': 'finance-manager',
-                                          'Finance Manager': 'finance-manager',
-                                          'Finance Director': 'finance-manager',
-                                          'General Manager': 'gm',
-                                          'Human Resources Manager': 'hr-manager',
-                                          'IT Manager': 'c-level-manager',
-                                          'Loaner Agent': 'support-staff',
-                                          'Mobility Manager': 'c-level-manager',
-                                          'Parts Counter Employee': 'support-staff',
-                                          'Parts Manager': 'parts-manager',
-                                          'Parts Support': 'support-staff',
-                                          'Drivers': 'support-staff',
-                                          'Sales Manager': 'sales-manager',
-                                          'GSM': 'sales-manager',
-                                          'Sales People': 'salesperson',
-                                          'Sales Support': 'support-staff',
-                                          'Receptionist': 'office-clerk',
-                                          'Service Advisor': 'service-advisor',
-                                          'Service Director': 'service-manager',
-                                          'Service Drive Manager': 'service-manager',
-                                          'Service Manager': 'service-manager',
-                                          'Parts and Service Director': 'service-manager',
-                                          'Service Support': 'support-staff',
-                                          'Porters': 'support-staff',
-                                          'Technician': 'support-staff',
-                                          'Used Car Director': 'sales-manager',
-                                          'Used Car Manager': 'sales-manager',
-                                        };
-                                        const roleId = roleMap[candidateRole] || 'c-level-manager';
+                                        const roleId = jobPositionToScoreRoleId(candidateRole);
                                         router.push(`/candidates/score?candidateId=${candidateId}&role=${roleId}&stage=${stageNum}&editStage=${stageNum}`);
                                       }}
                                       className="text-xs font-semibold px-3 py-1.5 rounded-md border transition-colors hover:bg-gray-50"
