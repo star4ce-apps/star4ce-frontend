@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
-import { getToken, clearSession } from '@/lib/auth';
+import { getToken, clearSession, getRole } from '@/lib/auth';
 import Image from "next/image";
 import Logo from "@/components/Logo";
 import { isRegistrationEnabled } from "@/lib/registration";
@@ -12,7 +12,9 @@ export default function TopNav()
   const router = useRouter();
   const pathname = usePathname();
   const [email, setEmail] = useState<string | null>(null);
+  const [sessionRole, setSessionRole] = useState<string | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const showStandingsNav = (sessionRole || '').toLowerCase() === 'corporate';
 
   // Re-check on route changes AND when window regains focus or storage changes
   useEffect(() =>
@@ -24,6 +26,7 @@ export default function TopNav()
         ? localStorage.getItem('email')
         : null;
       setEmail(token && storedEmail ? storedEmail : null);
+      setSessionRole(token ? getRole() : null);
     };
 
     check(); // run immediately
@@ -164,14 +167,16 @@ export default function TopNav()
                   >
                     Subscription
                   </Link>
-                  <Link 
-                    href="/standings" 
-                    className={`cursor-pointer text-[#0B2E65] font-bold whitespace-nowrap hover:text-[#2c5aa0] transition-colors ${
-                      pathname === '/standings' ? 'text-[#2c5aa0] border-b-2 border-[#2c5aa0] pb-1' : ''
-                    }`}
-                  >
-                    Standings
-                  </Link>
+                  {showStandingsNav ? (
+                    <Link 
+                      href="/standings" 
+                      className={`cursor-pointer text-[#0B2E65] font-bold whitespace-nowrap hover:text-[#2c5aa0] transition-colors ${
+                        pathname === '/standings' ? 'text-[#2c5aa0] border-b-2 border-[#2c5aa0] pb-1' : ''
+                      }`}
+                    >
+                      Standings
+                    </Link>
+                  ) : null}
                 </>
               ) : (
                 <>
@@ -297,15 +302,17 @@ export default function TopNav()
                       >
                         Subscription
                       </Link>
-                      <Link 
-                        href="/standings" 
-                        className={`px-6 py-3 text-[#0B2E65] font-semibold hover:bg-gray-50 transition-colors ${
-                          pathname === '/standings' ? 'bg-blue-50 text-[#2c5aa0] border-l-4 border-[#2c5aa0]' : ''
-                        }`}
-                        onClick={() => setMobileMenuOpen(false)}
-                      >
-                        Standings
-                      </Link>
+                      {showStandingsNav ? (
+                        <Link 
+                          href="/standings" 
+                          className={`px-6 py-3 text-[#0B2E65] font-semibold hover:bg-gray-50 transition-colors ${
+                            pathname === '/standings' ? 'bg-blue-50 text-[#2c5aa0] border-l-4 border-[#2c5aa0]' : ''
+                          }`}
+                          onClick={() => setMobileMenuOpen(false)}
+                        >
+                          Standings
+                        </Link>
+                      ) : null}
                       <div className="border-t border-gray-200 my-2"></div>
                       <button
                         onClick={() => {
