@@ -29,7 +29,7 @@ const faqs: FAQItem[] = [
   {
     category: 'Getting Started',
     question: 'How do I add a new employee?',
-    answer: 'Navigate to the Employees page and use the link "Have an existing employee? Add them here". This is for adding existing employees (not applicants). Fill in the required fields (marked with *) including name, email, phone, department, position, and status. You can also add optional information like address, date of birth, education, and referrals.'
+    answer: 'On the Employees page, click the blue "+ Add Employee" button (top right). Use it for new hires or anyone who should appear on the roster but is not listed yet. If the person was tracked under Candidates, board them from their candidate profile instead so hiring data stays connected. Fill in the required fields (marked with *) including name, email, phone, department, position, and status. Optional fields include address, date of birth, education, and employee ID. Manager assignment and compensation are not collected on this form—record those in your payroll or HR processes.'
   },
   {
     category: 'Getting Started',
