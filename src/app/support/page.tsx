@@ -39,7 +39,7 @@ const faqs: FAQItem[] = [
   {
     category: 'Getting Started',
     question: 'How do I convert a candidate to an employee?',
-    answer: 'Open the candidate profile, scroll to the "Hiring Decision" tab, and click "Accept". This will move the candidate to the employee list. Note: This action cannot be undone and will permanently delete the candidate\'s resume.'
+    answer: 'Open the candidate profile, scroll to the "Hiring Decision" tab, and click "Accept" to board them as an employee (you will confirm job details in the modal). They move to the employee list and the resume is removed on a set schedule after hire (often within a few days). Hire and deny are final decisions in the product; Change History keeps a record but does not offer revert for those rows.'
   },
   {
     category: 'Employees',
@@ -77,14 +77,14 @@ const faqs: FAQItem[] = [
     answer: 'Yes, all performance reviews are displayed on the employee profile page under the "Performance Reviews" tab. You can see the review history, scores, and comments for each review.'
   },
   {
-    category: 'Role History',
-    question: 'What is role history?',
-    answer: 'Role history tracks all changes made to employees and candidates, including status changes, department changes, and other modifications. You can view the complete history and revert changes if needed.'
+    category: 'Change History',
+    question: 'What is Change History?',
+    answer: 'Change History (under Employees in the sidebar) lists changes to employees and candidates: status, department, role, hires, denies, and more. Candidate hire and deny appear for audit only (no revert). Dealership admins see a revert control on other eligible rows; managers and hiring managers can review the log but cannot revert.'
   },
   {
-    category: 'Role History',
+    category: 'Change History',
     question: 'How do I revert a change?',
-    answer: 'Go to the Role History page, find the entry you want to revert, and click the revert arrow icon. Confirm the action. Note: Some actions like "Employee Created" or "Terminated" cannot be reverted.'
+    answer: 'Open Change History, find the entry, and use the revert arrow in the last column (dealership admins only). Confirm when prompted. Candidate hire and deny rows do not offer revert. Other non-revertable examples include "Employee Created", "Candidate Created", "Terminated", and permission-only user rows.'
   },
   {
     category: 'Analytics',
