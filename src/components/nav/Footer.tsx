@@ -1,8 +1,10 @@
 import Link from 'next/link';
 import Logo from '@/components/Logo';
+import { useUxAuditEnabled } from '@/lib/uxAuditFlag';
 
 export default function Footer()
 {
+  const uxAuditEnabled = useUxAuditEnabled();
   return (
     <footer id="contact" className="bg-[#0B2E65] text-white pt-16 pb-8">
       <div className="max-w-[1200px] mx-auto px-5">
@@ -13,6 +15,7 @@ export default function Footer()
             <p className="text-white/80 text-sm leading-relaxed mb-4">
               Better Hires. Fewer Exits.
             </p>
+            {!uxAuditEnabled ? (
             <div className="flex gap-4">
               <a href="#" className="flex items-center justify-center hover:opacity-80 transition-opacity">
                 <img src="/images/facebook.png" alt="Facebook" className="w-6 h-6 object-contain" />
@@ -27,6 +30,7 @@ export default function Footer()
                 <img src="/images/tiktok.png" alt="TikTok" className="w-6 h-6 object-contain" />
               </a>
             </div>
+            ) : null}
           </div>
 
           {/* Services Column */}
@@ -34,27 +38,27 @@ export default function Footer()
             <h3 className="text-lg font-bold text-white mb-4">Services</h3>
             <ul className="list-none p-0 m-0 space-y-3">
               <li>
-                <Link href="#services" className="text-white/80 hover:text-white transition-colors text-sm">
+                <Link href={uxAuditEnabled ? "/#services" : "#services"} className="text-white/80 hover:text-white transition-colors text-sm">
                   Employee Retention
                 </Link>
               </li>
               <li>
-                <Link href="#services" className="text-white/80 hover:text-white transition-colors text-sm">
+                <Link href={uxAuditEnabled ? "/#services" : "#services"} className="text-white/80 hover:text-white transition-colors text-sm">
                   Workplace Analytics
                 </Link>
               </li>
               <li>
-                <Link href="#services" className="text-white/80 hover:text-white transition-colors text-sm">
+                <Link href={uxAuditEnabled ? "/#services" : "#services"} className="text-white/80 hover:text-white transition-colors text-sm">
                   Team Productivity
                 </Link>
               </li>
               <li>
-                <Link href="#services" className="text-white/80 hover:text-white transition-colors text-sm">
+                <Link href={uxAuditEnabled ? "/#services" : "#services"} className="text-white/80 hover:text-white transition-colors text-sm">
                   Hiring Solutions
                 </Link>
               </li>
               <li>
-                <Link href="#services" className="text-white/80 hover:text-white transition-colors text-sm">
+                <Link href={uxAuditEnabled ? "/#services" : "#services"} className="text-white/80 hover:text-white transition-colors text-sm">
                   Performance Management
                 </Link>
               </li>

@@ -314,6 +314,7 @@ export default function HubSidebar() {
       icon: <CandidateIcon />,
       children: [
         { label: 'Candidate List', href: '/candidates' },
+        { label: 'Interview a Candidate', href: '/candidates/interview' },
         { label: 'Score a Candidate', href: '/candidates/score' },
       ],
     },
