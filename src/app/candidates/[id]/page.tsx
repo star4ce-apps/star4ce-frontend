@@ -530,7 +530,7 @@ export default function CandidateProfilePage() {
     }
 
     // Confirm action
-    if (!confirm('Are you sure you want to deny this application?\n\nThis will:\n- Reject the candidate and update their status to "Denied"\n- Their resume will be kept for one year, then removed\n\nDo you want to proceed?')) {
+    if (!confirm('Are you sure you want to deny this application?\n\nThis will:\n- Reject the candidate and update their status to "Rejected"\n- Keep their resume for one year, then remove it on schedule\n\nDo you want to proceed?')) {
       return;
     }
 
@@ -1989,7 +1989,7 @@ export default function CandidateProfilePage() {
                             ? 'This candidate has already been accepted and moved to the employee list.'
                             : isDenied
                               ? 'This application has been denied. Accept is no longer available.'
-                              : 'Accepting this candidate will move their info to the employee list. Their resume will be removed after 7 days. This action cannot be undone.'}
+                              : 'Accepting boards them as an employee and moves their details to the employee list. Resumes are removed on a set schedule after hire (typically within 7 days).'}
                         </p>
                       </div>
 
@@ -2049,7 +2049,7 @@ export default function CandidateProfilePage() {
                             ? 'This candidate has already been accepted and moved to the employee list.'
                             : isDenied
                             ? 'This application has already been denied.'
-                            : 'Denying this application will reject the candidate. Their resume will be kept for one year, then removed. This action cannot be undone.'}
+                            : 'Denying rejects the application and keeps the resume for one year, then removes it on schedule.'}
                         </p>
                       </div>
                     </div>

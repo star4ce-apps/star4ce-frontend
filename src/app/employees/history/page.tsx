@@ -94,6 +94,14 @@ export default function EmployeeRoleHistoryPage() {
     );
   }
 
+  /** Candidate accept (→ Hired) and deny rows: no revert in UI (final hiring decisions). */
+  function noRevertForCandidateHireOrDeny(entry: HistoryEntry): boolean {
+    if (entry.type !== 'candidate') return false;
+    if (entry.action === 'Denied') return true;
+    const nv = (entry.newValue || '').trim().toLowerCase();
+    return entry.action === 'Status Changed' && nv === 'hired';
+  }
+
   useEffect(() => {
     (async () => {
       const token = getToken();
@@ -325,10 +333,20 @@ export default function EmployeeRoleHistoryPage() {
     });
   };
 
+  /** Backend only allows /role-history/revert for dealership admins (not managers or corporate). */
+  const canRevertHistory = (role || '').toLowerCase() === 'admin';
 
   const actions = Array.from(new Set(entriesToFilter.map(entry => entry.action)));
 
   async function handleRevert(entry: HistoryEntry) {
+    if (!canRevertHistory) {
+      toast.error('Only dealership admins can revert changes from Change History.');
+      return;
+    }
+    if (noRevertForCandidateHireOrDeny(entry)) {
+      toast.error('Hire and deny decisions cannot be reverted from Change History.');
+      return;
+    }
     // Permission/role changes (type user) are not revertable
     if (entry.type === 'user') {
       toast.error('Permission and role changes cannot be reverted from here. Change them again in Users.');
@@ -402,6 +420,14 @@ export default function EmployeeRoleHistoryPage() {
   }
 
   async function handleRevertToOriginal(entry: HistoryEntry) {
+    if (!canRevertHistory) {
+      toast.error('Only dealership admins can undo a revert from Change History.');
+      return;
+    }
+    if (noRevertForCandidateHireOrDeny(entry)) {
+      toast.error('Undo revert is not available for hire or deny history rows.');
+      return;
+    }
     if (!entry.reverted || entry.revert_audit_log_id == null) {
       toast.error('Cannot revert to original for this entry');
       return;
@@ -479,6 +505,8 @@ export default function EmployeeRoleHistoryPage() {
                 <h1 className="text-2xl font-semibold mb-1" style={{ color: COLORS.gray[900] }}>Change History</h1>
                 <p className="text-sm" style={{ color: COLORS.gray[500] }}>
                   Track all role, department, and status changes for employees and candidates.
+                  {' '}
+                  Candidate hire and deny are shown for audit only (no revert). Other eligible rows can be reverted by a dealership admin from the last column. If you never see a revert arrow, your account may be a manager or hiring manager (view-only for reverts).
                 </p>
               </div>
             </div>
@@ -665,7 +693,15 @@ export default function EmployeeRoleHistoryPage() {
                           <SortIcon column="timestamp" />
                         </div>
                       </th>
-                      <th className="text-right py-3 px-4"></th>
+                      <th
+                        className="text-right py-3 px-4 text-[11px] font-semibold uppercase tracking-wider text-white"
+                        title="Only dealership admins can revert or undo a revert"
+                      >
+                        <div className="flex flex-col items-end leading-tight">
+                          <span>Revert</span>
+                          <span className="font-normal normal-case opacity-90" style={{ fontSize: '9px' }}>Admins</span>
+                        </div>
+                      </th>
                     </tr>
                   </thead>
                   <tbody key={listRefreshKey}>
@@ -741,32 +777,66 @@ export default function EmployeeRoleHistoryPage() {
                           <td className="py-3 px-4 text-right">
                             <div className="relative inline-block flex items-center justify-end gap-1">
                               {entry.reverted && entry.revert_audit_log_id != null && !(entry.action === 'Score Changed' && entry.revertViaInfoOnly) ? (
-                                <button
-                                  onClick={() => handleRevertToOriginal(entry)}
-                                  className="p-1.5 rounded-md hover:bg-amber-50 transition-colors"
-                                  style={{ color: '#92400E' }}
-                                  title="Revert to original (undo the revert)"
-                                >
-                                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                                  </svg>
-                                </button>
+                                noRevertForCandidateHireOrDeny(entry) ? (
+                                  <span
+                                    className="text-xs tabular-nums inline-block min-w-[1.25rem] text-right"
+                                    style={{ color: '#9CA3AF' }}
+                                    title="Hire and deny rows do not support undo revert"
+                                  >
+                                    —
+                                  </span>
+                                ) : canRevertHistory ? (
+                                  <button
+                                    onClick={() => handleRevertToOriginal(entry)}
+                                    className="p-1.5 rounded-md hover:bg-amber-50 transition-colors"
+                                    style={{ color: '#92400E' }}
+                                    title="Revert to original (undo the revert)"
+                                  >
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                    </svg>
+                                  </button>
+                                ) : (
+                                  <span className="text-xs tabular-nums inline-block min-w-[1.25rem] text-right" style={{ color: '#9CA3AF' }} title="Only dealership admins can undo a revert">
+                                    —
+                                  </span>
+                                )
                               ) : entry.reverted && entry.revert_audit_log_id != null && entry.action === 'Score Changed' && entry.revertViaInfoOnly ? (
                                 <span className="text-xs" style={{ color: '#9CA3AF' }} title="Undo revert via the Info Changed row above">—</span>
                               ) : entry.action === 'Score Changed' && entry.revertViaInfoOnly ? (
                                 <span className="text-xs" style={{ color: '#9CA3AF' }} title="Revert via the Info Changed row above">—</span>
-                              ) : (
+                              ) : noRevertForCandidateHireOrDeny(entry) ? (
+                                <span
+                                  className="text-xs tabular-nums inline-block min-w-[1.25rem] text-right"
+                                  style={{ color: '#9CA3AF' }}
+                                  title="Hire and deny are recorded for history; revert is not available for these rows"
+                                >
+                                  —
+                                </span>
+                              ) : canRevertHistory ? (
                                 <button
                                   onClick={() => handleRevert(entry)}
                                   disabled={entry.type === 'user' || entry.action === 'Candidate Created' || entry.action === 'Employee Created' || entry.action === 'Terminated' || (entry.action !== 'Employee Removed' && entry.action !== 'Candidate Deleted' && (!entry.previousValue || entry.previousValue === '—' || entry.previousValue === 'N/A')) || entry.reverted}
                                   className="p-1.5 rounded-md hover:bg-gray-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                                   style={{ color: '#6B7280' }}
-                                  title={entry.type === 'user' ? 'Permission/role changes cannot be reverted' : 'Revert this change'}
+                                  title={
+                                    entry.type === 'user'
+                                      ? 'Permission/role changes cannot be reverted from here. Change them again in Users.'
+                                      : 'Revert this change'
+                                  }
                                 >
                                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
                                   </svg>
                                 </button>
+                              ) : (
+                                <span
+                                  className="text-xs tabular-nums inline-block min-w-[1.25rem] text-right"
+                                  style={{ color: '#9CA3AF' }}
+                                  title="Only dealership admins can revert eligible rows from Change History"
+                                >
+                                  —
+                                </span>
                               )}
                             </div>
                           </td>

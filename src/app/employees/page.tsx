@@ -728,17 +728,18 @@ export default function EmployeesPage() {
                 </p>
               </div>
               {role !== 'corporate' && canCreateEmployee ? (
-                <span className="text-sm">
-                  <span style={{ color: COLORS.gray[600] }}>Have an existing employee? </span>
-                  <button
-                    type="button"
-                    onClick={() => setShowModal(true)}
-                    className="cursor-pointer font-medium transition-opacity hover:opacity-80 bg-transparent border-0 p-0"
-                    style={{ color: '#4D6DBE' }}
-                  >
-                    Add them here
-                  </button>
-                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowModal(true)}
+                  className="inline-flex items-center gap-2 cursor-pointer text-sm font-semibold text-white rounded-lg px-4 py-2.5 shadow-sm transition-all hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#4D6DBE]"
+                  style={{ backgroundColor: '#4D6DBE' }}
+                  aria-label="Add employee"
+                >
+                  <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  Add Employee
+                </button>
               ) : role === 'corporate' ? (
                 <div className="px-3 py-2 rounded-lg text-xs font-medium" style={{ backgroundColor: '#F3F4F6', color: '#6B7280' }}>
                   View-Only Mode
@@ -1717,12 +1718,27 @@ export default function EmployeesPage() {
                 onClick={(e) => e.stopPropagation()}
               >
                 <div className="p-4 border-b" style={{ borderColor: '#E5E7EB', backgroundColor: '#4D6DBE' }}>
-                  <h2 className="text-xl font-bold mb-0.5" style={{ color: '#FFFFFF' }}>Add an Existing Employee</h2>
-                  <p className="text-xs" style={{ color: '#E0E7FF' }}>Fields marked with * are required</p>
+                  <h2 className="text-xl font-bold mb-0.5" style={{ color: '#FFFFFF' }}>Add employee</h2>
+                  <p className="text-xs" style={{ color: '#E0E7FF' }}>
+                    Add a new hire or import someone onto the roster who is not listed yet. Fields marked with * are required.
+                  </p>
                 </div>
-                <p className="px-5 pt-4 pb-0 text-sm" style={{ color: '#6B7280' }}>
-                  This is for adding in employees that already exist. To board candidates, you must go to their candidate profile to board.
-                </p>
+                <div className="px-5 pt-4 space-y-3 text-sm" style={{ color: '#6B7280' }}>
+                  <p>
+                    Use this when you are recording someone directly in the employee list—for example a new hire, a transfer,
+                    or long-tenured staff who were never entered here. If the person went through{' '}
+                    <strong className="font-medium" style={{ color: COLORS.gray[700] }}>Candidates</strong> in this product,
+                    complete onboarding from their candidate profile so hiring history stays linked.
+                  </p>
+                  <div
+                    className="rounded-lg p-3 text-xs leading-relaxed"
+                    style={{ backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0', color: '#475569' }}
+                  >
+                    <span className="font-semibold" style={{ color: COLORS.gray[700] }}>Manager and compensation: </span>
+                    This form captures roster, job, and contact details only. Direct manager assignment and pay or compensation
+                    are not stored in this step—keep those in your payroll or HR records as needed.
+                  </div>
+                </div>
                 <form onSubmit={handleSubmit} className="p-5">
                   <div className="grid grid-cols-2 gap-3 mb-3">
                     <div>
@@ -2086,7 +2102,7 @@ export default function EmployeesPage() {
                       className="cursor-pointer px-5 py-2 text-sm font-semibold text-white rounded-lg transition-all hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed"
                       style={{ backgroundColor: '#4D6DBE' }}
                     >
-                      {loading ? 'Adding...' : 'Add'}
+                      {loading ? 'Adding...' : 'Add employee'}
                     </button>
                   </div>
                 </form>
