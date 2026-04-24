@@ -381,7 +381,7 @@ function AdminRegisterPageContent() {
     <div 
       className="fixed flex items-center justify-center overflow-hidden"
       style={{
-        top: '110px',
+        top: '76px',
         left: 0,
         right: 0,
         bottom: 0,

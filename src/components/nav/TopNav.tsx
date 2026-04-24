@@ -6,11 +6,13 @@ import { getToken, clearSession, getRole } from '@/lib/auth';
 import Image from "next/image";
 import Logo from "@/components/Logo";
 import { isRegistrationEnabled } from "@/lib/registration";
+import { useUxAuditEnabled } from '@/lib/uxAuditFlag';
 
 export default function TopNav()
 {
   const router = useRouter();
   const pathname = usePathname();
+  const uxAuditEnabled = useUxAuditEnabled();
   const [email, setEmail] = useState<string | null>(null);
   const [sessionRole, setSessionRole] = useState<string | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -43,6 +45,154 @@ export default function TopNav()
   {
     clearSession();
     router.push('/login');
+  }
+
+  // UX audit: single marketing header (no utility bar) for all non-dashboard routes.
+  // (Dashboard routes don't render TopNav via AppShell; survey route doesn't render TopNav either.)
+  if (uxAuditEnabled) {
+    return (
+      <header className="fixed w-full top-0 z-[1000] shadow-md bg-white border-b border-slate-200">
+        <div className="max-w-[1200px] mx-auto px-5">
+          <div className="h-[76px] flex items-center justify-between gap-4">
+            <Link href="/" className="flex items-center hover:scale-[1.02] transition-transform flex-shrink-0">
+              <Logo size="lg" />
+            </Link>
+
+            <nav className="hidden lg:flex items-center gap-4 xl:gap-6">
+              <Link
+                href="/"
+                className={`cursor-pointer text-[#0B2E65] font-bold whitespace-nowrap hover:text-[#2c5aa0] transition-colors ${
+                  pathname === '/' ? 'text-[#2c5aa0] border-b-2 border-[#2c5aa0] pb-1' : ''
+                }`}
+              >
+                Home
+              </Link>
+              <Link
+                href="/choose-star4ce"
+                className={`cursor-pointer text-[#0B2E65] font-bold whitespace-nowrap hover:text-[#2c5aa0] transition-colors ${
+                  pathname === '/choose-star4ce' ? 'text-[#2c5aa0] border-b-2 border-[#2c5aa0] pb-1' : ''
+                }`}
+              >
+                Choose Star4ce
+              </Link>
+              <Link
+                href="/case-studies"
+                className={`cursor-pointer text-[#0B2E65] font-bold whitespace-nowrap hover:text-[#2c5aa0] transition-colors ${
+                  pathname === '/case-studies' ? 'text-[#2c5aa0] border-b-2 border-[#2c5aa0] pb-1' : ''
+                }`}
+              >
+                Case Studies
+              </Link>
+              <Link
+                href="/pricing"
+                className={`cursor-pointer text-[#0B2E65] font-bold whitespace-nowrap hover:text-[#2c5aa0] transition-colors ${
+                  pathname === '/pricing' ? 'text-[#2c5aa0] border-b-2 border-[#2c5aa0] pb-1' : ''
+                }`}
+              >
+                Pricing
+              </Link>
+            </nav>
+
+            <div className="flex items-center gap-3 flex-shrink-0">
+              {email ? (
+                <>
+                  <div className="hidden sm:flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5">
+                    <Link href="/dashboard" className="text-xs font-medium text-slate-700 hover:underline">
+                      {email}
+                    </Link>
+                    <span className="text-slate-300">|</span>
+                    <button onClick={handleLogout} className="cursor-pointer text-xs font-medium text-slate-700 hover:underline">
+                      Logout
+                    </button>
+                  </div>
+                  <Link
+                    href="/dashboard"
+                    className="hidden lg:block cursor-pointer bg-[#0B2E65] text-white px-4 py-2 rounded uppercase font-bold hover:bg-[#2c5aa0] transition-colors whitespace-nowrap shadow-sm"
+                  >
+                    Go to Dashboard
+                  </Link>
+                </>
+              ) : (
+                <>
+                  <Link href="/login" className="hidden sm:block cursor-pointer text-[#0B2E65] font-semibold hover:underline whitespace-nowrap">
+                    Login
+                  </Link>
+                  {isRegistrationEnabled() ? (
+                    <Link href="/register" className="hidden sm:block cursor-pointer text-[#0B2E65] font-semibold hover:underline whitespace-nowrap">
+                      Register
+                    </Link>
+                  ) : null}
+                  <Link
+                    href="/pricing"
+                    className="hidden lg:block cursor-pointer bg-[#0B2E65] text-white px-4 py-2 rounded uppercase font-bold hover:bg-[#2c5aa0] transition-colors whitespace-nowrap shadow-sm"
+                  >
+                    Explore Plans
+                  </Link>
+                </>
+              )}
+
+              <button
+                className="cursor-pointer lg:hidden text-[#0B2E65] text-2xl font-bold p-2 hover:bg-gray-100 rounded transition-colors"
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                aria-label="Toggle menu"
+              >
+                {mobileMenuOpen ? '✕' : '☰'}
+              </button>
+            </div>
+          </div>
+
+          {mobileMenuOpen && (
+            <div className="border-t border-slate-200 lg:hidden">
+              <div className="flex flex-col py-2">
+                <Link href="/" className="px-4 py-3 text-[#0B2E65] font-semibold hover:bg-slate-50" onClick={() => setMobileMenuOpen(false)}>
+                  Home
+                </Link>
+                <Link href="/choose-star4ce" className="px-4 py-3 text-[#0B2E65] font-semibold hover:bg-slate-50" onClick={() => setMobileMenuOpen(false)}>
+                  Choose Star4ce
+                </Link>
+                <Link href="/case-studies" className="px-4 py-3 text-[#0B2E65] font-semibold hover:bg-slate-50" onClick={() => setMobileMenuOpen(false)}>
+                  Case Studies
+                </Link>
+                <Link href="/pricing" className="px-4 py-3 text-[#0B2E65] font-semibold hover:bg-slate-50" onClick={() => setMobileMenuOpen(false)}>
+                  Pricing
+                </Link>
+                <div className="border-t border-slate-200 my-2" />
+                {email ? (
+                  <>
+                    <Link href="/dashboard" className="px-4 py-3 text-[#0B2E65] font-semibold hover:bg-slate-50" onClick={() => setMobileMenuOpen(false)}>
+                      Go to Dashboard
+                    </Link>
+                    <button
+                      onClick={() => {
+                        handleLogout();
+                        setMobileMenuOpen(false);
+                      }}
+                      className="cursor-pointer px-4 py-3 text-left text-red-600 font-semibold hover:bg-red-50 transition-colors"
+                    >
+                      Logout
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <Link href="/login" className="px-4 py-3 text-[#0B2E65] font-semibold hover:bg-slate-50" onClick={() => setMobileMenuOpen(false)}>
+                      Login
+                    </Link>
+                    {isRegistrationEnabled() ? (
+                      <Link href="/register" className="px-4 py-3 text-[#0B2E65] font-semibold hover:bg-slate-50" onClick={() => setMobileMenuOpen(false)}>
+                        Register
+                      </Link>
+                    ) : null}
+                    <Link href="/pricing" className="px-4 py-3 text-[#0B2E65] font-semibold hover:bg-slate-50" onClick={() => setMobileMenuOpen(false)}>
+                      Explore Plans
+                    </Link>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </header>
+    );
   }
 
   return (

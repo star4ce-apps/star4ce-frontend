@@ -4,9 +4,21 @@ import { usePathname } from "next/navigation";
 import Footer from "../nav/Footer";
 import PageScripts from "../PageScripts";
 import TopNav from "../nav/TopNav";
+import { useUxAuditEnabled } from "@/lib/uxAuditFlag";
 
 export default function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const uxAuditEnabled = useUxAuditEnabled();
+
+  const isMarketingRoute =
+    pathname === '/' ||
+    pathname?.startsWith('/pricing') ||
+    pathname?.startsWith('/choose-star4ce') ||
+    pathname?.startsWith('/case-studies') ||
+    pathname?.startsWith('/about') ||
+    pathname?.startsWith('/privacy') ||
+    pathname?.startsWith('/terms') ||
+    pathname?.startsWith('/legal');
 
   // Dashboard pages have their own layout, so skip Footer
   const isDashboardPage = pathname?.startsWith('/dashboard') ||
@@ -45,7 +57,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen flex flex-col bg-white">
       <TopNav />
-      <main className="flex-1 pt-[110px]">{children}</main>
+      <main className={`flex-1 ${uxAuditEnabled ? 'pt-[76px]' : 'pt-[110px]'}`}>{children}</main>
       {showFooter && <Footer />}
       <PageScripts />
     </div>
