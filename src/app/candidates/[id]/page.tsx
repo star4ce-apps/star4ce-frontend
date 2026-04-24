@@ -9,6 +9,8 @@ import { getUserPermissions } from '@/lib/permissions';
 import { deleteJsonAuth, getJsonAuth, postJsonAuth, putJsonAuth } from '@/lib/http';
 import { jobPositionToScoreRoleId } from '@/lib/candidateScoreRoleMap';
 import { getEffectiveCompletedInterviewMax } from '@/lib/candidateNotes';
+import { listInterviewSessions } from '@/lib/interviewApi';
+import type { InterviewSession } from '@/lib/interviewTypes';
 
 import toast from 'react-hot-toast';
 
@@ -187,6 +189,8 @@ export default function CandidateProfilePage() {
   const [canViewCandidates, setCanViewCandidates] = useState<boolean | null>(null);
   const [canManageCandidate, setCanManageCandidate] = useState(false);
   const [canViewInterviewScores, setCanViewInterviewScores] = useState(true);
+  const [interviewSessions, setInterviewSessions] = useState<InterviewSession[]>([]);
+  const [loadingInterviewSessions, setLoadingInterviewSessions] = useState(false);
   const notesTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const resumeBlobUrlRef = useRef<string | null>(null);
   const [resumePreviewUrl, setResumePreviewUrl] = useState<string | null>(null);
@@ -289,6 +293,16 @@ export default function CandidateProfilePage() {
       }
     };
   }, []);
+
+  // Load new interview sessions (structured). Backend may not support yet; fail silently.
+  useEffect(() => {
+    if (!Number.isFinite(candidateId)) return;
+    setLoadingInterviewSessions(true);
+    listInterviewSessions(candidateId)
+      .then((sessions) => setInterviewSessions(sessions || []))
+      .catch(() => setInterviewSessions([]))
+      .finally(() => setLoadingInterviewSessions(false));
+  }, [candidateId]);
 
   useEffect(() => {
     if (isNaN(candidateId) || !candidateId) {
@@ -516,7 +530,7 @@ export default function CandidateProfilePage() {
     }
 
     // Confirm action
-    if (!confirm('Are you sure you want to deny this application?\n\nThis will:\n- Reject the candidate and update their status to "Denied"\n- Their resume will be kept for one year, then removed\n\nDo you want to proceed?')) {
+    if (!confirm('Are you sure you want to deny this application?\n\nThis will:\n- Reject the candidate and update their status to "Rejected"\n- Keep their resume for one year, then remove it on schedule\n\nDo you want to proceed?')) {
       return;
     }
 
@@ -1580,6 +1594,31 @@ export default function CandidateProfilePage() {
             <div className="col-span-2 space-y-4">
               {activeTab === 'hiring-process' && (
                 <>
+                  {/* Live Interview workspace (new flow) */}
+                  <button
+                    type="button"
+                    onClick={() => router.push(`/candidates/${candidateId}/interview`)}
+                    className="cursor-pointer w-full rounded-xl p-5 border transition-all hover:bg-gray-50"
+                    style={{ borderColor: '#E5E7EB', backgroundColor: '#FFFFFF' }}
+                  >
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ backgroundColor: '#DBEAFE' }}>
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: '#1E40AF' }}>
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" />
+                          </svg>
+                        </div>
+                        <div className="text-left">
+                          <div className="text-sm font-semibold" style={{ color: '#232E40' }}>Live Interview Workspace</div>
+                          <div className="text-xs" style={{ color: '#6B7280' }}>Standardized questions, real-time notes, focus mode.</div>
+                        </div>
+                      </div>
+                      <span className="text-xs font-semibold px-3 py-1.5 rounded-md" style={{ backgroundColor: '#0B2E65', color: '#FFFFFF' }}>
+                        Start →
+                      </span>
+                    </div>
+                  </button>
+
                   {/* Add New Interview Score - only when user can view interview scores */}
                   {canViewInterviewScores && !(['Hired', 'Denied', 'Rejected'].includes((candidate?.stage || '').trim())) && (
                   <button
@@ -1950,7 +1989,7 @@ export default function CandidateProfilePage() {
                             ? 'This candidate has already been accepted and moved to the employee list.'
                             : isDenied
                               ? 'This application has been denied. Accept is no longer available.'
-                              : 'Accepting this candidate will move their info to the employee list. Their resume will be removed after 7 days. This action cannot be undone.'}
+                              : 'Accepting boards them as an employee and moves their details to the employee list. Resumes are removed on a set schedule after hire (typically within 7 days).'}
                         </p>
                       </div>
 
@@ -2010,7 +2049,7 @@ export default function CandidateProfilePage() {
                             ? 'This candidate has already been accepted and moved to the employee list.'
                             : isDenied
                             ? 'This application has already been denied.'
-                            : 'Denying this application will reject the candidate. Their resume will be kept for one year, then removed. This action cannot be undone.'}
+                            : 'Denying rejects the application and keeps the resume for one year, then removes it on schedule.'}
                         </p>
                       </div>
                     </div>
@@ -2023,6 +2062,56 @@ export default function CandidateProfilePage() {
 
             {/* Sidebar */}
             <div className="space-y-4">
+              {/* Interview Sessions (new flow) */}
+              <div className="rounded-xl p-5" style={{ backgroundColor: '#FFFFFF', border: '1px solid #E5E7EB' }}>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-bold" style={{ color: '#232E40' }}>Interview Sessions</h3>
+                  <button
+                    type="button"
+                    onClick={() => router.push(`/candidates/${candidateId}/interview`)}
+                    className="text-xs font-medium cursor-pointer hover:underline"
+                    style={{ color: '#4D6DBE' }}
+                  >
+                    Open
+                  </button>
+                </div>
+                {loadingInterviewSessions ? (
+                  <p className="text-sm" style={{ color: '#6B7280' }}>Loading sessions…</p>
+                ) : interviewSessions.length === 0 ? (
+                  <p className="text-sm" style={{ color: '#6B7280' }}>
+                    No sessions yet.
+                  </p>
+                ) : (
+                  <div className="space-y-3">
+                    {interviewSessions.slice(0, 6).map((s) => (
+                      <div key={s.id} className="rounded-lg border p-3" style={{ borderColor: '#E5E7EB' }}>
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="text-xs font-semibold uppercase tracking-wider" style={{ color: '#6B7280' }}>
+                              {s.role_key} • {s.status}
+                            </div>
+                            <div className="text-sm font-medium truncate" style={{ color: '#232E40' }}>
+                              Session {s.id}
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => router.push(`/candidates/${candidateId}/interview/${s.id}/scorecard`)}
+                            className="text-xs font-semibold px-2.5 py-1.5 rounded-md border hover:bg-gray-50"
+                            style={{ borderColor: '#E5E7EB', color: '#0B2E65' }}
+                          >
+                            Scorecard →
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                    {interviewSessions.length > 6 ? (
+                      <p className="text-xs" style={{ color: '#6B7280' }}>Showing latest 6 sessions.</p>
+                    ) : null}
+                  </div>
+                )}
+              </div>
+
               {/* Personal & Education Information */}
               <div className="rounded-xl p-5" style={{ backgroundColor: '#FFFFFF', border: '1px solid #E5E7EB' }}>
                 <div className="flex items-center justify-between mb-4">
