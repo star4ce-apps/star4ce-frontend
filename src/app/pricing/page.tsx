@@ -33,8 +33,8 @@ export default function PricingPage() {
         backgroundSize: 'cover',
         backgroundPosition: 'center',
         backgroundAttachment: 'fixed',
-        top: '110px',
-        height: 'calc(100vh - 110px)',
+        top: '76px',
+        height: 'calc(100vh - 76px)',
       }}
     >
       {/* Blurred background overlay */}

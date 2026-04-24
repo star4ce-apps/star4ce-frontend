@@ -2644,6 +2644,8 @@ function ScoreCandidatePageContent() {
   const [candidateSearch, setCandidateSearch] = useState('');
   const [showCandidateDropdown, setShowCandidateDropdown] = useState(false);
   const [interviewerRecommendation, setInterviewerRecommendation] = useState('');
+  const [firstImpressionAttire, setFirstImpressionAttire] = useState<'yes' | 'no' | ''>('');
+  const [firstImpressionPunctuality, setFirstImpressionPunctuality] = useState<'yes' | 'no' | ''>('');
   const [role, setRole] = useState<string | null>(null);
   const [canViewCandidates, setCanViewCandidates] = useState<boolean | null>(null);
   const hasAppliedUrlRoleStage = useRef(false);
@@ -3765,78 +3767,126 @@ ${additionalNotes}` : ''}`;
             </div>
           </div>
 
-          {/* Ice Breaker Questions */}
-          {iceBreakerQuestions[selectedRole] && iceBreakerQuestions[selectedRole].length > 0 && (
-            <div className="mb-6 p-5 rounded-lg" style={{ backgroundColor: '#F0F9FF', border: '1px solid #BAE6FD' }}>
-              <h3 className="text-base font-bold mb-3" style={{ color: '#1E40AF' }}>Ice Breaker Questions</h3>
-              <ol className="space-y-2 list-decimal list-inside">
-                {iceBreakerQuestions[selectedRole].map((question, idx) => (
-                  <li key={idx} className="text-sm leading-relaxed" style={{ color: '#1E3A8A' }}>
-                    {question}
-                  </li>
-                ))}
-              </ol>
+          {/* First Impression Evaluation (interviewer worksheet style) */}
+          <div className="mb-6 p-4 rounded-lg" style={{ backgroundColor: '#FFFFFF', border: '1px solid #E5E7EB' }}>
+            <div className="text-sm font-bold mb-3" style={{ color: '#232E40' }}>
+              First Impression Evaluation
             </div>
-          )}
-
-          {/* Scoring Cards */}
-          <div className="space-y-4">
-                {currentCriteria.length === 0 ? (
-              <div className="py-8 px-6 text-center text-sm rounded-lg" style={{ backgroundColor: '#FFFFFF', border: '1px solid #E5E7EB', color: '#6B7280' }}>
-                      No criteria defined for this role.
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="rounded-lg p-3" style={{ border: '1px solid #E5E7EB', backgroundColor: '#FAFAFA' }}>
+                <div className="text-xs font-semibold mb-2" style={{ color: '#374151' }}>
+                  Professional Attire
+                </div>
+                <div className="flex items-center gap-5 text-sm" style={{ color: '#374151' }}>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="first-impression-attire"
+                      value="yes"
+                      checked={firstImpressionAttire === 'yes'}
+                      onChange={() => setFirstImpressionAttire('yes')}
+                    />
+                    Yes
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="first-impression-attire"
+                      value="no"
+                      checked={firstImpressionAttire === 'no'}
+                      onChange={() => setFirstImpressionAttire('no')}
+                    />
+                    No
+                  </label>
+                </div>
               </div>
-                ) : (
-                  currentCriteria.map((criterion) => (
-                <div
-                  key={criterion.id}
-                  className="rounded-lg overflow-hidden transition-all duration-200 hover:shadow-md"
-                  style={{
-                    backgroundColor: '#FFFFFF',
-                    border: '1px solid #E5E7EB',
-                    boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
-                  }}
-                >
-                  {/* Card Header */}
-                  <div className="px-6 py-4 flex items-center justify-between" style={{ backgroundColor: '#4D6DBE' }}>
-                    <span className="text-base font-semibold text-white">
-                      {criterion.name}
-                    </span>
-                    <span className="text-sm font-bold text-white">
-                      {criterion.weight}%
-                    </span>
-                  </div>
-                  <div className="p-6">
-                    {criterion.questions.length > 0 && (
-                      <div className="space-y-2 mb-4">
-                        {criterion.questions.map((question) => (
-                          <p key={question.id} className="text-sm font-semibold leading-relaxed break-words" style={{ color: '#374151', maxWidth: '800px' }}>
-                            {question.text}
-                          </p>
-                        ))}
-                      </div>
-                    )}
-                    {criterion.interviewQuestions && (
-                      <div className="mb-4 pt-4 border-t" style={{ borderColor: '#E5E7EB' }}>
-                        <div className="text-sm font-semibold mb-2" style={{ color: '#374151' }}>Interview Questions:</div>
-                        <ul className="space-y-2">
-                          {criterion.interviewQuestions.roleSpecific && criterion.interviewQuestions.roleSpecific.map((q, idx) => (
-                            <li key={`role-${idx}`} className="text-sm leading-relaxed" style={{ color: '#374151' }}>
-                              • {q}
-                            </li>
-                          ))}
-                          {criterion.interviewQuestions.starBehavioral && criterion.interviewQuestions.starBehavioral.map((q, idx) => (
-                            <li key={`star-${idx}`} className="text-sm leading-relaxed" style={{ color: '#374151' }}>
-                              • {q}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
 
-                  {/* Scoring Section */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4 pt-4 border-t" style={{ borderColor: '#E5E7EB' }}>
-                    <div className="flex flex-col gap-2">
-                      <label className="text-xs font-semibold" style={{ color: '#374151' }}>Raw Score (out of 10)</label>
+              <div className="rounded-lg p-3" style={{ border: '1px solid #E5E7EB', backgroundColor: '#FAFAFA' }}>
+                <div className="text-xs font-semibold mb-2" style={{ color: '#374151' }}>
+                  Punctuality
+                </div>
+                <div className="flex items-center gap-5 text-sm" style={{ color: '#374151' }}>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="first-impression-punctuality"
+                      value="yes"
+                      checked={firstImpressionPunctuality === 'yes'}
+                      onChange={() => setFirstImpressionPunctuality('yes')}
+                    />
+                    Yes
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="first-impression-punctuality"
+                      value="no"
+                      checked={firstImpressionPunctuality === 'no'}
+                      onChange={() => setFirstImpressionPunctuality('no')}
+                    />
+                    No
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Scorecard table (matches printed worksheet format) */}
+          {currentCriteria.length === 0 ? (
+            <div
+              className="py-8 px-6 text-center text-sm rounded-lg"
+              style={{ backgroundColor: '#FFFFFF', border: '1px solid #E5E7EB', color: '#6B7280' }}
+            >
+              No criteria defined for this role.
+            </div>
+          ) : (
+            <div className="rounded-lg overflow-hidden mb-6" style={{ backgroundColor: '#FFFFFF', border: '1px solid #E5E7EB' }}>
+              <div className="px-6 py-4" style={{ backgroundColor: '#4D6DBE' }}>
+                <div className="text-base font-semibold text-white">Scorecard</div>
+                <div className="text-xs text-blue-100 mt-0.5">Enter raw score (0–10). Weighted and total calculate automatically.</div>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-sm" style={{ borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ backgroundColor: '#FAFAFA' }}>
+                      <th className="text-left px-4 py-3" style={{ borderBottom: '1px solid #E5E7EB', color: '#374151' }}>
+                        Criterion
+                      </th>
+                      <th className="text-center px-3 py-3 whitespace-nowrap" style={{ borderBottom: '1px solid #E5E7EB', color: '#374151' }}>
+                        Weight %
+                      </th>
+                      <th className="text-center px-3 py-3 whitespace-nowrap" style={{ borderBottom: '1px solid #E5E7EB', color: '#374151' }}>
+                        Raw (out of 10)
+                      </th>
+                      <th className="text-center px-3 py-3 whitespace-nowrap" style={{ borderBottom: '1px solid #E5E7EB', color: '#374151' }}>
+                        Weighted
+                      </th>
+                      <th className="text-left px-4 py-3" style={{ borderBottom: '1px solid #E5E7EB', color: '#374151' }}>
+                        Comments
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {currentCriteria.map((criterion) => (
+                      <tr key={criterion.id}>
+                        <td className="align-top px-4 py-4" style={{ borderBottom: '1px solid #E5E7EB' }}>
+                          <div className="font-semibold" style={{ color: '#232E40' }}>
+                            {criterion.name}
+                          </div>
+                          {criterion.questions?.length ? (
+                            <ul className="mt-2 space-y-1">
+                              {criterion.questions.map((q) => (
+                                <li key={q.id} className="text-xs leading-relaxed" style={{ color: '#6B7280' }}>
+                                  • {q.text}
+                                </li>
+                              ))}
+                            </ul>
+                          ) : null}
+                        </td>
+                        <td className="align-top px-3 py-4 text-center" style={{ borderBottom: '1px solid #E5E7EB', color: '#374151' }}>
+                          <span className="font-semibold">{criterion.weight}%</span>
+                        </td>
+                        <td className="align-top px-3 py-4 text-center" style={{ borderBottom: '1px solid #E5E7EB' }}>
                           <input
                             type="number"
                             min="0"
@@ -3844,49 +3894,43 @@ ${additionalNotes}` : ''}`;
                             step="0.1"
                             value={scores[criterion.id] || ''}
                             onChange={(e) => handleScoreChange(criterion.id, e.target.value)}
-                        className="w-full px-3 py-2 text-sm rounded-lg text-center transition-all focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            className="w-24 px-3 py-2 text-sm rounded-lg text-center transition-all focus:outline-none focus:ring-2 focus:ring-blue-500"
                             style={{
                               border: '1px solid #D1D5DB',
                               color: '#374151',
                               backgroundColor: '#FFFFFF',
-                          WebkitAppearance: 'none',
-                          MozAppearance: 'textfield',
+                              WebkitAppearance: 'none',
+                              MozAppearance: 'textfield',
                             }}
-                            placeholder="0.0 / 10"
-                        onWheel={(e) => e.currentTarget.blur()}
-                      />
-                    </div>
-                    <div className="flex flex-col gap-2">
-                      <label className="text-xs font-semibold" style={{ color: '#374151' }}>Weighted Score</label>
-                      <div className="px-3 py-2 text-sm font-bold rounded-lg text-center" style={{ 
-                        color: '#232E40',
-                        backgroundColor: '#F3F4F6',
-                        border: '1px solid #E5E7EB'
-                      }}>
+                            placeholder="0.0"
+                            onWheel={(e) => e.currentTarget.blur()}
+                          />
+                        </td>
+                        <td className="align-top px-3 py-4 text-center" style={{ borderBottom: '1px solid #E5E7EB' }}>
+                          <div
+                            className="inline-flex items-center justify-center w-24 px-3 py-2 text-sm font-bold rounded-lg"
+                            style={{ color: '#232E40', backgroundColor: '#F3F4F6', border: '1px solid #E5E7EB' }}
+                          >
                             {calculateWeighted(criterion.id).toFixed(2)}
-                      </div>
-                    </div>
-                    <div className="flex flex-col gap-2">
-                      <label className="text-xs font-semibold" style={{ color: '#374151' }}>Comments</label>
-                      <textarea
-                        value={criterionComments[criterion.id] || ''}
-                        onChange={(e) => setCriterionComments(prev => ({ ...prev, [criterion.id]: e.target.value }))}
-                        className="w-full px-3 py-2 text-sm rounded-lg border resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        style={{
-                          border: '1px solid #D1D5DB',
-                          color: '#374151',
-                          backgroundColor: '#FFFFFF',
-                        }}
-                        rows={3}
-                        placeholder="Add comments..."
-                      />
-                    </div>
-                  </div>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
+                          </div>
+                        </td>
+                        <td className="align-top px-4 py-4" style={{ borderBottom: '1px solid #E5E7EB' }}>
+                          <textarea
+                            value={criterionComments[criterion.id] || ''}
+                            onChange={(e) => setCriterionComments((prev) => ({ ...prev, [criterion.id]: e.target.value }))}
+                            className="w-full min-w-[260px] px-3 py-2 text-sm rounded-lg border resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            style={{ border: '1px solid #D1D5DB', color: '#374151', backgroundColor: '#FFFFFF' }}
+                            rows={3}
+                            placeholder="Comments…"
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
 
           {/* Additional Notes Section */}
           <div className="mt-8 mb-6">
